@@ -97,6 +97,9 @@ class RegularizedLinearSurvivalModel(LinearModel):
 
         Notes
         ---
-        To be implemented in each child class.
+        We exclusively rely on `predict_cumulative_hazard_function`
+        and simply transform this to the survival function.
         """
-        raise NotImplementedError
+        return np.exp(
+            np.negative(self.predict_cumulative_hazard_function(X, time))
+        )
