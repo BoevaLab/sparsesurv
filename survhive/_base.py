@@ -1,10 +1,12 @@
-from typing import List, Union
+from typing import List, Union, Optional
 
 import copt as cp
 import numpy as np
 import pandas as pd
 from sklearn.linear_model._base import LinearModel
 from sklearn.utils.validation import check_X_y
+
+from proximal_operators import ProximalOperator
 
 # TODO:
 # - Look into warnings and catching/turning these off or do we not
@@ -23,19 +25,19 @@ from sklearn.utils.validation import check_X_y
 class RegularizedLinearSurvivalModel(LinearModel):
     def __init__(
         self,
-        alpha: Union[None, float],
+        alpha: Optional[float],
         _lambda: float,
         groups: List[Union[int, List[int]]],
         # TODO: Need to actually write this interface class
         # to make it work with this.
         prox: ProximalOperator,
-        scale_group: Union[None, str] = "group_length",
+        scale_group: Optional[str] = "group_length",
         solver: str = "copt",
         warm_start: bool = True,
         max_iter: int = 1000,
         tol: float = 1e-7,
         verbose: int = 0,
-        random_state: Union[None, int] = None,
+        random_state: Optional[int] = None,
     ):
         self.alpha = alpha
         self._lambda = _lambda
