@@ -136,8 +136,7 @@ class GroupSCADProximal(ProximalOperator):
 
 
 class MPCProximal(ProximalOperator):
-    # TODO: Figure out what we put for default for gamma
-    def __init__(self, threshold: float, gamma=np.nan) -> None:
+    def __init__(self, threshold: float, gamma=4.0) -> None:
         super().__init__(threshold)
         self.gamma: float = gamma
 
@@ -146,8 +145,7 @@ class MPCProximal(ProximalOperator):
 
 
 class MPCGroupProximal(ProximalOperator):
-    # TODO: Figure out what we put for default for gamma
-    def __init__(self, threshold: float, gamma=np.nan) -> None:
+    def __init__(self, threshold: float, gamma=4.0) -> None:
         super().__init__(threshold)
         self.gamma: float = gamma
 
