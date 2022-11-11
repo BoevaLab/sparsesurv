@@ -69,6 +69,13 @@ def _mcp_thresh_group(x: np.array, threshold: float, gamma: float) -> np.array:
     ) * (1 - mask) + x * mask
 
 
+@jit(nopython=True, cache=True)
+def _gel_derivative(coef: np.array, threshold: float, tau: float) -> np.array:
+    return threshold * np.exp(
+        np.negative(tau / threshold) * np.sum(np.abs(coef))
+    )
+
+
 class ProximalOperator:
     def __init__(self, threshold) -> None:
         self.threshold: float = threshold
@@ -156,3 +163,23 @@ class MPCGroupProximal(ProximalOperator):
             )
         return coef
 
+
+class GELProximal(ProximalOperator):
+    # TODO: Double check whether this actually results in sparse
+    # groups.
+    def __init__(
+        self, threshold: float, groups: List[np.array], tau: float = 1 / 3
+    ) -> None:
+        super().__init__(threshold)
+        self.tau: float = tau
+        self.groups = groups
+
+    def __call__(self, coef: np.array) -> np.array:
+        for ix, group in self.groups:
+            coef[group] = _soft_threshold(
+                x=coef[group],
+                threshold=_gel_derivative(
+                    coef=coef[group], threshold=self.threshold, tau=self.tau
+                ),
+            )
+        return coef
