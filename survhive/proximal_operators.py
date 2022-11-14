@@ -3,11 +3,6 @@ from typing import List
 import numpy as np
 from numba import jit
 
-# TODO:
-# - Figure out whether the latent group lasso stuff will work
-# for everything?
-# - Other biselection regularizers
-
 
 @jit(nopython=True, cache=True)
 def _soft_threshold(x: np.array, threshold: float) -> np.array:
