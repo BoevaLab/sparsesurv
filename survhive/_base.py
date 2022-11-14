@@ -6,7 +6,7 @@ import pandas as pd
 from sklearn.linear_model._base import LinearModel
 from sklearn.utils.validation import check_X_y
 
-from proximal_operators import ProximalOperator
+from .proximal_operators import ProximalOperator
 
 # TODO:
 # - Look into warnings and catching/turning these off or do we not
@@ -20,17 +20,16 @@ from proximal_operators import ProximalOperator
 # - Look into parallelism (refer to scikit Lasso function).
 # - Include check sample weight.
 # - Actually seed the random state.
+# - Switch to scikit style checks everywhere
 
 
 class RegularizedLinearSurvivalModel(LinearModel):
     def __init__(
         self,
         alpha: Optional[float],
-        _lambda: float,
+        threshold: float,
         groups: List[Union[int, List[int]]],
-        # TODO: Need to actually write this interface class
-        # to make it work with this.
-        prox: ProximalOperator,
+        proximal_operator: ProximalOperator,
         scale_group: Optional[str] = "group_length",
         solver: str = "copt",
         warm_start: bool = True,
@@ -40,9 +39,9 @@ class RegularizedLinearSurvivalModel(LinearModel):
         random_state: Optional[int] = None,
     ):
         self.alpha = alpha
-        self._lambda = _lambda
+        self.threshold = threshold
         self.groups = groups
-        self.prox = prox
+        self.proximal_operator = proximal_operator
         self.scale_group = scale_group
         self.solver = solver
         self.warm_start = warm_start
@@ -86,9 +85,9 @@ class RegularizedLinearSurvivalModel(LinearModel):
                 f"`alpha` must be either of type float or None. Got {self.alpha} of type {type(self.alpha)} instead."
             )
 
-        if not isinstance(self._lambda, float):
-            if isinstance(self._lambda, int):
-                self.lambd = float(self._lambda)
+        if not isinstance(self.threshold, float):
+            if isinstance(self.threshold, int):
+                self.lambd = float(self.threshold)
             else:
                 raise ValueError(
                     f"`_lambda` must be of type float. Got type {type(self._lambda)} instead."
@@ -106,11 +105,9 @@ class RegularizedLinearSurvivalModel(LinearModel):
                 raise ValueError(
                     f"`scale_group` must be either of type str or None. Got {self.scale_group} of type {type(self.scale_group)} instead."
                 )
-
-        # TODO: Need to implement this interface for ProximalOperator.
-        if not isinstance(self.prox, ProximalOperator):
+        if not isinstance(self.proximal_operator, ProximalOperator):
             raise ValueError(
-                f"`prox` must be of type ProximalOperator. Got type {type(self.prox)} instead."
+                f"`prox` must be of type ProximalOperator. Got type {type(self.proximal_operator)} instead."
             )
 
         if not isinstance(self.solver, str):
