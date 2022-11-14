@@ -8,6 +8,7 @@ from sklearn.utils.validation import check_X_y
 
 from .baseline_hazard import CUMULATIVE_BASELINE_HAZARD_FACTORY
 from .proximal_operators import ProximalOperator
+from .utils import transform_survival_target, check_groups, check_survival_y
 
 # TODO:
 # - Look into warnings and catching/turning these off or do we not
@@ -22,15 +23,15 @@ from .proximal_operators import ProximalOperator
 # - Include check sample weight.
 # - Actually seed the random state.
 # - Switch to scikit style checks everywhere
+# - Pass Proximal operator params to the proximal operator and do proximal operator checks
 
 
 class RegularizedLinearSurvivalModel(LinearModel):
     def __init__(
         self,
-        alpha: Optional[float],
         threshold: float,
         groups: List[Union[int, List[int]]],
-        proximal_operator: ProximalOperator,
+        proximal_operator: str = "lasso",
         scale_group: Optional[str] = "group_length",
         solver: str = "copt",
         warm_start: bool = True,
@@ -38,6 +39,10 @@ class RegularizedLinearSurvivalModel(LinearModel):
         tol: float = 1e-7,
         verbose: int = 0,
         random_state: Optional[int] = None,
+        psi: float = 0.0,
+        alpha: Optional[float] = None,
+        gamma: Optional[float] = 4.0,
+        tau: Optional[float] = 1 / 3,
     ):
         self.alpha = alpha
         self.threshold = threshold
@@ -194,9 +199,9 @@ class RegularizedLinearSurvivalModel(LinearModel):
         coef_ = np.zeros(self.n_features_)
         if self.solver == "copt":
             pgd = cp.minimize_proximal_gradient(
-                self.model(X, y).grad,
+                self.grad,
                 coef_,
-                self.prox,
+                self.proximal_operator,
                 jac=True,
                 step="backtracking",
                 max_iter=self.max_iter,
@@ -287,5 +292,7 @@ class RegularizedLinearSurvivalModel(LinearModel):
         and simply transform this to the survival function.
         """
         return np.exp(
-            np.negative(self.predict_cumulative_hazard_function(X, time))
+            np.negative(
+                self.predict_cumulative_hazard_function(X=X, time=time)
+            )
         )
