@@ -76,6 +76,32 @@ def _gel_derivative(coef: np.array, threshold: float, tau: float) -> np.array:
     )
 
 
+@jit(nopython=True, cache=True)
+def _mcp(coef: np.array, threshold: float, gamma: float) -> np.array:
+    mask = coef <= gamma * threshold
+    return mask * (threshold * gamma - (coef**2 / (2 * gamma))) + (
+        1 - mask
+    ) * (gamma * (threshold**2) / 2)
+
+
+@jit(nopython=True, cache=True)
+def _mcp_derivative(
+    coef: np.array, threshold: float, gamma: float
+) -> np.array:
+    return np.max(threshold - (coef / gamma), 0)
+
+
+@jit(nopython=True, cache=True)
+def _cmcp_derivative(
+    coef: np.array, threshold: float, gamma: float
+) -> np.array:
+    _mcp_derivative(
+        coef=np.sum(_mcp(coef=np.abs(coef), threshold=threshold, gamma=gamma)),
+        threshold=threshold,
+        gamma=gamma,
+    ) * _mcp_derivative(coef=np.abs(coef), threshold=threshold, gamma=gamma)
+
+
 class ProximalOperator:
     def __init__(self, threshold) -> None:
         self.threshold: float = threshold
@@ -160,6 +186,24 @@ class MPCGroupProximal(ProximalOperator):
         for group in self.groups:
             coef[group] = _mcp_thresh_group(
                 coef[group], threshold=self.threshold, gamma=self.gamma
+            )
+        return coef
+
+
+class CMCPProximal(ProximalOperator):
+    def __init__(self, threshold: float, gamma=4.0) -> None:
+        super().__init__(threshold)
+        self.gamma: float = gamma
+
+    def __call__(self, coef: np.array) -> np.array:
+        for group in self.groups:
+            coef[group] = _soft_threshold(
+                coef[group],
+                threshold=_cmcp_derivative(
+                    coef=coef[group],
+                    threshold=self.threshold,
+                    gamma=self.gamma,
+                ),
             )
         return coef
 
