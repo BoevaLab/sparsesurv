@@ -209,8 +209,6 @@ class CMCPProximal(ProximalOperator):
 
 
 class GELProximal(ProximalOperator):
-    # TODO: Double check whether this actually results in sparse
-    # groups.
     def __init__(
         self, threshold: float, groups: List[np.array], tau: float = 1 / 3
     ) -> None:
@@ -219,7 +217,7 @@ class GELProximal(ProximalOperator):
         self.groups = groups
 
     def __call__(self, coef: np.array) -> np.array:
-        for ix, group in self.groups:
+        for group in self.groups:
             coef[group] = _soft_threshold(
                 x=coef[group],
                 threshold=_gel_derivative(
