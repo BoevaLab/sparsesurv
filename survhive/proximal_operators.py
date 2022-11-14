@@ -129,7 +129,7 @@ class GroupLassoProximal(ProximalOperator):
         return coef
 
 
-class SparseGroupLassoProximal(ProximalOperator):
+class SGLProximal(ProximalOperator):
     def __init__(
         self, threshold: float, alpha: float, groups: List[np.array]
     ) -> None:
@@ -138,7 +138,7 @@ class SparseGroupLassoProximal(ProximalOperator):
         self.groups: List[np.array] = groups
 
     def __call__(self, coef: np.array) -> np.array:
-        return GroupLassoProximal(
+        return GLProximal(
             threshold=self.threshold * (1 - self.alpha), groups=self.groups
         )(coef) * LassoProximal(threshold=self.threshold * self.alpha)(coef)
 
@@ -152,7 +152,7 @@ class SCADProximal(ProximalOperator):
         _scad_thresh(coef, threshold=self.threshold, a=self.a)
 
 
-class GroupSCADProximal(ProximalOperator):
+class GSCADProximal(ProximalOperator):
     def __init__(
         self, threshold: float, groups: List[np.array], a: float = 3.7
     ) -> None:
@@ -168,7 +168,7 @@ class GroupSCADProximal(ProximalOperator):
         return coef
 
 
-class MPCProximal(ProximalOperator):
+class MCPProximal(ProximalOperator):
     def __init__(self, threshold: float, gamma=4.0) -> None:
         super().__init__(threshold)
         self.gamma: float = gamma
@@ -177,7 +177,7 @@ class MPCProximal(ProximalOperator):
         _mcp_thresh(coef, threshold=self.threshold, gamma=self.gamma)
 
 
-class MPCGroupProximal(ProximalOperator):
+class GMCPProximal(ProximalOperator):
     def __init__(self, threshold: float, gamma=4.0) -> None:
         super().__init__(threshold)
         self.gamma: float = gamma
