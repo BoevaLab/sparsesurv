@@ -118,7 +118,7 @@ class LassoProximal(ProximalOperator):
         return _soft_threshold(coef, self.threshold)
 
 
-class GroupLassoProximal(ProximalOperator):
+class GLProximal(ProximalOperator):
     def __init__(self, threshold: float, groups: List[np.array]) -> None:
         super().__init__(threshold)
         self.groups: List[np.array] = groups
