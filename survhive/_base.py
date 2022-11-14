@@ -1,4 +1,4 @@
-from typing import List, Union, Optional
+from typing import List, Optional, Union
 
 import copt as cp
 import numpy as np
@@ -6,6 +6,7 @@ import pandas as pd
 from sklearn.linear_model._base import LinearModel
 from sklearn.utils.validation import check_X_y
 
+from .baseline_hazard import CUMULATIVE_BASELINE_HAZARD_FACTORY
 from .proximal_operators import ProximalOperator
 
 # TODO:
@@ -212,6 +213,10 @@ class RegularizedLinearSurvivalModel(LinearModel):
 
         self.coef_ = pgd.x
         self.is_fitted = True
+        self.baseline_cumulative_hazard = CUMULATIVE_BASELINE_HAZARD_FACTORY[
+            self.baseline_hazard_estimator
+        ](X=X, y=y, coef=self.coef_)
+        self.baseline_cumulative_hazard_cached = True
 
     def predict_hazard_function(
         self, X: pd.DataFrame, time: np.array
