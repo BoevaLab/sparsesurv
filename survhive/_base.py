@@ -52,6 +52,10 @@ class RegularizedLinearSurvivalModel(LinearModel):
         # TODO: Briefly verify that this holds for all models.
         # Survival models (generally do not have an intercept).
         self.intercept_ = 0.0
+        # By default, we have not calculated the baseline
+        # cumulative hazard yet, so we set the caching tracker
+        # to false.
+        self.baseline_cumulative_hazard_cached = False
 
     def fit(
         self,
