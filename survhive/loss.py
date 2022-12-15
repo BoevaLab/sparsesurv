@@ -1,12 +1,17 @@
 import numpy as np
 from numba import jit
-from scipy.stats import norm
-from utils import e_func, inverse_transform_survival_target
+from utils import (
+    e_func,
+    e_func_i,
+    inverse_transform_survival_target,
+    norm_pdf,
+    norm_cdf,
+)
 
 
 # the Kernel function chosen is the normal denisty function as used in the paper
 # i.e. K(.) = norm(.)
-# @jit(nopython=True, cache=True)
+@jit(nopython=True, cache=True)
 def ah_loss(
     X: np.array,
     y: np.array,
@@ -19,26 +24,29 @@ def ah_loss(
 
     e_matrix = e_func(X, time, coef)
 
-    term1 = np.sum(e_matrix[event, :]) / n_samples
+    term1 = np.sum(e_matrix[event]) / n_samples
 
-    kernel_input_matrix = (
-        np.subtract.outer(e_matrix, e_matrix).reshape(n_samples, n_samples) / bandwidth
-    )
+    term2 = 0
+    term3 = 0
+    for i in range(n_samples):
+        term2j = 0
+        term3j = 0
+        for j in range(n_samples):
+            kernel_input = (
+                e_func_i(X, time, coef, j) - e_func_i(X, time, coef, i)
+            ) / bandwidth
+            term2j += event[j] * norm_pdf(kernel_input)
+            term3j += np.exp(-np.dot(X[j], coef.T)) * norm_cdf(kernel_input)
+        term2 += event[i] * np.log(term2j / n_samples / bandwidth)
+        term3 += event[i] * np.log(term3j / n_samples)
+    term2 /= n_samples
+    term3 /= n_samples
 
-    pdf_matrix = np.vectorize(norm.pdf)(kernel_input_matrix)
-    term2 = np.sum(pdf_matrix[:, event], axis=1, keepdims=True) / n_samples / bandwidth
-    term2 = np.sum(np.log(term2)[event, :]) / n_samples
-
-    cdf_matrix = np.vectorize(norm.cdf)(kernel_input_matrix)
-    term3 = np.exp(-np.dot(X, coef.T)) * cdf_matrix
-    term3 = np.sum(term3, axis=1, keepdims=True) / n_samples
-    term3 = np.sum(np.log(term3)[event, :]) / n_samples
-
-    return -term1 + term2 - term3
+    return term1 - term2 + term3
 
 
 # use normal densifty function as gaussian kernel, e_func is the same as R_func in the paper
-# @jit(nopython=True, cache=True)
+@jit(nopython=True, cache=True)
 def aft_loss(
     X: np.array,
     y: np.array,
@@ -52,18 +60,22 @@ def aft_loss(
     e_matrix = e_func(X, time, coef)
 
     term1 = np.sum(np.dot(X, coef.T)[event]) / n_samples
-    term2 = np.sum(e_matrix[event, :]) / n_samples
+    term2 = np.sum(e_matrix[event]) / n_samples
 
-    kernel_input_matrix = (
-        np.subtract.outer(e_matrix, e_matrix).reshape(n_samples, n_samples) / bandwidth
-    )
+    term3 = 0
+    term4 = 0
+    for i in range(n_samples):
+        term3j = 0
+        term4j = 0
+        for j in range(n_samples):
+            kernel_input = (
+                e_func_i(X, time, coef, j) - e_func_i(X, time, coef, i)
+            ) / bandwidth
+            term3j += event[j] * norm_pdf(kernel_input)
+            term4j += norm_cdf(kernel_input)
+        term3 += event[i] * np.log(term3j / n_samples / bandwidth)
+        term4 += event[i] * np.log(term4j / n_samples)
+    term3 /= n_samples
+    term4 /= n_samples
 
-    pdf_matrix = np.vectorize(norm.pdf)(kernel_input_matrix)
-    term3 = np.sum(pdf_matrix[:, event], axis=1, keepdims=True) / n_samples / bandwidth
-    term3 = np.sum(np.log(term3)[event, :]) / n_samples
-
-    cdf_matrix = np.vectorize(norm.cdf)(kernel_input_matrix)
-    term4 = np.sum(cdf_matrix, axis=1, keepdims=True) / n_samples
-    term4 = np.sum(np.log(term4)[event, :]) / n_samples
-
-    return term1 - term2 + term3 - term4
+    return -term1 + term2 - term3 + term4
