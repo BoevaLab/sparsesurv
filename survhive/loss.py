@@ -17,7 +17,7 @@ def ah_loss(
     y: np.array,
     coef: np.array,
     bandwidth: float,
-) -> np.array:
+) -> float:
 
     n_samples = X.shape[0]
     time, event = inverse_transform_survival_target(y)
@@ -52,7 +52,7 @@ def aft_loss(
     y: np.array,
     coef: np.array,
     bandwidth: float,
-) -> np.array:
+) -> float:
 
     n_samples = X.shape[0]
     time, event = inverse_transform_survival_target(y)
