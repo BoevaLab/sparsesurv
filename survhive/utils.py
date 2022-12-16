@@ -21,6 +21,11 @@ def norm_pdf(x: float) -> float:
 
 
 @jit(nopython=True, cache=True)
+def norm_pdf_prime(x: float) -> float:
+    return -norm_pdf(x) * x
+
+
+@jit(nopython=True, cache=True)
 # @vectorize([float64(float64)])
 def norm_cdf(x: float) -> float:
     return 0.5 + erf(x / np.sqrt(2)) / 2
