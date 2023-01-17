@@ -6,8 +6,11 @@ import pandas as pd
 from sklearn.linear_model._base import LinearModel
 
 from .baseline_hazard import CUMULATIVE_BASELINE_HAZARD_FACTORY
+from .proximal_operators import ElasticNetProximal
 from .utils import (
     _check_max_iter,
+    _check_nu,
+    _check_penalty_factors,
     _check_proximal_operator,
     _check_solver,
     _check_tol,
@@ -31,6 +34,7 @@ class RegularizedLinearSurvivalModel(LinearModel):
         alpha: Optional[float] = None,
         gamma: Optional[float] = 4.0,
         tau: Optional[float] = 1 / 3,
+        nu: Optional[float] = 1.0,
     ):
         self.proximal_operator = proximal_operator
         self.groups = groups
@@ -45,6 +49,8 @@ class RegularizedLinearSurvivalModel(LinearModel):
         self.alpha = alpha
         self.gamma = gamma
         self.tau = tau
+        self.nu = nu
+
         # By default, we have not calculated the baseline
         # cumulative hazard yet, so we set the caching tracker
         # to false.
@@ -70,16 +76,25 @@ class RegularizedLinearSurvivalModel(LinearModel):
         ---
         To be implemented in each child class.
         """
+        penalty_factors = _check_penalty_factors(self.penalty_factors)
         proximal_operator = _check_proximal_operator(
             proximal_operator=self.proximal_operator,
             groups=self.groups,
             scale_group=self.scale_group,
-            penalty_factors=self.penalty_factors,
+            penalty_factors=penalty_factors,
             threshold=self.threshold,
             alpha=self.alpha,
             gamma=self.gamma,
             tau=self.tau,
         )
+        nu = _check_nu(nu=self.nu)
+        if nu:
+            proximal_operator = ElasticNetProximal(
+                proximal_operator=proximal_operator,
+                threshold=self.threshold * penalty_factors,
+                nu=nu,
+            )
+
         solver = _check_solver(self.solver)
         max_iter = _check_max_iter(self.max_iter)
         tol = _check_tol(self.max_tol)
@@ -112,11 +127,9 @@ class RegularizedLinearSurvivalModel(LinearModel):
         ) = CUMULATIVE_BASELINE_HAZARD_FACTORY[self.baseline_hazard_estimator](
             X=X, y=y, coef=self.coef_
         )
-        self.baseline_cumulative_hazard_cached: bool = True
+        self.baseline_cumulative_hazard_cached = True
 
-    def predict_hazard_function(
-        self, X: pd.DataFrame, time: np.array
-    ) -> pd.DataFrame:
+    def predict_hazard_function(self, X: pd.DataFrame, time: np.array) -> pd.DataFrame:
         """Predict hazard function for each sample and each requested time.
 
         Parameters
@@ -183,7 +196,5 @@ class RegularizedLinearSurvivalModel(LinearModel):
         and simply transform this to the survival function.
         """
         return np.exp(
-            np.negative(
-                self.predict_cumulative_hazard_function(X=X, time=time)
-            )
+            np.negative(self.predict_cumulative_hazard_function(X=X, time=time))
         )
