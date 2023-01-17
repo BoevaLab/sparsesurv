@@ -2,8 +2,10 @@ import numpy as np
 from numba import jit
 from scipy.stats import norm
 from sklearn.utils.extmath import safe_sparse_dot
-from utils import (
+
+from .utils import (
     e_func_i,
+    get_gradient_latent_overlapping_group_lasso,
     inverse_transform_survival_target,
     norm_cdf,
     norm_pdf,
@@ -13,7 +15,13 @@ from utils import (
 
 @jit(nopython=True, cache=True)
 def cox_ph_breslow_negative_gradient(
-    coef: np.array, X: np.array, y: np.array, risk_matrix: np.array
+    coef: np.array,
+    X: np.array,
+    y: np.array,
+    risk_matrix: np.array,
+    groups=None,
+    has_overlaps=False,
+    inverse_groups=None,
 ):
     _: np.array
     event: np.array
@@ -21,7 +29,7 @@ def cox_ph_breslow_negative_gradient(
     log_partial_hazard: np.array = safe_sparse_dot(X, coef.T, dense_output=True)
     death_ix: np.array = event == 1
 
-    return np.negative(
+    gradient = np.negative(
         np.sum(
             log_partial_hazard[death_ix]
             - np.log(
@@ -32,11 +40,22 @@ def cox_ph_breslow_negative_gradient(
             )
         )
     )
+    if has_overlaps:
+        gradient = get_gradient_latent_overlapping_group_lasso(
+            gradient, groups, inverse_groups
+        )
+    return gradient
 
 
 @jit(nopython=True, cache=True)
 def cox_ph_efron_negative_gradient(
-    coef: np.array, X: np.array, risk_matrix: np.array, death_matrix: np.array
+    coef: np.array,
+    X: np.array,
+    risk_matrix: np.array,
+    death_matrix: np.array,
+    groups=None,
+    has_overlaps=False,
+    inverse_groups=None,
 ):
     log_partial_hazard: np.array = safe_sparse_dot(X, coef.T, dense_output=True)
     death_matrix_sum = np.sum(death_matrix, axis=0)
@@ -52,7 +71,7 @@ def cox_ph_efron_negative_gradient(
     for ix, qx in enumerate(death_matrix_sum):
         efron_matrix[qx:, ix] = 0
         helper_matrix[qx:, ix] = 1
-    return np.sum(
+    gradient = np.sum(
         death_set_log_partial_hazard
         - np.sum(
             np.log(
@@ -65,6 +84,12 @@ def cox_ph_efron_negative_gradient(
         )
     )
 
+    if has_overlaps:
+        gradient = get_gradient_latent_overlapping_group_lasso(
+            gradient, groups, inverse_groups
+        )
+    return gradient
+
 
 @jit(nopython=True, cache=True)
 def ah_gradient(
@@ -72,6 +97,9 @@ def ah_gradient(
     y: np.array,
     coef: np.array,
     bandwidth: float,
+    groups=None,
+    has_overlaps=False,
+    inverse_groups=None,
 ) -> np.array:
 
     n_samples = X.shape[0]
@@ -113,7 +141,12 @@ def ah_gradient(
     term2 /= n_samples
     term3 /= n_samples
 
-    return term1 - term2 + term3
+    gradient = term1 - term2 + term3
+    if has_overlaps:
+        gradient = get_gradient_latent_overlapping_group_lasso(
+            gradient, groups, inverse_groups
+        )
+    return gradient
 
 
 @jit(nopython=True, cache=True)
@@ -122,6 +155,9 @@ def aft_gradient(
     y: np.array,
     coef: np.array,
     bandwidth: float,
+    groups=None,
+    has_overlaps=False,
+    inverse_groups=None,
 ) -> np.array:
 
     n_samples = X.shape[0]
@@ -157,4 +193,9 @@ def aft_gradient(
     term3 /= n_samples
     term4 /= n_samples
 
-    return -term1 + term2 - term3 + term4
+    gradient = -term1 + term2 - term3 + term4
+    if has_overlaps:
+        gradient = get_gradient_latent_overlapping_group_lasso(
+            gradient, groups, inverse_groups
+        )
+    return gradient

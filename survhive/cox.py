@@ -1,4 +1,4 @@
-from itertools import partial
+from functools import partial
 from typing import Callable, List, Optional, Union
 
 import numpy as np
@@ -6,7 +6,12 @@ import pandas as pd
 
 from ._base import RegularizedLinearSurvivalModel
 from .gradients import GRADIENT_FACTORY
-from .utils import get_closest, get_death_matrix, get_risk_matrix
+from .utils import (
+    get_closest,
+    get_death_matrix,
+    get_risk_matrix,
+    _check_groups,
+)
 
 
 class CoxPH(RegularizedLinearSurvivalModel):
@@ -72,7 +77,11 @@ class CoxPH(RegularizedLinearSurvivalModel):
             raise ValueError(
                 f"`baseline_hazard_estimator` must be one of ['breslow']. Found {self.baseline_hazard_estimator} instead."
             )
-
+        self.original_groups: List[List[int]] = self.groups
+        self.groups: np.array
+        self.has_overlaps: bool
+        self.inverse_groups: List[List[int]]
+        self.groups, self.has_overlaps, self.inverse_groups = _check_groups(self.groups)
         # Freeze all arguments of the gradient that we are optimising
         # except for beta. Specifically, cache objects such as
         # the risk and death matrix which are semi-expensive to compute.
@@ -84,10 +93,13 @@ class CoxPH(RegularizedLinearSurvivalModel):
                 X=X,
                 risk_matrix=risk_matrix,
                 death_matrix=death_matrix,
+                groups=self.groups,
+                has_overlaps=self.has_overlaps,
+                inverse_groups=self.inverse_groups,
             )
         elif self.tie_correction == "breslow":
-            risk_matrix: np.array = get_risk_matrix()
-            self.grad: Callable[[np.array], np.array] = partial(
+            risk_matrix = get_risk_matrix()
+            self.grad = partial(
                 GRADIENT_FACTORY[self.tie_correction],
                 X=X,
                 y=y,
