@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Union
 
 import numpy as np
 from numba import jit
@@ -20,9 +20,7 @@ def _soft_threshold_group(x: np.array, threshold: float) -> np.array:
 def _scad_thresh(x: np.array, threshold: float, a: float) -> np.array:
     lower_mask: np.array = np.abs(x) <= (2.0 * threshold)
     upper_mask: np.array = np.abs(x) > (threshold * a)
-    middle_mask: np.array = (
-        np.ones(lower_mask.shape) - upper_mask - middle_mask
-    )
+    middle_mask: np.array = np.ones(lower_mask.shape) - upper_mask - middle_mask
     return (
         _soft_threshold(x=x, threshold=threshold) * lower_mask
         + ((a - 1) / (a - 2))
@@ -36,9 +34,7 @@ def _scad_thresh(x: np.array, threshold: float, a: float) -> np.array:
 def _scad_thresh_group(x: np.array, threshold: float, a: float) -> np.array:
     lower_mask: np.array = np.abs(x) <= (2.0 * threshold)
     upper_mask: np.array = np.abs(x) > (threshold * a)
-    middle_mask: np.array = (
-        np.ones(lower_mask.shape) - upper_mask - middle_mask
-    )
+    middle_mask: np.array = np.ones(lower_mask.shape) - upper_mask - middle_mask
     return (
         _soft_threshold_group(x=x, threshold=threshold) * lower_mask
         + ((a - 1) / (a - 2))
@@ -51,45 +47,39 @@ def _scad_thresh_group(x: np.array, threshold: float, a: float) -> np.array:
 @jit(nopython=True, cache=True)
 def _mcp_thresh(x: np.array, threshold: float, gamma: float):
     mask: np.array = np.sign(x) > (threshold * gamma)
-    return (gamma / (gamma - 1)) * _soft_threshold(
-        x=x, threshold=threshold
-    ) * (1 - mask) + x * mask
+    return (gamma / (gamma - 1)) * _soft_threshold(x=x, threshold=threshold) * (
+        1 - mask
+    ) + x * mask
 
 
 @jit(nopython=True, cache=True)
 def _mcp_thresh_group(x: np.array, threshold: float, gamma: float) -> np.array:
     mask: np.array = np.sign(x) > (threshold * gamma)
-    return (gamma / (gamma - 1)) * _soft_threshold_group(
-        x=x, threshold=threshold
-    ) * (1 - mask) + x * mask
+    return (gamma / (gamma - 1)) * _soft_threshold_group(x=x, threshold=threshold) * (
+        1 - mask
+    ) + x * mask
 
 
 @jit(nopython=True, cache=True)
 def _gel_derivative(coef: np.array, threshold: float, tau: float) -> np.array:
-    return threshold * np.exp(
-        np.negative(tau / threshold) * np.sum(np.abs(coef))
-    )
+    return threshold * np.exp(np.negative(tau / threshold) * np.sum(np.abs(coef)))
 
 
 @jit(nopython=True, cache=True)
 def _mcp(coef: np.array, threshold: float, gamma: float) -> np.array:
     mask = coef <= gamma * threshold
-    return mask * (threshold * gamma - (coef**2 / (2 * gamma))) + (
-        1 - mask
-    ) * (gamma * (threshold**2) / 2)
+    return mask * (threshold * gamma - (coef**2 / (2 * gamma))) + (1 - mask) * (
+        gamma * (threshold**2) / 2
+    )
 
 
 @jit(nopython=True, cache=True)
-def _mcp_derivative(
-    coef: np.array, threshold: float, gamma: float
-) -> np.array:
+def _mcp_derivative(coef: np.array, threshold: float, gamma: float) -> np.array:
     return np.max(threshold - (coef / gamma), 0)
 
 
 @jit(nopython=True, cache=True)
-def _cmcp_derivative(
-    coef: np.array, threshold: float, gamma: float
-) -> np.array:
+def _cmcp_derivative(coef: np.array, threshold: float, gamma: float) -> np.array:
     _mcp_derivative(
         coef=np.sum(_mcp(coef=np.abs(coef), threshold=threshold, gamma=gamma)),
         threshold=threshold,
@@ -101,7 +91,7 @@ class ProximalOperator:
     def __init__(self, threshold) -> None:
         self.threshold: float = threshold
 
-    def __call__(self, coef: np.array) -> np.array:
+    def __call__(self, coef: np.array, modifier: float = 1) -> np.array:
         return NotImplementedError
 
 
@@ -109,8 +99,8 @@ class LassoProximal(ProximalOperator):
     def __init__(self, threshold: float) -> None:
         super().__init__(threshold)
 
-    def __call__(self, coef: np.array) -> np.array:
-        return _soft_threshold(coef, self.threshold)
+    def __call__(self, coef: np.array, modifier: float = 1) -> np.array:
+        return _soft_threshold(x=coef, threshold=self.threshold * modifier)
 
 
 class GLProximal(ProximalOperator):
@@ -118,24 +108,25 @@ class GLProximal(ProximalOperator):
         super().__init__(threshold)
         self.groups: List[np.array] = groups
 
-    def __call__(self, coef: np.array) -> np.array:
+    def __call__(self, coef: np.array, modifier: float = 1) -> np.array:
         for group in self.groups:
-            coef[group] = _soft_threshold_group(coef[group], self.threshold)
+            coef[group] = _soft_threshold_group(
+                x=coef[group], threshold=self.threshold * modifier
+            )
         return coef
 
 
 class SGLProximal(ProximalOperator):
-    def __init__(
-        self, threshold: float, alpha: float, groups: List[np.array]
-    ) -> None:
+    def __init__(self, threshold: float, alpha: float, groups: List[np.array]) -> None:
         super().__init__(threshold)
         self.alpha: float = alpha
         self.groups: List[np.array] = groups
 
-    def __call__(self, coef: np.array) -> np.array:
+    def __call__(self, coef: np.array, modifier: float = 1) -> np.array:
         return GLProximal(
-            threshold=self.threshold * (1 - self.alpha), groups=self.groups
-        )(coef) * LassoProximal(threshold=self.threshold * self.alpha)(coef)
+            threshold=self.threshold * (1 - self.alpha) * modifier,
+            groups=self.groups,
+        )(coef) * LassoProximal(threshold=self.threshold * self.alpha * modifier)(coef)
 
 
 class SCADProximal(ProximalOperator):
@@ -143,8 +134,8 @@ class SCADProximal(ProximalOperator):
         super().__init__(threshold)
         self.a: float = a
 
-    def __call__(self, coef: np.array) -> np.array:
-        _scad_thresh(coef, threshold=self.threshold, a=self.a)
+    def __call__(self, coef: np.array, modifier: float = 1) -> np.array:
+        _scad_thresh(coef, threshold=self.threshold * modifier, a=self.a)
 
 
 class GSCADProximal(ProximalOperator):
@@ -155,10 +146,12 @@ class GSCADProximal(ProximalOperator):
         self.a: float = a
         self.groups: List[np.array] = groups
 
-    def __call__(self, coef: np.array) -> np.array:
+    def __call__(self, coef: np.array, modifier: float = 1) -> np.array:
         for group in self.groups:
             coef[group] = _scad_thresh_group(
-                coef[group], threshold=self.threshold, gamma=self.gamma
+                coef[group],
+                threshold=self.threshold * modifier,
+                a=self.a,
             )
         return coef
 
@@ -168,29 +161,33 @@ class MCPProximal(ProximalOperator):
         super().__init__(threshold)
         self.gamma: float = gamma
 
-    def __call__(self, coef: np.array) -> np.array:
-        _mcp_thresh(coef, threshold=self.threshold, gamma=self.gamma)
+    def __call__(self, coef: np.array, modifier: float = 1) -> np.array:
+        _mcp_thresh(coef, threshold=self.threshold * modifier, gamma=self.gamma)
 
 
 class GMCPProximal(ProximalOperator):
-    def __init__(self, threshold: float, gamma=4.0) -> None:
+    def __init__(self, threshold: float, groups: List[np.array], gamma=4.0) -> None:
         super().__init__(threshold)
         self.gamma: float = gamma
+        self.groups: List[np.array] = groups
 
-    def __call__(self, coef: np.array) -> np.array:
+    def __call__(self, coef: np.array, modifier: float = 1) -> np.array:
         for group in self.groups:
             coef[group] = _mcp_thresh_group(
-                coef[group], threshold=self.threshold, gamma=self.gamma
+                coef[group],
+                threshold=self.threshold * modifier,
+                gamma=self.gamma,
             )
         return coef
 
 
 class CMCPProximal(ProximalOperator):
-    def __init__(self, threshold: float, gamma=4.0) -> None:
+    def __init__(self, threshold: float, groups: List[np.array], gamma=4.0) -> None:
         super().__init__(threshold)
         self.gamma: float = gamma
+        self.groups: List[np.array] = groups
 
-    def __call__(self, coef: np.array) -> np.array:
+    def __call__(self, coef: np.array, modifier: float = 1) -> np.array:
         for group in self.groups:
             coef[group] = _soft_threshold(
                 coef[group],
@@ -198,7 +195,8 @@ class CMCPProximal(ProximalOperator):
                     coef=coef[group],
                     threshold=self.threshold,
                     gamma=self.gamma,
-                ),
+                )
+                * modifier,
             )
         return coef
 
@@ -211,12 +209,30 @@ class GELProximal(ProximalOperator):
         self.tau: float = tau
         self.groups = groups
 
-    def __call__(self, coef: np.array) -> np.array:
+    def __call__(self, coef: np.array, modifier: float = 1) -> np.array:
         for group in self.groups:
             coef[group] = _soft_threshold(
                 x=coef[group],
                 threshold=_gel_derivative(
                     coef=coef[group], threshold=self.threshold, tau=self.tau
-                ),
+                )
+                * modifier,
             )
         return coef
+
+
+class ElasticNetProximal:
+    def __init__(
+        self,
+        proximal_operator: ProximalOperator,
+        threshold: Union[float, np.array],
+        nu: float,
+    ) -> None:
+        self.proximal_operator = proximal_operator
+        self.threshold = threshold
+        self.nu = nu
+
+    def __call__(self, coef: np.array, modifier: float = 1) -> np.array:
+        return self.proximal_operator(coef, modifier * self.nu) / (
+            1 + (modifier * self.threshold * (1 - self.nu))
+        )
