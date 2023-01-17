@@ -5,19 +5,19 @@ from numba import jit
 
 
 @jit(nopython=True, cache=True)
-def _soft_threshold(x: np.array, threshold: float) -> np.array:
+def _soft_threshold(x: np.array, threshold: Union[float, np.array]) -> np.array:
     return np.sign(x) * np.maximum(np.abs(x) - threshold, 0.0)
 
 
 @jit(nopython=True, cache=True)
-def _soft_threshold_group(x: np.array, threshold: float) -> np.array:
+def _soft_threshold_group(x: np.array, threshold: Union[float, np.array]) -> np.array:
     return np.sign(x) * np.maximum(
         np.abs(x) - threshold * (x / np.linalg.norm(x, ord=2)), 0.0
     )
 
 
 @jit(nopython=True, cache=True)
-def _scad_thresh(x: np.array, threshold: float, a: float) -> np.array:
+def _scad_thresh(x: np.array, threshold: Union[float, np.array], a: float) -> np.array:
     lower_mask: np.array = np.abs(x) <= (2.0 * threshold)
     upper_mask: np.array = np.abs(x) > (threshold * a)
     middle_mask: np.array = np.ones(lower_mask.shape) - upper_mask - middle_mask
@@ -31,7 +31,9 @@ def _scad_thresh(x: np.array, threshold: float, a: float) -> np.array:
 
 
 @jit(nopython=True, cache=True)
-def _scad_thresh_group(x: np.array, threshold: float, a: float) -> np.array:
+def _scad_thresh_group(
+    x: np.array, threshold: Union[float, np.array], a: float
+) -> np.array:
     lower_mask: np.array = np.abs(x) <= (2.0 * threshold)
     upper_mask: np.array = np.abs(x) > (threshold * a)
     middle_mask: np.array = np.ones(lower_mask.shape) - upper_mask - middle_mask
@@ -45,7 +47,7 @@ def _scad_thresh_group(x: np.array, threshold: float, a: float) -> np.array:
 
 
 @jit(nopython=True, cache=True)
-def _mcp_thresh(x: np.array, threshold: float, gamma: float):
+def _mcp_thresh(x: np.array, threshold: Union[float, np.array], gamma: float):
     mask: np.array = np.sign(x) > (threshold * gamma)
     return (gamma / (gamma - 1)) * _soft_threshold(x=x, threshold=threshold) * (
         1 - mask
@@ -53,7 +55,9 @@ def _mcp_thresh(x: np.array, threshold: float, gamma: float):
 
 
 @jit(nopython=True, cache=True)
-def _mcp_thresh_group(x: np.array, threshold: float, gamma: float) -> np.array:
+def _mcp_thresh_group(
+    x: np.array, threshold: Union[float, np.array], gamma: float
+) -> np.array:
     mask: np.array = np.sign(x) > (threshold * gamma)
     return (gamma / (gamma - 1)) * _soft_threshold_group(x=x, threshold=threshold) * (
         1 - mask
@@ -61,12 +65,14 @@ def _mcp_thresh_group(x: np.array, threshold: float, gamma: float) -> np.array:
 
 
 @jit(nopython=True, cache=True)
-def _gel_derivative(coef: np.array, threshold: float, tau: float) -> np.array:
+def _gel_derivative(
+    coef: np.array, threshold: Union[float, np.array], tau: float
+) -> np.array:
     return threshold * np.exp(np.negative(tau / threshold) * np.sum(np.abs(coef)))
 
 
 @jit(nopython=True, cache=True)
-def _mcp(coef: np.array, threshold: float, gamma: float) -> np.array:
+def _mcp(coef: np.array, threshold: Union[float, np.array], gamma: float) -> np.array:
     mask = coef <= gamma * threshold
     return mask * (threshold * gamma - (coef**2 / (2 * gamma))) + (1 - mask) * (
         gamma * (threshold**2) / 2
@@ -74,12 +80,16 @@ def _mcp(coef: np.array, threshold: float, gamma: float) -> np.array:
 
 
 @jit(nopython=True, cache=True)
-def _mcp_derivative(coef: np.array, threshold: float, gamma: float) -> np.array:
+def _mcp_derivative(
+    coef: np.array, threshold: Union[float, np.array], gamma: float
+) -> np.array:
     return np.max(threshold - (coef / gamma), 0)
 
 
 @jit(nopython=True, cache=True)
-def _cmcp_derivative(coef: np.array, threshold: float, gamma: float) -> np.array:
+def _cmcp_derivative(
+    coef: np.array, threshold: Union[float, np.array], gamma: float
+) -> np.array:
     _mcp_derivative(
         coef=np.sum(_mcp(coef=np.abs(coef), threshold=threshold, gamma=gamma)),
         threshold=threshold,
@@ -89,14 +99,14 @@ def _cmcp_derivative(coef: np.array, threshold: float, gamma: float) -> np.array
 
 class ProximalOperator:
     def __init__(self, threshold) -> None:
-        self.threshold: float = threshold
+        self.threshold: Union[float, np.array] = threshold
 
     def __call__(self, coef: np.array, modifier: float = 1) -> np.array:
         return NotImplementedError
 
 
 class LassoProximal(ProximalOperator):
-    def __init__(self, threshold: float) -> None:
+    def __init__(self, threshold: Union[float, np.array]) -> None:
         super().__init__(threshold)
 
     def __call__(self, coef: np.array, modifier: float = 1) -> np.array:
@@ -104,7 +114,9 @@ class LassoProximal(ProximalOperator):
 
 
 class GLProximal(ProximalOperator):
-    def __init__(self, threshold: float, groups: List[np.array]) -> None:
+    def __init__(
+        self, threshold: Union[float, np.array], groups: List[np.array]
+    ) -> None:
         super().__init__(threshold)
         self.groups: List[np.array] = groups
 
@@ -117,7 +129,9 @@ class GLProximal(ProximalOperator):
 
 
 class SGLProximal(ProximalOperator):
-    def __init__(self, threshold: float, alpha: float, groups: List[np.array]) -> None:
+    def __init__(
+        self, threshold: Union[float, np.array], alpha: float, groups: List[np.array]
+    ) -> None:
         super().__init__(threshold)
         self.alpha: float = alpha
         self.groups: List[np.array] = groups
@@ -130,7 +144,7 @@ class SGLProximal(ProximalOperator):
 
 
 class SCADProximal(ProximalOperator):
-    def __init__(self, threshold: float, a: float = 3.7) -> None:
+    def __init__(self, threshold: Union[float, np.array], a: float = 3.7) -> None:
         super().__init__(threshold)
         self.a: float = a
 
@@ -140,7 +154,7 @@ class SCADProximal(ProximalOperator):
 
 class GSCADProximal(ProximalOperator):
     def __init__(
-        self, threshold: float, groups: List[np.array], a: float = 3.7
+        self, threshold: Union[float, np.array], groups: List[np.array], a: float = 3.7
     ) -> None:
         super().__init__(threshold)
         self.a: float = a
@@ -152,12 +166,13 @@ class GSCADProximal(ProximalOperator):
                 coef[group],
                 threshold=self.threshold * modifier,
                 a=self.a,
+                coef[group], threshold=self.threshold, a=self.a
             )
         return coef
 
 
 class MCPProximal(ProximalOperator):
-    def __init__(self, threshold: float, gamma=4.0) -> None:
+    def __init__(self, threshold: Union[float, np.array], gamma=4.0) -> None:
         super().__init__(threshold)
         self.gamma: float = gamma
 
@@ -166,7 +181,9 @@ class MCPProximal(ProximalOperator):
 
 
 class GMCPProximal(ProximalOperator):
-    def __init__(self, threshold: float, groups: List[np.array], gamma=4.0) -> None:
+    def __init__(
+        self, threshold: Union[float, np.array], groups: List[np.array], gamma=4.0
+    ) -> None:
         super().__init__(threshold)
         self.gamma: float = gamma
         self.groups: List[np.array] = groups
@@ -182,7 +199,9 @@ class GMCPProximal(ProximalOperator):
 
 
 class CMCPProximal(ProximalOperator):
-    def __init__(self, threshold: float, groups: List[np.array], gamma=4.0) -> None:
+    def __init__(
+        self, threshold: Union[float, np.array], groups: List[np.array], gamma=4.0
+    ) -> None:
         super().__init__(threshold)
         self.gamma: float = gamma
         self.groups: List[np.array] = groups
@@ -203,7 +222,10 @@ class CMCPProximal(ProximalOperator):
 
 class GELProximal(ProximalOperator):
     def __init__(
-        self, threshold: float, groups: List[np.array], tau: float = 1 / 3
+        self,
+        threshold: Union[float, np.array],
+        groups: List[np.array],
+        tau: float = 1 / 3,
     ) -> None:
         super().__init__(threshold)
         self.tau: float = tau
