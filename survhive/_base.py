@@ -8,6 +8,7 @@ from sklearn.linear_model._base import LinearModel
 from .baseline_hazard import CUMULATIVE_BASELINE_HAZARD_FACTORY
 from .proximal_operators import ElasticNetProximal
 from .utils import (
+    _check_groups,
     _check_max_iter,
     _check_nu,
     _check_penalty_factors,
@@ -15,6 +16,7 @@ from .utils import (
     _check_solver,
     _check_tol,
     _check_verbose,
+    summarise_groups,
 )
 
 
@@ -22,7 +24,7 @@ class RegularizedLinearSurvivalModel(LinearModel):
     def __init__(
         self,
         proximal_operator: str,
-        groups: List[Union[int, List[int]]],
+        groups: List[List[int]],
         threshold: float,
         scale_group: Optional[str] = "group_length",
         penalty_factors: Optional[np.array] = None,
@@ -100,7 +102,7 @@ class RegularizedLinearSurvivalModel(LinearModel):
         tol = _check_tol(self.max_tol)
         verbose = _check_verbose(self.verbose)
         self.n_features_ = X.shape[1]
-        coef_ = np.zeros(self.n_features_)
+        coef_ = np.zeros(len(self.groups))
         if solver == "copt":
             pgd = cp.minimize_proximal_gradient(
                 self.grad,
@@ -117,6 +119,11 @@ class RegularizedLinearSurvivalModel(LinearModel):
         elif solver == "numba":
             raise NotImplementedError
 
+        if self.has_overlaps:
+            pgd.x = summarise_groups(
+                coef=pgd.x,
+                inverse_groups=self.inverse_groups,
+            )
         self.coef_: np.array = pgd.x
         self.is_fitted: bool = True
         self.baseline_cumulative_hazard: np.array
