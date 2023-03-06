@@ -1,58 +1,54 @@
 import json
+import math
+import numbers
 import os
-from typing import List, Tuple, Union
 from abc import abstractmethod
+from functools import partial
+from numbers import Real
+from typing import List, Tuple, Union
+from numpy.typing import ArrayLike
 import numpy as np
 import pandas as pd
-import math
-from scipy import sparse
-import numbers
-from numbers import Real
-import skorch
-from functools import partial
+from hyperparams import CVSCOREFACTORY, ESTIMATORFACTORY, OPTIMISERFACTORY
 from numpy import ndarray
-from sklearn.linear_model._coordinate_descent import _check_sample_weight
-from sklearn.linear_model._coordinate_descent import LinearModelCV
-from sklearn.model_selection import check_cv
-from sklearn.utils.parallel import delayed, Parallel
-from sklearn.utils.validation import check_consistent_length, check_scalar, check_array
-from sklearn.utils.extmath import safe_sparse_dot
+from scipy import sparse
 from sklearn.linear_model._base import _preprocess_data
-from hyperparams import ESTIMATORFACTORY, CVSCOREFACTORY, OPTIMISERFACTORY
+from sklearn.linear_model._coordinate_descent import LinearModelCV, _check_sample_weight
+from sklearn.model_selection import check_cv
+from sklearn.utils.extmath import safe_sparse_dot
+from sklearn.utils.parallel import Parallel, delayed
+from sklearn.utils.validation import check_array, check_consistent_length, check_scalar
 from typeguard import typechecked
+
 from survhive.utils.scorer import *
 
 
+@typechecked
+@jit(nopython=True, cache=True)
 def _alpha_grid(
-    X,
-    y,
-    Xy=None,
-    l1_ratio=1.0,
-    eps=1e-3,
-    n_alphas=100,
-):
+    X: ArrayLike,
+    y: ArrayLike,
+    Xy: ArrayLike = None,
+    l1_ratio: Union[float, List] = 1.0,
+    eps: float = 1e-3,
+    n_alphas: int = 100,
+) -> np.array:
     """Compute the grid of alpha values for model parameter search
     Parameters
-    ----------
-    X : {array-like, sparse matrix} of shape (n_samples, n_features)
-        Training data. Pass directly as Fortran-contiguous data to avoid
-        unnecessary memory duplication
-    y : ndarray of shape (n_samples,) or (n_samples, n_outputs)
-        Target values
-    Xy : array-like of shape (n_features,) or (n_features, n_outputs),\
-         default=None
-        Xy = np.dot(X.T, y) that can be precomputed.
-    l1_ratio : float, default=1.0
-        The elastic net mixing parameter, with ``0 < l1_ratio <= 1``.
+
+    Args:
+        X (ArrayLike): Array-like object of training data of shape (n_samples, n_features).
+        y (ArrayLike): Array-like object of target values of shape (n_samples,) or (n_samples, n_outputs).
+        Xy (ArrayLike, optional): Dot product of X and y arrays having shape (n_features,)
+        or (n_features, n_outputs). Defaults to None.
+        l1_ratio (Union[float,List], optional): The elastic net mixing parameter, with ``0 < l1_ratio <= 1``.
         For ``l1_ratio = 0`` the penalty is an L2 penalty. (currently not
         supported) ``For l1_ratio = 1`` it is an L1 penalty. For
-        ``0 < l1_ratio <1``, the penalty is a combination of L1 and L2.
-    eps : float, default=1e-3
-        Length of the path. ``eps=1e-3`` means that
-        ``alpha_min / alpha_max = 1e-3``
-    n_alphas : int, default=100
-        Number of alphas along the regularization path
-    
+        ``0 < l1_ratio <1``, the penalty is a combination of L1 and L2.. Defaults to 1.0.
+        eps (float, optional): Length of the path. ``eps=1e-3`` means that
+        ``alpha_min / alpha_max = 1e-3``. Defaults to 1e-3.
+        n_alphas (int, optional): Number of alphas along the regularization path. Defaults to 100.
+
     Returns:
         np.array: Regularisation parameters to try for the model.
     """
@@ -95,52 +91,37 @@ def _alpha_grid(
     return alphas
 
 
+@typechecked
+@jit(nopython=True, cache=True)
 def _path_xcoefs(
-    X,
-    y,
-    sample_weight,
-    train,
-    test,
-    path,
-    path_params,
-    alphas=None,
-    l1_ratio=1,
-    X_order=None,
-    dtype=None,
-):
+    X: ArrayLike,
+    y: ArrayLike,
+    sample_weight: ArrayLike,
+    train: List,
+    test: List,
+    path: callable,
+    path_params: dict,
+    alphas: ArrayLike = None,
+    l1_ratio: Union[float, List] = 1,
+) -> Tuple:
     """Returns the dot product of samples and coefs for the models computed by 'path'.
 
-    Parameters
-    ----------
-    X : {array-like, sparse matrix} of shape (n_samples, n_features)
-        Training data.
-    y : array-like of shape (n_samples,) or (n_samples, n_targets)
-        Target values.
-    sample_weight : None or array-like of shape (n_samples,)
-        Sample weights.
-    train : list of indices
-        The indices of the train set.
-    test : list of indices
-        The indices of the test set.
-    path : callable
-        Function returning a list of models on the path. See
+    Args:
+        X (ArrayLike): Training data of shape (n_samples, n_features).
+        y (ArrayLike): Target values of shape (n_samples,) or (n_samples, n_targets).
+        sample_weight (ArrayLike): Sample weights of shape (n_samples,). Pass None if
+            there are no weights.
+        train (List): The indices of the train set.
+        test (List): The indices of the test set.
+        path (callable): Function returning a list of models on the path. See
         enet_path for an example of signature.
-    path_params : dictionary
-        Parameters passed to the path function.
-    alphas : array-like, default=None
-        Array of float that is used for cross-validation. If not
-        provided, computed using 'path'.
-    l1_ratio : float, default=1
-        float between 0 and 1 passed to ElasticNet (scaling between
-        l1 and l2 penalties). For ``l1_ratio = 0`` the penalty is an
+        path_params (dict): Parameters passed to the path function.
+        alphas (ArrayLike, optional): Array of float that is used for cross-validation. If not
+        provided, computed using 'path'. Defaults to None.
+        l1_ratio (Union[float,List], optional): Scaling between
+        l1 and l2 penalties. For ``l1_ratio = 0`` the penalty is an
         L2 penalty. For ``l1_ratio = 1`` it is an L1 penalty. For ``0
-        < l1_ratio < 1``, the penalty is a combination of L1 and L2.
-    X_order : {'F', 'C'}, default=None
-        The order of the arrays expected by the path function to
-        avoid memory copies.
-    dtype : a numpy dtype, default=None
-        The dtype of the arrays expected by the path function to
-        avoid memory copies.
+        < l1_ratio < 1``, the penalty is a combination of L1 and L2. Defaults to 1.
 
     Returns:
         Tuple: Tuple of the dot products of train and test samples and the coefficients
@@ -178,7 +159,6 @@ def _path_xcoefs(
     if "l1_ratio" in path_params:
         path_params["l1_ratio"] = l1_ratio
 
-    X_train = check_array(X_train, accept_sparse="csc", dtype=dtype, order=X_order)
     alphas, coefs, _ = path(X_train, y_train, **path_params)
     del X_train, y_train
 
@@ -195,22 +175,53 @@ def _path_xcoefs(
 
 # TODO: estimator: object,  # make class, inherit
 class CrossValidation(LinearModelCV):
+    """Cross validation class with custom scoring functions."""
+
     @abstractmethod
     def __init__(
         self,
         optimiser: str,
-        cv_score_method: str,
-        eps=1e-3,
-        n_alphas=100,
-        alphas=None,
-        l1_ratios=None,
-        max_iter=1000,
-        tol=1e-4,
-        copy_X=True,
-        cv=None,  # TODO: change KFold to stratifiedSurvivalKFold
-        n_jobs=None,
-        random_state=None,
+        cv_score_method: str = "linear_predictor",
+        eps: float = 1e-3,
+        n_alphas: int = 100,
+        alphas: ArrayLike = None,
+        l1_ratios: Union[float, ArrayLike] = None,
+        max_iter: int = 1000,
+        tol: float = 1e-4,
+        copy_X: bool = True,
+        cv: Union[
+            int, object
+        ] = None,  # INFO: if task is classification, then StratifiedKFold is used.
+        n_jobs: int = None,
+        random_state: int = None,
     ) -> None:
+        """Constructor.
+
+        Args:
+            optimiser (str): Optimiser to use for model fitting. See OPTIMISERFACTORY for
+                options.
+            cv_score_method (str): CV scoring method to use for model selection. One of
+                ["linear_predictor","regular","vvh"]. Defaults to "linear_predictor".
+            eps (float, optional): Length of the path. ``eps=1e-3`` means that
+                ``alpha_min / alpha_max = 1e-3``. Defaults to 1e-3.
+            n_alphas (int, optional): Number of alphas along the regularization path.
+                Defaults to 100.
+            alphas (ArrayLike, optional): Array of float that is used for cross-validation. If not
+                provided, computed using 'path'. Defaults to None.
+            l1_ratios (Union[float,ArrayLike], optional): Scaling between
+                l1 and l2 penalties. For ``l1_ratio = 0`` the penalty is an
+                L2 penalty. For ``l1_ratio = 1`` it is an L1 penalty. For ``0
+                < l1_ratio < 1``, the penalty is a combination of L1 and L2. Defaults to None.
+            max_iter (int, optional): The maximum number of iterations of the estimator.
+                Defaults to 1000.
+            tol (float, optional): The tolerance for the optimization. Defaults to 1e-4.
+            copy_X (bool, optional): Creates a copy of X if True. Defaults to True.
+            cv (Union[int,object], optional): Cross validation splitting strategy.
+                Defaults to None, which uses the default 5-fold cv. Can also pass cv-generator.
+            n_jobs (int, optional): Number of CPUs to use during the cross validation. Defaults to None.
+            random_state (int, optional): The seed of the pseudo random number generator that selects a random
+                feature to update. Defaults to None.
+        """
 
         super().__init__(
             eps=eps,
@@ -239,27 +250,23 @@ class CrossValidation(LinearModelCV):
 
         self.random_state = random_state
 
-    def fit(self, X, y, sample_weight=None):
+    @typechecked
+    @jit(nopython=True, cache=True)
+    def fit(
+        self, X: ArrayLike, y: ArrayLike, sample_weight: Union[float, ArrayLike] = None
+    ) -> object:
         """Fit linear model.
         Fit is on grid of alphas and best alpha estimated by cross-validation.
-        Parameters
-        ----------
-        X : {array-like, sparse matrix} of shape (n_samples, n_features)
-            Training data. Pass directly as Fortran-contiguous data
-            to avoid unnecessary memory duplication. If y is mono-output,
-            X can be sparse.
-        y : array-like of shape (n_samples,) or (n_samples, n_targets)
-            Target values.
-        sample_weight : float or array-like of shape (n_samples,), \
-                default=None
-            Sample weights used for fitting and evaluation of the weighted
-            mean squared error of each cv-fold. Note that the cross validated
-            MSE that is finally used to find the best model is the unweighted
-            mean over the (weighted) MSEs of each test fold.
-        Returns
-        -------
-        self : object
-            Returns an instance of fitted model.
+
+        Args:
+            X (ArrayLike): Training data of shape (n_samples, n_features).
+            y (ArrayLike): Target values of shape (n_samples,) or (n_samples, n_targets).
+            sample_weight (Union[float,ArrayLike]): Sample weights used for fitting and evaluation of the weighted
+                mean squared error of each cv-fold. Has shape (n_samples,) and defaults
+                to None.
+
+        Returns:
+            self(object): Returns an instance of fitted model.
         """
 
         self._validate_params()
@@ -366,7 +373,13 @@ class CrossValidation(LinearModelCV):
         test_y = np.reshape(test_y, (n_l1_ratio, len(folds), test_y[0].shape[0], -1))
 
         mean_cv_score = list(
-            map(CVSCOREFACTORY[self.cv_scorer], test_xb, test_y, train_xb, train_y)
+            map(
+                CVSCOREFACTORY[self.cv_scorer],
+                test_xb,
+                test_y,
+                z_train=train_xb,
+                y_train=train_y,
+            )
         )
         # -2*log(cv_score)?
 
