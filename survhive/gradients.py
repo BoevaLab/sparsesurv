@@ -1,9 +1,14 @@
+from typing import Tuple
+
 import numpy as np
 from numba import jit
 from scipy.stats import norm
 from sklearn.utils.extmath import safe_sparse_dot
-from utils import (
+from typeguard import typechecked
+
+from .utils import (
     e_func_i,
+    get_gradient_latent_overlapping_group_lasso,
     inverse_transform_survival_target,
     norm_cdf,
     norm_pdf,
@@ -12,66 +17,14 @@ from utils import (
 
 
 @jit(nopython=True, cache=True)
-def cox_ph_breslow_negative_gradient(
-    coef: np.array, X: np.array, y: np.array, risk_matrix: np.array
-):
-    _: np.array
-    event: np.array
-    _, event = inverse_transform_survival_target(y)
-    log_partial_hazard: np.array = safe_sparse_dot(X, coef.T, dense_output=True)
-    death_ix: np.array = event == 1
-
-    return np.negative(
-        np.sum(
-            log_partial_hazard[death_ix]
-            - np.log(
-                np.sum(
-                    np.tile(A=np.exp(log_partial_hazard), reps=np.sum(death_ix))
-                    * risk_matrix
-                )
-            )
-        )
-    )
-
-
-@jit(nopython=True, cache=True)
-def cox_ph_efron_negative_gradient(
-    coef: np.array, X: np.array, risk_matrix: np.array, death_matrix: np.array
-):
-    log_partial_hazard: np.array = safe_sparse_dot(X, coef.T, dense_output=True)
-    death_matrix_sum = np.sum(death_matrix, axis=0)
-    death_set_log_partial_hazard = np.matmul(log_partial_hazard, death_matrix)
-    death_set_partial_hazard = np.matmul(np.exp(log_partial_hazard), death_matrix)
-    risk_set_partial_hazard = np.matmul(np.exp(log_partial_hazard), risk_matrix.T)
-    efron_matrix = np.repeat(
-        np.expand_dims(np.arange(np.max(death_matrix_sum)), 1),
-        repeats=death_matrix_sum.shape,
-        axis=1,
-    )
-    helper_matrix = np.zeros(efron_matrix.shape)
-    for ix, qx in enumerate(death_matrix_sum):
-        efron_matrix[qx:, ix] = 0
-        helper_matrix[qx:, ix] = 1
-    return np.sum(
-        death_set_log_partial_hazard
-        - np.sum(
-            np.log(
-                risk_set_partial_hazard
-                - risk_set_partial_hazard * helper_matrix
-                - (efron_matrix / death_matrix_sum) * death_set_partial_hazard
-                + helper_matrix
-            ),
-            axis=0,
-        )
-    )
-
-
-@jit(nopython=True, cache=True)
 def ah_gradient(
     X: np.array,
     y: np.array,
     coef: np.array,
     bandwidth: float,
+    groups=None,
+    has_overlaps=False,
+    inverse_groups=None,
 ) -> np.array:
 
     n_samples = X.shape[0]
@@ -113,7 +66,12 @@ def ah_gradient(
     term2 /= n_samples
     term3 /= n_samples
 
-    return term1 - term2 + term3
+    gradient = term1 - term2 + term3
+    if has_overlaps:
+        gradient = get_gradient_latent_overlapping_group_lasso(
+            gradient, groups, inverse_groups
+        )
+    return gradient
 
 
 @jit(nopython=True, cache=True)
@@ -122,6 +80,9 @@ def aft_gradient(
     y: np.array,
     coef: np.array,
     bandwidth: float,
+    groups=None,
+    has_overlaps=False,
+    inverse_groups=None,
 ) -> np.array:
 
     n_samples = X.shape[0]
@@ -157,4 +118,279 @@ def aft_gradient(
     term3 /= n_samples
     term4 /= n_samples
 
-    return -term1 + term2 - term3 + term4
+    gradient = -term1 + term2 - term3 + term4
+    if has_overlaps:
+        gradient = get_gradient_latent_overlapping_group_lasso(
+            gradient, groups, inverse_groups
+        )
+    return gradient
+
+
+@typechecked
+@jit(nopython=True, cache=True, fastmath=True)
+def update_risk_sets_breslow(
+    risk_set_sum: float,
+    death_set_count: int,
+    local_risk_set: float,
+    local_risk_set_hessian: float,
+) -> Tuple[float, float]:
+    local_risk_set += 1 / (risk_set_sum / death_set_count)
+    local_risk_set_hessian += 1 / ((risk_set_sum**2) / death_set_count)
+    return local_risk_set, local_risk_set_hessian
+
+
+@typechecked
+@jit(nopython=True, cache=True, fastmath=True)
+def calculate_sample_grad_hess(
+    sample_partial_hazard: float,
+    sample_event: int,
+    local_risk_set: float,
+    local_risk_set_hessian: float,
+    weight: float,
+) -> Tuple[float, float]:
+    return (
+        sample_partial_hazard * local_risk_set
+    ) - sample_event * weight, sample_partial_hazard * local_risk_set - local_risk_set_hessian * (
+        sample_partial_hazard**2
+    )
+
+
+@typechecked
+@jit(nopython=True, cache=True, fastmath=True)
+def breslow_numba(
+    time: np.array,
+    event: np.array,
+    log_partial_hazard: np.array,
+    sample_weight: np.array,
+):
+    # Assumes times have been sorted beforehand.
+    partial_hazard = np.exp(log_partial_hazard)
+    samples = time.shape[0]
+    risk_set_sum = 0
+
+    for i in range(samples):
+        risk_set_sum += partial_hazard[i]
+
+    grad = np.empty(samples)
+    hess = np.empty(samples)
+    previous_time = time[0]
+    local_risk_set = 0
+    local_risk_set_hessian = 0
+    death_set_count = 0
+    censoring_set_count = 0
+    accumulated_sum = 0
+
+    for i in range(samples):
+        sample_time = time[i]
+        sample_event = event[i]
+        sample_partial_hazard = partial_hazard[i] * sample_weight[i]
+
+        if previous_time < sample_time:
+            if death_set_count:
+                (local_risk_set, local_risk_set_hessian,) = update_risk_sets_breslow(
+                    risk_set_sum,
+                    death_set_count,
+                    local_risk_set,
+                    local_risk_set_hessian,
+                )
+            for death in range(death_set_count + censoring_set_count):
+                death_ix = i - 1 - death
+                (grad[death_ix], hess[death_ix],) = calculate_sample_grad_hess(
+                    partial_hazard[death_ix],
+                    event[death_ix],
+                    local_risk_set,
+                    local_risk_set_hessian,
+                    sample_weight[i],
+                )
+
+            risk_set_sum -= accumulated_sum
+            accumulated_sum = 0
+            death_set_count = 0
+            censoring_set_count = 0
+
+        if sample_event:
+            death_set_count += 1
+        else:
+            censoring_set_count += 1
+
+        accumulated_sum += sample_partial_hazard
+        previous_time = sample_time
+
+    i += 1
+    if death_set_count:
+        local_risk_set, local_risk_set_hessian = update_risk_sets_breslow(
+            risk_set_sum,
+            death_set_count,
+            local_risk_set,
+            local_risk_set_hessian,
+        )
+    for death in range(death_set_count + censoring_set_count):
+        death_ix = i - 1 - death
+        (grad[death_ix], hess[death_ix],) = calculate_sample_grad_hess(
+            partial_hazard[death_ix],
+            event[death_ix],
+            local_risk_set,
+            local_risk_set_hessian,
+        )
+    return grad, hess
+
+
+@typechecked
+@jit(nopython=True, cache=True, fastmath=True)
+def calculate_sample_grad_hess_efron(
+    sample_partial_hazard: float,
+    sample_event: int,
+    local_risk_set: float,
+    local_risk_set_hessian: float,
+    local_risk_set_death: float,
+    local_risk_set_hessian_death: float,
+    weight: float,
+) -> Tuple[float, float]:
+    if sample_event:
+        return ((sample_partial_hazard) * (local_risk_set_death)) - (
+            sample_event * weight
+        ), (sample_partial_hazard) * (local_risk_set_death) - (
+            (local_risk_set_hessian_death)
+        ) * (
+            (sample_partial_hazard) ** 2
+        )
+    else:
+        return ((sample_partial_hazard) * local_risk_set), (
+            sample_partial_hazard
+        ) * local_risk_set - local_risk_set_hessian * ((sample_partial_hazard) ** 2)
+
+
+@typechecked
+@jit(nopython=True, cache=True, fastmath=True)
+def update_risk_sets_efron_pre(
+    risk_set_sum: float,
+    death_set_count: int,
+    local_risk_set: float,
+    local_risk_set_hessian: float,
+    death_set_risk: float,
+) -> Tuple[float, float, float, float]:
+    local_risk_set_death: float = local_risk_set
+    local_risk_set_hessian_death: float = local_risk_set_hessian
+
+    for ell in range(death_set_count):
+        contribution: float = ell / death_set_count
+        local_risk_set += 1 / (risk_set_sum - (contribution) * death_set_risk)
+        local_risk_set_death += (1 - (ell / death_set_count)) / (
+            risk_set_sum - (contribution) * death_set_risk
+        )
+        local_risk_set_hessian += (
+            1 / ((risk_set_sum - (contribution) * death_set_risk))
+        ) ** 2
+
+        local_risk_set_hessian_death += ((1 - contribution) ** 2) / (
+            ((risk_set_sum - (contribution) * death_set_risk)) ** 2
+        )
+
+    return (
+        local_risk_set,
+        local_risk_set_hessian,
+        local_risk_set_death,
+        local_risk_set_hessian_death,
+    )
+
+
+@typechecked
+@jit(nopython=True, cache=True, fastmath=True)
+def efron_numba(
+    time: np.array,
+    event: np.array,
+    log_partial_hazard: np.array,
+    sample_weight: np.array,
+) -> Tuple[np.array, np.array]:
+    # Assumes times have been sorted beforehand.
+    partial_hazard = np.exp(log_partial_hazard)
+    samples = time.shape[0]
+    risk_set_sum = 0
+    grad = np.empty(samples)
+    hess = np.empty(samples)
+    previous_time: float = time[0]
+    local_risk_set: int = 0
+    local_risk_set_hessian: int = 0
+    death_set_count: int = 0
+    censoring_set_count: int = 0
+    accumulated_sum: int = 0
+    death_set_risk: float = 0.0
+    local_risk_set_death: float = 0.0
+    local_risk_set_hessian_death: float = 0.0
+
+    for i in range(samples):
+        risk_set_sum += sample_weight[i] * partial_hazard[i]
+
+    for i in range(samples):
+        sample_time: float = time[i]
+        sample_event: int = event[i]
+        sample_partial_hazard: float = partial_hazard[i] * sample_weight[i]
+
+        if previous_time < sample_time:
+            if death_set_count:
+                (
+                    local_risk_set,
+                    local_risk_set_hessian,
+                    local_risk_set_death,
+                    local_risk_set_hessian_death,
+                ) = update_risk_sets_efron_pre(
+                    risk_set_sum,
+                    death_set_count,
+                    local_risk_set,
+                    local_risk_set_hessian,
+                    death_set_risk,
+                )
+            for death in range(death_set_count + censoring_set_count):
+                death_ix = i - 1 - death
+                (grad[death_ix], hess[death_ix],) = calculate_sample_grad_hess_efron(
+                    partial_hazard[death_ix],
+                    event[death_ix],
+                    local_risk_set,
+                    local_risk_set_hessian,
+                    local_risk_set_death,
+                    local_risk_set_hessian_death,
+                    sample_weight[death_ix],
+                )
+            risk_set_sum -= accumulated_sum
+            accumulated_sum = 0
+            death_set_count = 0
+            censoring_set_count = 0
+            death_set_risk = 0
+            local_risk_set_death = 0
+            local_risk_set_hessian_death = 0
+
+        if sample_event:
+            death_set_count += 1
+            death_set_risk += sample_partial_hazard
+        else:
+            censoring_set_count += 1
+
+        accumulated_sum += sample_partial_hazard
+        previous_time = sample_time
+
+    i += 1
+    if death_set_count:
+        (
+            local_risk_set,
+            local_risk_set_hessian,
+            local_risk_set_death,
+            local_risk_set_hessian_death,
+        ) = update_risk_sets_efron_pre(
+            risk_set_sum,
+            death_set_count,
+            local_risk_set,
+            local_risk_set_hessian,
+            death_set_risk,
+        )
+    for death in range(death_set_count + censoring_set_count):
+        death_ix = i - 1 - death
+        (grad[death_ix], hess[death_ix],) = calculate_sample_grad_hess_efron(
+            partial_hazard[death_ix],
+            event[death_ix],
+            local_risk_set,
+            local_risk_set_hessian,
+            local_risk_set_death,
+            local_risk_set_hessian_death,
+            sample_weight[death_ix],
+        )
+    return grad, hess

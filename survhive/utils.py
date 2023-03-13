@@ -49,3 +49,25 @@ def e_func_i(
     i: int,
 ) -> float:
     return np.log(time[i]) + np.dot(X[i], coef.T)
+
+
+@jit(nopython=True, cache=True)
+def summarise_groups(coef, inverse_groups):
+    summarised_coef: np.array = np.zeros(len(inverse_groups))
+    for ix, group in enumerate(inverse_groups):
+        summarised_coef[ix] = np.sum(coef[group])
+
+    return summarised_coef
+
+
+@jit(nopython=True, cache=True)
+def get_gradient_latent_overlapping_group_lasso(gradient, original_groups, len_grad):
+    expanded_gradient: np.array = np.zeros(len_grad)
+    count = 0
+    for ix, group in enumerate(original_groups):
+        # TODO: Double check this.
+        group_size = len(group)
+        expanded_gradient[(count) : (count + group_size)] = gradient[ix] / group_size
+        count += group_size
+
+    return expanded_gradient

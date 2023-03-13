@@ -1,75 +1,104 @@
+from typing import Callable, Dict
+
 import numpy as np
-
 from numba import jit
-
-from .utils import (
-    inverse_transform_survival_target,
-    get_risk_matrix,
-    get_death_matrix,
-)
-
-from .utils import (
-    check_y_survival,
-    check_cox_tie_correction,
-    check_array,
-)
-
-CUMULATIVE_BASELINE_HAZARD_FACTORY = {"breslow": np.nan, "efron": np.nan}
+from typeguard import typechecked
 
 
-@jit(nopython=True, cache=True)
-def breslow_estimator(
-    beta: np.array, X: np.array, y: np.array, tie_correction="efron"
+@typechecked
+@jit(nopython=True, cache=True, fastmath=True)
+def breslow_estimator_breslow(
+    train_time: np.array,
+    train_event: np.array,
+    train_partial_hazards: np.array,
 ):
-    beta: np.array = check_array(beta)
-    X: np.array = check_array(X)
-    check_y_survival(y)
-    check_cox_tie_correction(tie_correction)
+    local_risk_set: float = np.sum(train_partial_hazards)
+    n_unique_events: int = np.unique(train_time[train_event]).shape[0]
+    cumulative_baseline_hazards: np.array = np.zeros(n_unique_events)
+    n_events_counted: int = 0
+    local_death_set: int = 0
+    accumulated_risk_set: float = 0
+    previous_time: float = train_time[0]
 
-    time: np.array
-    event: np.array
-    time, event = inverse_transform_survival_target(y)
-    risk_matrix = get_risk_matrix(time)
-    partial_hazards = np.exp(np.dot(beta, X))
-    if tie_correction == "efron":
-        death_matrix: np.array = get_death_matrix(time, event)
-        death_matrix = np.unique(
-            death_matrix[:, np.any(death_matrix, axis=0)], axis=1
-        )
-        risk_matrix = np.unique(risk_matrix, axis=0)
-        death_matrix_sum: int = np.sum(death_matrix, axis=0)
-        death_set_partial_hazard = np.matmul(partial_hazards, death_matrix)
-        risk_set_partial_hazard = np.matmul(partial_hazards, risk_matrix.T)
-        efron_matrix = np.repeat(
-            np.expand_dims(np.arange(np.max(death_matrix_sum)), 1),
-            repeats=death_matrix_sum.shape,
-            axis=1,
-        )
-        helper_matrix = np.zeros(efron_matrix.shape)
-        risk_set_sums = np.prod(
-            risk_set_partial_hazard
-            - risk_set_partial_hazard * helper_matrix
-            - (efron_matrix / death_matrix_sum) * death_set_partial_hazard
-            + helper_matrix,
-            axis=0,
-        )
-        for ix, qx in enumerate(death_matrix_sum):
-            efron_matrix[qx:, ix] = 0
-            helper_matrix[qx:, ix] = 1
-    elif tie_correction == "breslow":
-        risk_set_sums = np.sum(
-            partial_hazards.repeat(time)
-            .reshape((partial_hazards.shape[0], time.shape[0]))
-            .T
-            * risk_matrix,
-            axis=0,
-        )
-    ix: np.array = np.argsort(time)
-    sorted_time: np.array = time[ix]
-    sorted_event: np.array = event[ix]
-    sorted_risk_set_sums: np.array = risk_set_sums[ix]
+    for _ in range(len(train_time)):
+        sample_time: float = train_time[_]
+        sample_event: int = train_event[_]
+        sample_log_partial_hazard: float = train_partial_hazards[_]
+
+        if sample_time > previous_time:
+            cumulative_baseline_hazards[n_events_counted] = local_death_set / (
+                local_risk_set
+            )
+
+            local_death_set = 0
+            local_risk_set -= accumulated_risk_set
+            accumulated_risk_set = 0
+            n_events_counted += 1
+
+        if sample_event:
+            local_death_set += 1
+        accumulated_risk_set += sample_log_partial_hazard
+        previous_time = sample_time
+
+    cumulative_baseline_hazards[n_events_counted] = local_death_set / (local_risk_set)
 
     return (
-        np.cumsum(1 / sorted_risk_set_sums[sorted_event]),
-        sorted_time[sorted_event],
+        np.unique(train_time[train_event]),
+        np.cumsum(cumulative_baseline_hazards),
     )
+
+
+@typechecked
+@jit(nopython=True, cache=True, fastmath=True)
+def breslow_estimator_efron(
+    train_time: np.array,
+    train_event: np.array,
+    train_partial_hazards: np.array,
+):
+    local_risk_set: float = np.sum(train_partial_hazards)
+    n_unique_events: int = np.unique(train_time[train_event]).shape[0]
+    cumulative_baseline_hazards: np.array = np.zeros(n_unique_events)
+    n_events_counted: int = 0
+    local_death_set: int = 0
+    accumulated_risk_set: float = 0
+    previous_time: float = train_time[0]
+    local_death_set_risk: float = 0
+
+    for _ in range(len(train_time)):
+        sample_time: float = train_time[_]
+        sample_event: int = train_event[_]
+        sample_log_partial_hazard: float = train_partial_hazards[_]
+
+        if sample_time > previous_time:
+            for ell in range(len(local_death_set)):
+
+                cumulative_baseline_hazards[n_events_counted] += 1 / (
+                    local_risk_set - (ell / local_death_set) * local_death_set_risk
+                )
+
+            local_death_set = 0
+            local_risk_set -= accumulated_risk_set
+            accumulated_risk_set = 0
+            local_death_set_risk = 0
+            n_events_counted += 1
+
+        if sample_event:
+            local_death_set += 1
+            local_death_set_risk += sample_log_partial_hazard
+        accumulated_risk_set += sample_log_partial_hazard
+
+    for ell in range(len(local_death_set)):
+        cumulative_baseline_hazards[n_events_counted] += 1 / (
+            local_risk_set - (ell / local_death_set) * local_death_set_risk
+        )
+
+    return (
+        np.unique(train_time[train_event]),
+        np.cumsum(cumulative_baseline_hazards),
+    )
+
+
+CUMULATIVE_BASELINE_HAZARD_FACTORY: Dict[str, Callable] = {
+    "breslow": breslow_estimator_breslow,
+    "efron": breslow_estimator_efron,
+}
