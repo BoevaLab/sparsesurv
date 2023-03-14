@@ -1,86 +1,11 @@
 from math import log
 
+from typing import Callable
+
 import numpy as np
 from numba import jit
-from utils import (
-    e_func,
-    e_func_i,
-    inverse_transform_survival_target,
-    norm_cdf,
-    norm_pdf,
-)
 
-
-# the Kernel function chosen is the normal denisty function as used in the paper
-# i.e. K(.) = norm(.)
-@jit(nopython=True, cache=True)
-def ah_loss(
-    X: np.array,
-    y: np.array,
-    coef: np.array,
-    bandwidth: float,
-) -> float:
-
-    n_samples = X.shape[0]
-    time, event = inverse_transform_survival_target(y)
-
-    e_matrix = e_func(X, time, coef)
-
-    term1 = np.sum(e_matrix[event]) / n_samples
-
-    term2 = 0
-    term3 = 0
-    for i in range(n_samples):
-        term2j = 0
-        term3j = 0
-        for j in range(n_samples):
-            kernel_input = (
-                e_func_i(X, time, coef, j) - e_func_i(X, time, coef, i)
-            ) / bandwidth
-            term2j += event[j] * norm_pdf(kernel_input)
-            term3j += np.exp(-np.dot(X[j], coef.T)) * norm_cdf(kernel_input)
-        term2 += event[i] * np.log(term2j / n_samples / bandwidth)
-        term3 += event[i] * np.log(term3j / n_samples)
-    term2 /= n_samples
-    term3 /= n_samples
-
-    return term1 - term2 + term3
-
-
-# use normal densifty function as gaussian kernel, e_func is the same as R_func in the paper
-@jit(nopython=True, cache=True)
-def aft_loss(
-    X: np.array,
-    y: np.array,
-    coef: np.array,
-    bandwidth: float,
-) -> float:
-
-    n_samples = X.shape[0]
-    time, event = inverse_transform_survival_target(y)
-
-    e_matrix = e_func(X, time, coef)
-
-    term1 = np.sum(np.dot(X, coef.T)[event]) / n_samples
-    term2 = np.sum(e_matrix[event]) / n_samples
-
-    term3 = 0
-    term4 = 0
-    for i in range(n_samples):
-        term3j = 0
-        term4j = 0
-        for j in range(n_samples):
-            kernel_input = (
-                e_func_i(X, time, coef, j) - e_func_i(X, time, coef, i)
-            ) / bandwidth
-            term3j += event[j] * norm_pdf(kernel_input)
-            term4j += norm_cdf(kernel_input)
-        term3 += event[i] * np.log(term3j / n_samples / bandwidth)
-        term4 += event[i] * np.log(term4j / n_samples)
-    term3 /= n_samples
-    term4 /= n_samples
-
-    return -term1 + term2 - term3 + term4
+from typeguard import typechecked
 
 
 @jit(nopython=True, cache=True)
@@ -162,4 +87,104 @@ def breslow_likelihood(log_partial_hazard, time, event, sample_weight):
     return likelihood / samples.shape[0]
 
 
-LOSS_FACTORY = {"efron": efron_likelihood, "breslow": breslow_likelihood}
+@jit(nopython=True, cache=True, fastmath=True)
+def ah_likelihood(
+    time: np.array,
+    event: np.array,
+    linear_predictor: np.array,
+    sample_weight: np.array,
+    bandwidth: float,
+    kernel: Callable,
+    integrated_kernel=Callable,
+) -> np.array:
+    n_samples: int = time.shape[0]
+    linear_predictor: np.array = linear_predictor * sample_weight
+    exp_linear_predictor: np.array = np.exp(linear_predictor)
+    R_linear_predictor: np.array = np.log(time * exp_linear_predictor)
+    inverse_sample_size_bandwidth: float = 1 / (n_samples * bandwidth)
+    event_mask: np.array = event.astype(np.bool_)
+
+    kernel_matrix: np.array = kernel(
+        a=R_linear_predictor[event_mask],
+        b=R_linear_predictor[event_mask],
+        bandwidth=bandwidth,
+    )
+
+    integrated_kernel_matrix: np.array = integrated_kernel(
+        a=R_linear_predictor,
+        b=R_linear_predictor[event_mask],
+        bandwidth=bandwidth,
+    )
+
+    inverse_sample_size: float = 1 / n_samples
+
+    kernel_sum: np.array = kernel_matrix.sum(axis=0)
+
+    integrated_kernel_sum: np.array = (
+        integrated_kernel_matrix
+        * exp_linear_predictor.repeat(np.sum(event)).reshape(-1, np.sum(event))
+    ).sum(axis=0)
+
+    likelihood: np.array = inverse_sample_size * (
+        -R_linear_predictor[event].sum()
+        + np.log(inverse_sample_size_bandwidth * kernel_sum).sum()
+        - np.log(inverse_sample_size * integrated_kernel_sum).sum()
+    )
+    return likelihood
+
+
+@jit(nopython=True, cache=True, fastmath=True)
+def aft_likelihood(
+    time: np.array,
+    event: np.array,
+    linear_predictor: np.array,
+    sample_weight: np.array,
+    bandwidth: float,
+    kernel: Callable,
+    integrated_kernel=Callable,
+) -> np.array:
+    n_samples: int = time.shape[0]
+    linear_predictor: np.array = linear_predictor * sample_weight
+    R_linear_predictor: np.array = np.log(time * np.exp(linear_predictor))
+    inverse_sample_size_bandwidth: float = 1 / (n_samples * bandwidth)
+    event_mask: np.array = event.astype(np.bool_)
+    kernel_matrix: np.array = kernel(
+        a=R_linear_predictor[event_mask],
+        b=R_linear_predictor[event_mask],
+        bandwidth=bandwidth,
+    )
+    integrated_kernel_matrix: np.array = integrated_kernel(
+        a=R_linear_predictor,
+        b=R_linear_predictor[event_mask],
+        bandwidth=bandwidth,
+    )
+
+    inverse_sample_size: float = 1 / n_samples
+    kernel_sum: np.array = kernel_matrix.sum(axis=0)
+    integrated_kernel_sum: np.array = integrated_kernel_matrix.sum(0)
+
+    likelihood: np.array = inverse_sample_size * (
+        linear_predictor[event_mask].sum()
+        - R_linear_predictor[event_mask].sum()
+        + np.log(inverse_sample_size_bandwidth * kernel_sum).sum()
+        - np.log(inverse_sample_size * integrated_kernel_sum).sum()
+    )
+    return likelihood
+
+
+LOSS_FACTORY = {
+    "efron": efron_likelihood,
+    "breslow": breslow_likelihood,
+    "aft": aft_likelihood,
+    "ah": ah_likelihood,
+}
+
+from math import exp, sqrt, pi, erf
+
+
+def kernel(x):
+    return (1 / sqrt(2 * pi)) * exp(-1 / 2 * (x**2))
+
+
+def integrated_kernel(x):
+    return (1 / 2) * (1 + erf(x / sqrt(2)))
