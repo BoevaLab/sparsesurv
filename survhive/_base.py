@@ -6,6 +6,7 @@ from sklearn.linear_model._base import LinearModel
 from typeguard import typechecked
 
 from .optimiser import Optimiser
+from .utils import inverse_transform_survival
 
 
 @typechecked
@@ -67,27 +68,8 @@ class RegularizedLinearSurvivalModel(LinearModel):
             groups=self.groups,
         )
         self.coef_: np.array = optimiser.optimise(X=X, y=y, sample_weight=sample_weight)
-
-    def predict_hazard_function(self, X: np.array, time: np.array) -> pd.DataFrame:
-        """Predict hazard function for each sample and each requested time.
-
-        Parameters
-        ----------
-        X : pd.DataFrame of (n_samples, n_features)
-            Data.
-        time : np.array of (n_times)
-            Times at which hazard function predictions are desired.
-
-        Returns
-        ---
-        hazard_function : pd.DataFrame of (n_samples, n_times)
-            Hazard function for each sample and each requested time.
-
-        Notes
-        ---
-        To be implemented in each child class.
-        """
-        raise NotImplementedError
+        self.train_event = (np.abs(y) == y).astype(int)
+        self.train_eta = self.predict(X)
 
     def predict_cumulative_hazard_function(
         self, X: np.array, time: np.array
@@ -132,6 +114,30 @@ class RegularizedLinearSurvivalModel(LinearModel):
         We exclusively rely on `predict_cumulative_hazard_function`
         and simply transform this to the survival function.
         """
+        time_sorted: np.array = np.sort(a=time, kind="stable")
         return np.exp(
-            np.negative(self.predict_cumulative_hazard_function(X=X, time=time))
+            np.negative(self.predict_cumulative_hazard_function(X=X, time=time_sorted))
+        )
+
+    def score(self, X, y, sample_weight=None):
+        time: np.array
+        event: np.array
+        time, event = inverse_transform_survival(y=y)
+        sorted_indices: np.array = np.argsort(a=time, kind="stable")
+        time_sorted: np.array = time[sorted_indices]
+        event_sorted: np.array = event[sorted_indices]
+        X_sorted: np.array = X[
+            sorted_indices,
+        ]
+        if sample_weight is None:
+            sample_weight: np.array = np.ones(time.shape[0]) / time.shape[0]
+        # Flip the loss by turning it into the likelihood
+        # again since score implies higher values are better.
+        return np.negative(
+            self.loss(
+                linear_predictor=self.predict(X_sorted),
+                time=time_sorted,
+                event=event_sorted,
+                sample_weight=sample_weight,
+            )
         )
