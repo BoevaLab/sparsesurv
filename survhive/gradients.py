@@ -9,60 +9,12 @@ from typeguard import typechecked
 from math import exp, sqrt, pi, erf
 from numba import jit
 
-PDF_PREFACTOR: float = 0.3989424488876037
-SQRT_TWO: float = 1.4142135623730951
-SQRT_EPS: float = 1.4901161193847656e-08
-CDF_ZERO: float = 0.5
+from .utils import difference_kernels
 
-
-@jit(nopython=True, cache=True, fastmath=True)
-def gaussian_integrated_kernel(x):
-    return 0.5 * (1 + erf(x / SQRT_TWO))
-
-
-@jit(nopython=True, cache=True, fastmath=True)
-def gaussian_kernel(x):
-    # return (1 / sqrt(2 * 3.14159)) * exp(-1 / 2 * (x**2))
-    return PDF_PREFACTOR * exp(-0.5 * (x**2))
-
-
-@jit(nopython=True, cache=True, fastmath=True)
-def kernel(a, b, bandwidth):
-    kernel_matrix: np.array = np.empty(shape=(a.shape[0], b.shape[0]))
-    # intermediate_result: np.array = np.subtract.outer(a, b) / bandwidth
-    for ix in range(a.shape[0]):
-        for qx in range(b.shape[0]):
-            kernel_matrix[ix, qx] = gaussian_kernel((a[ix] - b[qx]) / bandwidth)
-    return kernel_matrix
-
-
-@jit(nopython=True, cache=True, fastmath=True)
-def integrated_kernel(a, b, bandwidth):
-    integrated_kernel_matrix: np.array = np.empty(shape=(a.shape[0], b.shape[0]))
-    # intermediate_result: np.array = np.subtract.outer(a, b) / bandwidth
-    for ix in range(a.shape[0]):
-        for qx in range(b.shape[0]):
-            integrated_kernel_matrix[ix, qx] = gaussian_integrated_kernel(
-                (a[ix] - b[qx]) / bandwidth
-            )
-    return integrated_kernel_matrix
-
-
-@jit(nopython=True, cache=True, fastmath=True)
-def difference_kernels(a, b, bandwidth):
-    difference: np.array = np.empty(shape=(a.shape[0], b.shape[0]))
-    kernel_matrix: np.array = np.empty(shape=(a.shape[0], b.shape[0]))
-    integrated_kernel_matrix: np.array = np.empty(shape=(a.shape[0], b.shape[0]))
-    # intermediate_result: np.array = np.subtract.outer(a, b) / bandwidth
-    for ix in range(a.shape[0]):
-        for qx in range(b.shape[0]):
-            difference[ix, qx] = (a[ix] - b[qx]) / bandwidth
-            kernel_matrix[ix, qx] = gaussian_kernel(difference[ix, qx])
-            integrated_kernel_matrix[ix, qx] = gaussian_integrated_kernel(
-                difference[ix, qx]
-            )
-
-    return difference, kernel_matrix, integrated_kernel_matrix
+SQRT_EPS = 1.4901161193847656e-08
+CDF_ZERO = 0.5
+PDF_PREFACTOR = 0.3989424488876037
+SQRT_TWO = 1.4142135623730951
 
 
 @jit(nopython=True, cache=True, fastmath=True)
@@ -559,13 +511,13 @@ def calculate_sample_grad_hess(
 @typechecked
 @jit(nopython=True, cache=True, fastmath=True)
 def breslow_numba(
+    linear_predictor: np.array,
     time: np.array,
     event: np.array,
-    log_partial_hazard: np.array,
     sample_weight: np.array,
 ):
     # Assumes times have been sorted beforehand.
-    partial_hazard = np.exp(log_partial_hazard)
+    partial_hazard = np.exp(linear_predictor)
     samples = time.shape[0]
     risk_set_sum = 0
 
@@ -698,13 +650,13 @@ def update_risk_sets_efron_pre(
 @typechecked
 @jit(nopython=True, cache=True, fastmath=True)
 def efron_numba(
+    linear_predictor: np.array,
     time: np.array,
     event: np.array,
-    log_partial_hazard: np.array,
     sample_weight: np.array,
 ) -> Tuple[np.array, np.array]:
     # Assumes times have been sorted beforehand.
-    partial_hazard = np.exp(log_partial_hazard)
+    partial_hazard = np.exp(linear_predictor)
     samples = time.shape[0]
     risk_set_sum = 0
     grad = np.empty(samples)

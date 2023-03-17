@@ -6,11 +6,12 @@ import numpy as np
 from numba import jit
 
 from typeguard import typechecked
+from .utils import difference_kernels
 
 
 @jit(nopython=True, cache=True)
-def efron_likelihood(log_partial_hazard, time, event, sample_weight):
-    partial_hazard = np.exp(log_partial_hazard)
+def efron_likelihood(linear_predictor, time, event, sample_weight):
+    partial_hazard = np.exp(linear_predictor)
     samples = time.shape[0]
     previous_time = time[0]
     risk_set_sum = 0
@@ -26,7 +27,7 @@ def efron_likelihood(log_partial_hazard, time, event, sample_weight):
         sample_time = time[i]
         sample_event = event[i]
         sample_partial_hazard = partial_hazard[i]
-        sample_partial_log_hazard = log_partial_hazard[i]
+        sample_partial_log_hazard = linear_predictor[i]
         weight = sample_weight[i]
 
         if previous_time < sample_time:
@@ -49,13 +50,13 @@ def efron_likelihood(log_partial_hazard, time, event, sample_weight):
 
     for ell in range(death_set_count):
         likelihood -= np.log(risk_set_sum - ((ell / death_set_count) * death_set_risk))
-    return likelihood / samples.shape[0]
+    return -likelihood / samples.shape[0]
 
 
 @jit(nopython=True, cache=True)
-def breslow_likelihood(log_partial_hazard, time, event, sample_weight):
+def breslow_likelihood(linear_predictor, time, event, sample_weight):
     # Assumes times have been sorted beforehand.
-    partial_hazard = np.exp(log_partial_hazard)
+    partial_hazard = np.exp(linear_predictor)
     samples = time.shape[0]
     previous_time = time[0]
     risk_set_sum = 0
@@ -78,24 +79,22 @@ def breslow_likelihood(log_partial_hazard, time, event, sample_weight):
 
         if event[k]:
             set_count += 1
-            likelihood += log_partial_hazard[k] * weight
+            likelihood += linear_predictor[k] * weight
 
         previous_time = current_time
         accumulated_sum += partial_hazard[k] * weight
 
     likelihood -= set_count * log(risk_set_sum)
-    return likelihood / samples.shape[0]
+    return -likelihood / samples.shape[0]
 
 
 @jit(nopython=True, cache=True, fastmath=True)
 def ah_likelihood(
+    linear_predictor: np.array,
     time: np.array,
     event: np.array,
-    linear_predictor: np.array,
     sample_weight: np.array,
-    bandwidth: float,
-    kernel: Callable,
-    integrated_kernel=Callable,
+    bandwidth_function: float,
 ) -> np.array:
     n_samples: int = time.shape[0]
     linear_predictor: np.array = linear_predictor * sample_weight
@@ -103,18 +102,16 @@ def ah_likelihood(
     R_linear_predictor: np.array = np.log(time * exp_linear_predictor)
     inverse_sample_size_bandwidth: float = 1 / (n_samples * bandwidth)
     event_mask: np.array = event.astype(np.bool_)
+    bandwidth: float = bandwidth_function(time=time, event=event, n=n_samples)
 
-    kernel_matrix: np.array = kernel(
-        a=R_linear_predictor[event_mask],
-        b=R_linear_predictor[event_mask],
-        bandwidth=bandwidth,
-    )
+    _: np.array
+    kernel_matrix: np.array
+    integrated_kernel_matrix: np.array
 
-    integrated_kernel_matrix: np.array = integrated_kernel(
-        a=R_linear_predictor,
-        b=R_linear_predictor[event_mask],
-        bandwidth=bandwidth,
+    (_, kernel_matrix, integrated_kernel_matrix,) = difference_kernels(
+        a=linear_predictor, b=linear_predictor[event_mask], bandwidth=bandwidth
     )
+    kernel_matrix = kernel_matrix[event_mask, :]
 
     inverse_sample_size: float = 1 / n_samples
 
@@ -130,34 +127,31 @@ def ah_likelihood(
         + np.log(inverse_sample_size_bandwidth * kernel_sum).sum()
         - np.log(inverse_sample_size * integrated_kernel_sum).sum()
     )
-    return likelihood
+    return -likelihood
 
 
 @jit(nopython=True, cache=True, fastmath=True)
 def aft_likelihood(
+    linear_predictor: np.array,
     time: np.array,
     event: np.array,
-    linear_predictor: np.array,
     sample_weight: np.array,
-    bandwidth: float,
-    kernel: Callable,
-    integrated_kernel=Callable,
+    bandwidth_function: float,
 ) -> np.array:
     n_samples: int = time.shape[0]
     linear_predictor: np.array = linear_predictor * sample_weight
     R_linear_predictor: np.array = np.log(time * np.exp(linear_predictor))
     inverse_sample_size_bandwidth: float = 1 / (n_samples * bandwidth)
     event_mask: np.array = event.astype(np.bool_)
-    kernel_matrix: np.array = kernel(
-        a=R_linear_predictor[event_mask],
-        b=R_linear_predictor[event_mask],
-        bandwidth=bandwidth,
+    bandwidth: float = bandwidth_function(time=time, event=event, n=n_samples)
+    _: np.array
+    kernel_matrix: np.array
+    integrated_kernel_matrix: np.array
+
+    (_, kernel_matrix, integrated_kernel_matrix,) = difference_kernels(
+        a=linear_predictor, b=linear_predictor[event_mask], bandwidth=bandwidth
     )
-    integrated_kernel_matrix: np.array = integrated_kernel(
-        a=R_linear_predictor,
-        b=R_linear_predictor[event_mask],
-        bandwidth=bandwidth,
-    )
+    kernel_matrix = kernel_matrix[event_mask, :]
 
     inverse_sample_size: float = 1 / n_samples
     kernel_sum: np.array = kernel_matrix.sum(axis=0)
@@ -169,7 +163,7 @@ def aft_likelihood(
         + np.log(inverse_sample_size_bandwidth * kernel_sum).sum()
         - np.log(inverse_sample_size * integrated_kernel_sum).sum()
     )
-    return likelihood
+    return -likelihood
 
 
 LOSS_FACTORY = {
@@ -178,13 +172,3 @@ LOSS_FACTORY = {
     "aft": aft_likelihood,
     "ah": ah_likelihood,
 }
-
-from math import exp, sqrt, pi, erf
-
-
-def kernel(x):
-    return (1 / sqrt(2 * pi)) * exp(-1 / 2 * (x**2))
-
-
-def integrated_kernel(x):
-    return (1 / 2) * (1 + erf(x / sqrt(2)))
