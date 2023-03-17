@@ -2,6 +2,62 @@ from math import erf
 
 import numpy as np
 from numba import jit, vectorize, float64
+from math import exp
+
+PDF_PREFACTOR: float = 0.3989424488876037
+SQRT_TWO: float = 1.4142135623730951
+SQRT_EPS: float = 1.4901161193847656e-08
+CDF_ZERO: float = 0.5
+
+
+@jit(nopython=True, cache=True, fastmath=True)
+def gaussian_integrated_kernel(x):
+    return 0.5 * (1 + erf(x / SQRT_TWO))
+
+
+@jit(nopython=True, cache=True, fastmath=True)
+def gaussian_kernel(x):
+    # return (1 / sqrt(2 * 3.14159)) * exp(-1 / 2 * (x**2))
+    return PDF_PREFACTOR * exp(-0.5 * (x**2))
+
+
+@jit(nopython=True, cache=True, fastmath=True)
+def kernel(a, b, bandwidth):
+    kernel_matrix: np.array = np.empty(shape=(a.shape[0], b.shape[0]))
+    # intermediate_result: np.array = np.subtract.outer(a, b) / bandwidth
+    for ix in range(a.shape[0]):
+        for qx in range(b.shape[0]):
+            kernel_matrix[ix, qx] = gaussian_kernel((a[ix] - b[qx]) / bandwidth)
+    return kernel_matrix
+
+
+@jit(nopython=True, cache=True, fastmath=True)
+def integrated_kernel(a, b, bandwidth):
+    integrated_kernel_matrix: np.array = np.empty(shape=(a.shape[0], b.shape[0]))
+    # intermediate_result: np.array = np.subtract.outer(a, b) / bandwidth
+    for ix in range(a.shape[0]):
+        for qx in range(b.shape[0]):
+            integrated_kernel_matrix[ix, qx] = gaussian_integrated_kernel(
+                (a[ix] - b[qx]) / bandwidth
+            )
+    return integrated_kernel_matrix
+
+
+@jit(nopython=True, cache=True, fastmath=True)
+def difference_kernels(a, b, bandwidth):
+    difference: np.array = np.empty(shape=(a.shape[0], b.shape[0]))
+    kernel_matrix: np.array = np.empty(shape=(a.shape[0], b.shape[0]))
+    integrated_kernel_matrix: np.array = np.empty(shape=(a.shape[0], b.shape[0]))
+    # intermediate_result: np.array = np.subtract.outer(a, b) / bandwidth
+    for ix in range(a.shape[0]):
+        for qx in range(b.shape[0]):
+            difference[ix, qx] = (a[ix] - b[qx]) / bandwidth
+            kernel_matrix[ix, qx] = gaussian_kernel(difference[ix, qx])
+            integrated_kernel_matrix[ix, qx] = gaussian_integrated_kernel(
+                difference[ix, qx]
+            )
+
+    return difference, kernel_matrix, integrated_kernel_matrix
 
 
 @jit(nopython=True, cache=True)
