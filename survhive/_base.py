@@ -15,7 +15,7 @@ class RegularizedLinearSurvivalModel(LinearModel):
         self,
         alpha: float,
         optimiser: str,
-        l1_ratio: float = 1.0,
+        l1_ratio: Optional[float] = 1.0,
         groups: Optional[List[List[int]]] = None,
         line_search: bool = True,
         line_search_reduction_factor: float = 0.5,
@@ -36,8 +36,14 @@ class RegularizedLinearSurvivalModel(LinearModel):
         self.tol: float = tol
         self.verbose: int = verbose
         self.random_state: Optional[Union[int, np.random.RandomState]] = random_state
+        self.intercept_ = 0
+        self.coef_ = None
 
-    def fit(self, X: pd.DataFrame, y: np.array, sample_weight: np.array = None) -> None:
+    def set_coef(self, coef: np.array):
+        self.coef_ = coef
+        return None
+
+    def fit(self, X: np.array, y: np.array, sample_weight: np.array = None) -> None:
         """Fit model with proximal gradient descent.
 
         Parameters
@@ -57,19 +63,36 @@ class RegularizedLinearSurvivalModel(LinearModel):
         ---
         To be implemented in each child class.
         """
+
+        if sample_weight is None:
+            sample_weight = np.ones(X.shape[0])
+
         optimiser: Optimiser = Optimiser(
             grad=self.gradient,
+            loss=self.loss,
+            alpha=self.alpha,
             optimiser=self.optimiser,
+            l1_ratio=self.l1_ratio,
+            groups=self.groups,
             line_search=self.line_search,
+            line_search_reduction_factor=self.line_search_reduction_factor,
+            warm_start=self.warm_start,
             max_iter=self.max_iter,
             tol=self.tol,
+            verbose=self.verbose,
             random_state=self.random_state,
-            alpha=self.alpha,
-            groups=self.groups,
         )
-        self.coef_: np.array = optimiser.optimise(X=X, y=y, sample_weight=sample_weight)
+        if self.warm_start and self.coef_ is not None:
+            self.coef_: np.array = optimiser.optimise(
+                X=X, y=y, sample_weight=sample_weight, previous_fit=self.coef_
+            )
+        else:
+            self.coef_: np.array = optimiser.optimise(
+                X=X, y=y, sample_weight=sample_weight
+            )
         self.train_event = (np.abs(y) == y).astype(int)
         self.train_eta = self.predict(X)
+        self.optimiser_state = optimiser
 
     def predict_cumulative_hazard_function(
         self, X: np.array, time: np.array
@@ -129,8 +152,8 @@ class RegularizedLinearSurvivalModel(LinearModel):
         X_sorted: np.array = X[
             sorted_indices,
         ]
-        if sample_weight is None:
-            sample_weight: np.array = np.ones(time.shape[0]) / time.shape[0]
+        # if sample_weight is None:
+        #    sample_weight: np.array = np.ones(time.shape[0]) / time.shape[0]
         # Flip the loss by turning it into the likelihood
         # again since score implies higher values are better.
         return np.negative(

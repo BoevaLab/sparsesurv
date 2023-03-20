@@ -9,7 +9,7 @@ from scipy.stats import norm
 from typeguard import typechecked
 
 
-from .base import RegularizedLinearSurvivalModel
+from ._base import RegularizedLinearSurvivalModel
 from .compat import (
     LOSS_FACTORY,
     GRADIENT_FACTORY,
@@ -23,7 +23,7 @@ class AFT(RegularizedLinearSurvivalModel):
         self,
         alpha: float,
         optimiser: str,
-        l1_ratio: float = 1.0,
+        l1_ratio: Optional[float] = 1.0,
         groups: Optional[List[List[int]]] = None,
         line_search: bool = True,
         line_search_reduction_factor: float = 0.5,
@@ -59,6 +59,7 @@ class AFT(RegularizedLinearSurvivalModel):
             BASELINE_HAZARD_FACTORY["accelerated_failure_time"],
             bandwidth_function=bandwidth_function,
         )
+        self.bandwidth_function = bandwidth_function
 
     def predict_baseline_hazard_function(self, time):
         return self.baseline_hazard(
@@ -142,7 +143,6 @@ class AFTGroupLasso(AFT):
         self,
         alpha: float,
         optimiser: str,
-        l1_ratio: float,
         groups: List[List[int]],
         line_search: bool = True,
         line_search_reduction_factor: float = 0.5,
@@ -156,7 +156,7 @@ class AFTGroupLasso(AFT):
         super().__init__(
             alpha=alpha,
             optimiser=optimiser,
-            l1_ratio=l1_ratio,
+            l1_ratio=None,
             groups=groups,
             line_search=line_search,
             line_search_reduction_factor=line_search_reduction_factor,
