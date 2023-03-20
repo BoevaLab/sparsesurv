@@ -4,9 +4,7 @@ import numpy as np
 import pandas as pd
 
 from ._base import RegularizedLinearSurvivalModel
-from .baseline_hazard import BASELINE_HAZARD_FACTORY
-from .gradients import GRADIENT_FACTORY
-from .loss import LOSS_FACTORY
+from .compat import BASELINE_HAZARD_FACTORY, GRADIENT_FACTORY, LOSS_FACTORY
 from .utils import transform_survival, inverse_transform_survival
 
 from typeguard import typechecked
@@ -52,6 +50,7 @@ class CoxPH(RegularizedLinearSurvivalModel):
         self.baseline_hazard_estimator: Callable = BASELINE_HAZARD_FACTORY[
             tie_correction
         ]
+        self.tie_correction = tie_correction
 
     def fit(self, X: np.array, y: np.array, sample_weight=None) -> None:
         """Fit model with proximal gradient descent.
@@ -86,7 +85,7 @@ class CoxPH(RegularizedLinearSurvivalModel):
         sample_weight: float
         if sample_weight is None:
             sample_weight = np.ones(X.shape[0])
-        sample_weight = sample_weight / np.sum(sample_weight)
+        # sample_weight = sample_weight / np.sum(sample_weight)
 
         super().fit(
             X=X_sorted,

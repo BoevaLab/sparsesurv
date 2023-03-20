@@ -8,6 +8,7 @@ from typeguard import typechecked
 
 from math import exp, sqrt, pi, erf
 from numba import jit
+from .bandwidth_estimation import jones_1990, jones_1991
 
 from .utils import difference_kernels
 
@@ -15,6 +16,28 @@ SQRT_EPS = 1.4901161193847656e-08
 CDF_ZERO = 0.5
 PDF_PREFACTOR = 0.3989424488876037
 SQRT_TWO = 1.4142135623730951
+JONES_1990_PREFACTOR: float = 1.30406
+JONES_1991_PREFACTOR: float = 1.5874
+
+
+BANDWIDTH_FUNCTION_FACTORY = {
+    "jones_1990": jones_1990,
+    "jones_1991": jones_1991,
+}
+
+
+@jit(nopython=True)
+def jones_1990(time: np.array, event: np.array):
+    n: int = time.shape[0]
+    sigma: float = np.std(np.log(time[event]))
+    return JONES_1990_PREFACTOR * sigma * (n**-0.2)
+
+
+@jit(nopython=True)
+def jones_1991(time: np.array, event: np.array):
+    n: int = time.shape[0]
+    sigma: float = np.std(time)
+    return JONES_1991_PREFACTOR * sigma * (n**-1 / 3)
 
 
 @jit(nopython=True, cache=True, fastmath=True)
@@ -26,14 +49,7 @@ def modify_hessian(hessian: np.array, hessian_modification_strategy: str):
     elif hessian_modification_strategy == "eps":
         hessian[hessian < 0] = SQRT_EPS
     elif hessian_modification_strategy == "flip":
-        hessian[hessian < 0] = np.abs(hessian[hessian < 0])
-    elif hessian_modification_strategy is None:
-        return hessian
-    else:
-        raise ValueError(
-            "Expected `hessian_modification_strategy` to be one of ['ignore', 'eps', 'flip']."
-            + f"Found {hessian_modification_strategy} instead."
-        )
+        hessian[hessian < 0] = np.negative(hessian[hessian < 0])
     return hessian
 
 
@@ -43,9 +59,13 @@ def aft_numba(
     event: np.array,
     linear_predictor: np.array,
     sample_weight: np.array,
-    bandwidth: float,
-    hessian_modification_strategy: str = "ignore",
+    bandwidth_function: str,
+    hessian_modification_strategy: str = "eps",
 ):
+    if bandwidth_function == "jones_1990":
+        bandwidth: float = jones_1990(time=time, event=event)
+    else:
+        bandwidth: float = jones_1991(time=time, event=event)
     linear_predictor: np.array = np.exp(sample_weight * linear_predictor)
     linear_predictor = np.log(time * linear_predictor)
     n_samples: int = time.shape[0]
@@ -71,7 +91,6 @@ def aft_numba(
 
     squared_kernel_matrix: np.array = np.square(kernel_matrix)
     squared_difference_outer_product: np.array = np.square(difference_outer_product)
-
     kernel_numerator_full: np.array = (
         kernel_matrix * difference_outer_product * inverse_bandwidth
     )
@@ -220,7 +239,6 @@ def aft_numba(
         else:
             gradient[_] = gradient_three
             hessian[_] = hessian_five + hessian_six
-
     return np.negative(gradient), modify_hessian(
         hessian=np.negative(hessian),
         hessian_modification_strategy=hessian_modification_strategy,
@@ -233,9 +251,14 @@ def ah_numba(
     event: np.array,
     linear_predictor: np.array,
     sample_weight: np.array,
-    bandwidth: float,
-    hessian_modification_strategy: str = "ignore",
+    bandwidth_function: str = "jones_1990",
+    hessian_modification_strategy: str = "eps",
 ):
+    if bandwidth_function == "jones_1990":
+        bandwidth: float = jones_1990(time=time, event=event)
+    else:
+        bandwidth: float = jones_1991(time=time, event=event)
+
     linear_predictor_vanilla: np.array = np.exp(sample_weight * linear_predictor)
     linear_predictor = np.log(time * linear_predictor_vanilla)
     squared_linear_predictor_vanilla: np.array = np.square(linear_predictor_vanilla)
@@ -270,11 +293,9 @@ def ah_numba(
     sample_repeated_linear_predictor: np.array = linear_predictor_vanilla.repeat(
         n_events
     ).reshape((n_samples, n_events))
-    # print(sample_repeated_linear_predictor)
     squared_sample_repeated_linear_predictor: np.array = (
         squared_linear_predictor_vanilla.repeat(n_events).reshape((n_samples, n_events))
     )
-
     kernel_numerator_full: np.array = (
         kernel_matrix * difference_outer_product * inverse_bandwidth
     )
@@ -456,6 +477,7 @@ def ah_numba(
                 + gradient_four
                 + gradient_correction_factor
             ) - inverse_sample_size
+
             hessian[_] = (
                 hessian_one
                 + hessian_two
@@ -472,14 +494,12 @@ def ah_numba(
         else:
             gradient[_] = gradient_three
             hessian[_] = hessian_five + hessian_six
-
     return np.negative(gradient), modify_hessian(
         hessian=np.negative(hessian),
         hessian_modification_strategy=hessian_modification_strategy,
     )
 
 
-@typechecked
 @jit(nopython=True, cache=True, fastmath=True)
 def update_risk_sets_breslow(
     risk_set_sum: float,
@@ -492,7 +512,6 @@ def update_risk_sets_breslow(
     return local_risk_set, local_risk_set_hessian
 
 
-@typechecked
 @jit(nopython=True, cache=True, fastmath=True)
 def calculate_sample_grad_hess(
     sample_partial_hazard: float,
@@ -508,7 +527,6 @@ def calculate_sample_grad_hess(
     )
 
 
-@typechecked
 @jit(nopython=True, cache=True, fastmath=True)
 def breslow_numba(
     linear_predictor: np.array,
@@ -588,7 +606,6 @@ def breslow_numba(
     return grad, hess
 
 
-@typechecked
 @jit(nopython=True, cache=True, fastmath=True)
 def calculate_sample_grad_hess_efron(
     sample_partial_hazard: float,
@@ -613,7 +630,6 @@ def calculate_sample_grad_hess_efron(
         ) * local_risk_set - local_risk_set_hessian * ((sample_partial_hazard) ** 2)
 
 
-@typechecked
 @jit(nopython=True, cache=True, fastmath=True)
 def update_risk_sets_efron_pre(
     risk_set_sum: float,
@@ -647,7 +663,6 @@ def update_risk_sets_efron_pre(
     )
 
 
-@typechecked
 @jit(nopython=True, cache=True, fastmath=True)
 def efron_numba(
     linear_predictor: np.array,

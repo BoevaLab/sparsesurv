@@ -14,15 +14,15 @@ from .baseline_hazard_estimation import (
 
 
 GRADIENT_FACTORY = {
-    "cox_breslow": breslow_numba,
-    "cox_efron": efron_numba,
+    "breslow": breslow_numba,
+    "efron": efron_numba,
     "accelerated_hazards": ah_numba,
     "accelerated_failure_time": aft_numba,
 }
 
 LOSS_FACTORY = {
-    "cox_breslow": breslow_likelihood,
-    "cox_efron": efron_likelihood,
+    "breslow": breslow_likelihood,
+    "efron": efron_likelihood,
     "accelerated_failure_time": aft_likelihood,
     "accelerated_hazards": ah_likelihood,
 }
@@ -33,8 +33,8 @@ BANDWIDTH_FUNCTION_FACTORY = {
 }
 
 BASELINE_HAZARD_FACTORY = {
-    "cox_breslow": breslow_estimator_breslow,
-    "cox_efron": breslow_estimator_efron,
+    "breslow": breslow_estimator_breslow,
+    "efron": breslow_estimator_efron,
     "accelerated_failure_time": np.array,
     "accelerated_hazards": np.array,
 }

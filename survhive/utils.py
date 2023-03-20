@@ -34,7 +34,6 @@ def kernel(a, b, bandwidth):
 @jit(nopython=True, cache=True, fastmath=True)
 def integrated_kernel(a, b, bandwidth):
     integrated_kernel_matrix: np.array = np.empty(shape=(a.shape[0], b.shape[0]))
-    # intermediate_result: np.array = np.subtract.outer(a, b) / bandwidth
     for ix in range(a.shape[0]):
         for qx in range(b.shape[0]):
             integrated_kernel_matrix[ix, qx] = gaussian_integrated_kernel(
@@ -48,7 +47,6 @@ def difference_kernels(a, b, bandwidth):
     difference: np.array = np.empty(shape=(a.shape[0], b.shape[0]))
     kernel_matrix: np.array = np.empty(shape=(a.shape[0], b.shape[0]))
     integrated_kernel_matrix: np.array = np.empty(shape=(a.shape[0], b.shape[0]))
-    # intermediate_result: np.array = np.subtract.outer(a, b) / bandwidth
     for ix in range(a.shape[0]):
         for qx in range(b.shape[0]):
             difference[ix, qx] = (a[ix] - b[qx]) / bandwidth
@@ -61,13 +59,20 @@ def difference_kernels(a, b, bandwidth):
 
 
 @jit(nopython=True, cache=True)
-def inverse_transform_survival_target(
+def inverse_transform_survival(
     y: np.array,
 ) -> tuple[np.array, np.array]:
     event = y >= 0
-    event = event.flatten()
+    event = event.flatten().astype(np.int_)
     time = np.abs(y).flatten()
     return time, event
+
+
+@jit(nopython=True, cache=True)
+def transform_survival(time: np.array, event: np.array) -> np.array:
+    y: np.array = np.copy(time)
+    y[np.logical_not(event)] = np.negative(y[np.logical_not(event)])
+    return y
 
 
 # Gaussian norm kernel functions
