@@ -4,7 +4,6 @@ from typing import Callable, Dict, List, Optional, Union
 import numpy as np
 from celer import ElasticNet as CelerElasticNet
 from celer import GroupLasso as CelerGroupLasso
-from numba import jit
 from sklearn.exceptions import ConvergenceWarning
 from sklearn.linear_model import ElasticNet as ScikitElasticNet
 from sklearn.linear_model._base import LinearModel
@@ -21,10 +20,8 @@ OPTIMISERS: Dict[str, LinearModel] = {
 }
 
 
-# @jit(nopython=True, cache=True, fastmath=True)
 def backtracking_line_search(
     loss: Callable,
-    sample_weight: np.array,
     time: np.array,
     event: np.array,
     search_direction: np.array,
@@ -45,7 +42,6 @@ def backtracking_line_search(
             + current_learning_rate * current_prediction,
             time=time,
             event=event,
-            sample_weight=sample_weight,
         )
         > previous_loss
         + (
@@ -57,6 +53,7 @@ def backtracking_line_search(
     ) and current_iter < max_iter:
         current_learning_rate *= reduction_factor
         current_iter += 1
+    print(current_learning_rate)
     return current_learning_rate
 
 
@@ -80,14 +77,26 @@ def _validate_optimiser(
             raise ValueError(
                 f"Expected `l1_ratio` to be one, since `optimiser` is {optimiser}."
             )
-        optimiser_: LinearModel = OPTIMISERS[optimiser](
-            alpha=alpha,
-            l1_ratio=l1_ratio,
-            fit_intercept=False,
-            tol=tol,
-            max_iter=max_iter,
-            warm_start=warm_start,
-        )
+
+        if "celer" not in optimiser:
+            optimiser_: LinearModel = OPTIMISERS[optimiser](
+                alpha=alpha,
+                l1_ratio=l1_ratio,
+                fit_intercept=False,
+                tol=tol,
+                max_iter=max_iter,
+                warm_start=warm_start,
+            )
+        else:
+            optimiser_: LinearModel = OPTIMISERS[optimiser](
+                alpha=alpha,
+                l1_ratio=l1_ratio,
+                fit_intercept=False,
+                verbose=verbose,
+                tol=tol,
+                max_iter=max_iter,
+                warm_start=warm_start,
+            )
     else:
         if groups is not None:
             if optimiser not in ["celer_group_lasso"]:
@@ -153,7 +162,7 @@ class Optimiser:
             }
         )
 
-    def optimise(self, X, y, sample_weight, previous_fit=None) -> np.array:
+    def optimise(self, X, y, previous_fit=None) -> np.array:
         optimiser: LinearModel = _validate_optimiser(
             optimiser=self.optimiser,
             alpha=self.alpha,
@@ -180,7 +189,6 @@ class Optimiser:
                     linear_predictor=np.matmul(X, beta),
                     time=time,
                     event=event,
-                    sample_weight=sample_weight,
                 ),
                 "gap": np.nan,
                 "beta": beta,
@@ -194,7 +202,6 @@ class Optimiser:
                 linear_predictor=eta,
                 time=time,
                 event=event,
-                sample_weight=sample_weight,
             )
             inverse_hessian = 1 / hessian
             optimiser.fit(
@@ -209,7 +216,6 @@ class Optimiser:
                 loss=self.loss,
                 time=time,
                 event=event,
-                sample_weight=sample_weight,
                 current_prediction=eta_new,
                 previous_prediction=eta,
                 previous_loss=self.history[-1]["loss"],
@@ -225,12 +231,7 @@ class Optimiser:
             self.track_history(
                 previous_beta=beta,
                 new_beta=beta_updated,
-                loss=self.loss(
-                    linear_predictor=eta_new,
-                    time=time,
-                    event=event,
-                    sample_weight=sample_weight,
-                ),
+                loss=self.loss(linear_predictor=eta_new, time=time, event=event),
             )
             beta = beta_updated
             if (
@@ -238,10 +239,10 @@ class Optimiser:
                 < self.tol * np.max(np.abs(beta)) + np.finfo(float).eps
             ):
                 return beta
-
-        warnings.warn(
-            f"Convergence not reached after {self.max_iter + 1} iterations."
-            + "Consider increasing `max_iter` or decreasing `tol`.",
-            ConvergenceWarning,
-        )
+        if self.verbose:
+            warnings.warn(
+                f"Convergence not reached after {self.max_iter + 1} iterations."
+                + "Consider increasing `max_iter` or decreasing `tol`.",
+                ConvergenceWarning,
+            )
         return beta

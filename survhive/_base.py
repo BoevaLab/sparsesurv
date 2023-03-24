@@ -6,7 +6,7 @@ from sklearn.linear_model._base import LinearModel
 from typeguard import typechecked
 from collections import defaultdict
 from .optimiser import Optimiser
-from .utils import inverse_transform_survival
+from .utils import inverse_transform_survival, transform_survival
 import inspect
 
 
@@ -137,7 +137,7 @@ class RegularizedLinearSurvivalModel(LinearModel):
 
         return self
 
-    def fit(self, X: np.array, y: np.array, sample_weight: np.array = None) -> None:
+    def fit(self, X: np.array, y: np.array) -> None:
         """Fit model with proximal gradient descent.
 
         Parameters
@@ -157,10 +157,16 @@ class RegularizedLinearSurvivalModel(LinearModel):
         ---
         To be implemented in each child class.
         """
-
-        if sample_weight is None:
-            sample_weight = np.ones(X.shape[0])
-
+        time: np.array
+        event: np.array
+        time, event = inverse_transform_survival(y=y)
+        sorted_indices: np.array = np.argsort(a=time, kind="stable")
+        time_sorted: np.array = time[sorted_indices]
+        event_sorted: np.array = event[sorted_indices]
+        X_sorted: np.array = X[
+            sorted_indices,
+        ]
+        y_sorted: np.array = transform_survival(time=time_sorted, event=event_sorted)
         optimiser: Optimiser = Optimiser(
             grad=self.gradient,
             loss=self.loss,
@@ -178,14 +184,15 @@ class RegularizedLinearSurvivalModel(LinearModel):
         )
         if self.warm_start and self.coef_ is not None:
             self.coef_: np.array = optimiser.optimise(
-                X=X, y=y, sample_weight=sample_weight, previous_fit=self.coef_
+                X=X_sorted,
+                y=y_sorted,
+                previous_fit=self.coef_,
             )
         else:
-            self.coef_: np.array = optimiser.optimise(
-                X=X, y=y, sample_weight=sample_weight
-            )
-        self.train_event = (np.abs(y) == y).astype(int)
-        self.train_eta = self.predict(X)
+            self.coef_: np.array = optimiser.optimise(X=X_sorted, y=y_sorted)
+        self.train_time = time_sorted
+        self.train_event = event_sorted
+        self.train_eta = self.predict(X_sorted)
         self.optimiser_state = optimiser
 
     def predict_cumulative_hazard_function(
@@ -236,7 +243,7 @@ class RegularizedLinearSurvivalModel(LinearModel):
             np.negative(self.predict_cumulative_hazard_function(X=X, time=time_sorted))
         )
 
-    def score(self, X, y, sample_weight=None):
+    def score(self, X, y):
         time: np.array
         event: np.array
         time, event = inverse_transform_survival(y=y)
@@ -246,15 +253,10 @@ class RegularizedLinearSurvivalModel(LinearModel):
         X_sorted: np.array = X[
             sorted_indices,
         ]
-        # if sample_weight is None:
-        #    sample_weight: np.array = np.ones(time.shape[0]) / time.shape[0]
-        # Flip the loss by turning it into the likelihood
-        # again since score implies higher values are better.
         return np.negative(
             self.loss(
                 linear_predictor=self.predict(X_sorted),
                 time=time_sorted,
                 event=event_sorted,
-                sample_weight=sample_weight,
             )
         )
