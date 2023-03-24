@@ -1,17 +1,12 @@
-import numpy as np
-from .gradients import ah_numba, aft_numba, breslow_numba, efron_numba
-from .loss import (
-    ah_likelihood,
-    aft_likelihood,
-    breslow_likelihood,
-    efron_likelihood,
-)
 from .bandwidth_estimation import jones_1990, jones_1991
 from .baseline_hazard_estimation import (
+    baseline_hazard_estimator_aft,
+    baseline_hazard_estimator_ah,
     breslow_estimator_breslow,
     breslow_estimator_efron,
 )
-
+from .gradients import aft_numba, ah_numba, breslow_numba, efron_numba
+from .loss import aft_likelihood, ah_likelihood, breslow_likelihood, efron_likelihood
 
 GRADIENT_FACTORY = {
     "breslow": breslow_numba,
@@ -35,6 +30,6 @@ BANDWIDTH_FUNCTION_FACTORY = {
 BASELINE_HAZARD_FACTORY = {
     "breslow": breslow_estimator_breslow,
     "efron": breslow_estimator_efron,
-    "accelerated_failure_time": np.array,
-    "accelerated_hazards": np.array,
+    "accelerated_failure_time": baseline_hazard_estimator_aft,
+    "accelerated_hazards": baseline_hazard_estimator_ah,
 }

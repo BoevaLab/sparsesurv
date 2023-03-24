@@ -1,43 +1,11 @@
-from typing import Tuple, Callable
+from typing import Tuple
 
 import numpy as np
 from numba import jit
-from scipy.stats import norm
-from sklearn.utils.extmath import safe_sparse_dot
-from typeguard import typechecked
 
-from math import exp, sqrt, pi, erf
-from numba import jit
 from .bandwidth_estimation import jones_1990, jones_1991
-
+from .constants import CDF_ZERO, PDF_PREFACTOR, SQRT_EPS
 from .utils import difference_kernels
-
-SQRT_EPS = 1.4901161193847656e-08
-CDF_ZERO = 0.5
-PDF_PREFACTOR = 0.3989424488876037
-SQRT_TWO = 1.4142135623730951
-JONES_1990_PREFACTOR: float = 1.30406
-JONES_1991_PREFACTOR: float = 1.5874
-
-
-BANDWIDTH_FUNCTION_FACTORY = {
-    "jones_1990": jones_1990,
-    "jones_1991": jones_1991,
-}
-
-
-@jit(nopython=True)
-def jones_1990(time: np.array, event: np.array):
-    n: int = time.shape[0]
-    sigma: float = np.std(np.log(time[event]))
-    return JONES_1990_PREFACTOR * sigma * (n**-0.2)
-
-
-@jit(nopython=True)
-def jones_1991(time: np.array, event: np.array):
-    n: int = time.shape[0]
-    sigma: float = np.std(time)
-    return JONES_1991_PREFACTOR * sigma * (n**-1 / 3)
 
 
 @jit(nopython=True, cache=True, fastmath=True)
@@ -58,7 +26,6 @@ def aft_numba(
     time: np.array,
     event: np.array,
     linear_predictor: np.array,
-    sample_weight: np.array,
     bandwidth_function: str,
     hessian_modification_strategy: str = "eps",
 ):
@@ -66,7 +33,7 @@ def aft_numba(
         bandwidth: float = jones_1990(time=time, event=event)
     else:
         bandwidth: float = jones_1991(time=time, event=event)
-    linear_predictor: np.array = np.exp(sample_weight * linear_predictor)
+    linear_predictor: np.array = np.exp(linear_predictor)
     linear_predictor = np.log(time * linear_predictor)
     n_samples: int = time.shape[0]
     gradient: np.array = np.empty(n_samples)
@@ -250,7 +217,6 @@ def ah_numba(
     time: np.array,
     event: np.array,
     linear_predictor: np.array,
-    sample_weight: np.array,
     bandwidth_function: str = "jones_1990",
     hessian_modification_strategy: str = "eps",
 ):
@@ -259,9 +225,8 @@ def ah_numba(
     else:
         bandwidth: float = jones_1991(time=time, event=event)
 
-    linear_predictor_vanilla: np.array = np.exp(sample_weight * linear_predictor)
+    linear_predictor_vanilla: np.array = np.exp(linear_predictor)
     linear_predictor = np.log(time * linear_predictor_vanilla)
-    squared_linear_predictor_vanilla: np.array = np.square(linear_predictor_vanilla)
     n_samples: int = time.shape[0]
     n_events: int = np.sum(event)
     gradient: np.array = np.empty(n_samples)
@@ -270,12 +235,10 @@ def ah_numba(
     inverse_sample_size: float = 1 / n_samples
     inverse_bandwidth: float = 1 / bandwidth
     squared_inverse_bandwidth: float = inverse_bandwidth**2
-    inverse_sample_size_bandwidth: float = inverse_sample_size * inverse_bandwidth
 
-    zero_kernel: float = 0.39894245
+    zero_kernel: float = PDF_PREFACTOR
     zero_integrated_kernel: float = CDF_ZERO
     event_count: int = 0
-    squared_zero_kernel: float = zero_kernel**2
 
     (
         difference_outer_product,
@@ -285,17 +248,12 @@ def ah_numba(
         a=linear_predictor, b=linear_predictor[event_mask], bandwidth=bandwidth
     )
 
-    squared_kernel_matrix: np.array = np.square(kernel_matrix)
     squared_difference_outer_product: np.array = np.square(difference_outer_product)
-
-    squared_integrated_kernel_matrix: np.array = np.square(integrated_kernel_matrix)
 
     sample_repeated_linear_predictor: np.array = linear_predictor_vanilla.repeat(
         n_events
     ).reshape((n_samples, n_events))
-    squared_sample_repeated_linear_predictor: np.array = (
-        squared_linear_predictor_vanilla.repeat(n_events).reshape((n_samples, n_events))
-    )
+
     kernel_numerator_full: np.array = (
         kernel_matrix * difference_outer_product * inverse_bandwidth
     )
@@ -311,9 +269,6 @@ def ah_numba(
     integrated_kernel_denominator: np.array = (
         integrated_kernel_matrix * sample_repeated_linear_predictor
     ).sum(axis=0)
-    squared_integrated_kernel_denominator: np.array = np.square(
-        integrated_kernel_denominator
-    )
 
     for _ in range(n_samples):
 
@@ -518,11 +473,10 @@ def calculate_sample_grad_hess(
     sample_event: int,
     local_risk_set: float,
     local_risk_set_hessian: float,
-    weight: float,
 ) -> Tuple[float, float]:
     return (
         sample_partial_hazard * local_risk_set
-    ) - sample_event * weight, sample_partial_hazard * local_risk_set - local_risk_set_hessian * (
+    ) - sample_event, sample_partial_hazard * local_risk_set - local_risk_set_hessian * (
         sample_partial_hazard**2
     )
 
@@ -532,7 +486,6 @@ def breslow_numba(
     linear_predictor: np.array,
     time: np.array,
     event: np.array,
-    sample_weight: np.array,
 ):
     # Assumes times have been sorted beforehand.
     partial_hazard = np.exp(linear_predictor)
@@ -554,7 +507,7 @@ def breslow_numba(
     for i in range(samples):
         sample_time = time[i]
         sample_event = event[i]
-        sample_partial_hazard = partial_hazard[i] * sample_weight[i]
+        sample_partial_hazard = partial_hazard[i]
 
         if previous_time < sample_time:
             if death_set_count:
@@ -571,7 +524,6 @@ def breslow_numba(
                     event[death_ix],
                     local_risk_set,
                     local_risk_set_hessian,
-                    sample_weight[i],
                 )
 
             risk_set_sum -= accumulated_sum
@@ -603,7 +555,7 @@ def breslow_numba(
             local_risk_set,
             local_risk_set_hessian,
         )
-    return grad, hess
+    return grad / samples, hess / samples
 
 
 @jit(nopython=True, cache=True, fastmath=True)
@@ -614,14 +566,11 @@ def calculate_sample_grad_hess_efron(
     local_risk_set_hessian: float,
     local_risk_set_death: float,
     local_risk_set_hessian_death: float,
-    weight: float,
 ) -> Tuple[float, float]:
     if sample_event:
-        return ((sample_partial_hazard) * (local_risk_set_death)) - (
-            sample_event * weight
-        ), (sample_partial_hazard) * (local_risk_set_death) - (
-            (local_risk_set_hessian_death)
-        ) * (
+        return ((sample_partial_hazard) * (local_risk_set_death)) - (sample_event), (
+            sample_partial_hazard
+        ) * (local_risk_set_death) - ((local_risk_set_hessian_death)) * (
             (sample_partial_hazard) ** 2
         )
     else:
@@ -668,7 +617,6 @@ def efron_numba(
     linear_predictor: np.array,
     time: np.array,
     event: np.array,
-    sample_weight: np.array,
 ) -> Tuple[np.array, np.array]:
     # Assumes times have been sorted beforehand.
     partial_hazard = np.exp(linear_predictor)
@@ -687,12 +635,12 @@ def efron_numba(
     local_risk_set_hessian_death: float = 0.0
 
     for i in range(samples):
-        risk_set_sum += sample_weight[i] * partial_hazard[i]
+        risk_set_sum += partial_hazard[i]
 
     for i in range(samples):
         sample_time: float = time[i]
         sample_event: int = event[i]
-        sample_partial_hazard: float = partial_hazard[i] * sample_weight[i]
+        sample_partial_hazard: float = partial_hazard[i]
 
         if previous_time < sample_time:
             if death_set_count:
@@ -717,7 +665,6 @@ def efron_numba(
                     local_risk_set_hessian,
                     local_risk_set_death,
                     local_risk_set_hessian_death,
-                    sample_weight[death_ix],
                 )
             risk_set_sum -= accumulated_sum
             accumulated_sum = 0
@@ -759,6 +706,5 @@ def efron_numba(
             local_risk_set_hessian,
             local_risk_set_death,
             local_risk_set_hessian_death,
-            sample_weight[death_ix],
         )
-    return grad, hess
+    return grad / samples, hess / samples
