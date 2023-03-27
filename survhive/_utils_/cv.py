@@ -3,13 +3,15 @@ from abc import abstractmethod
 from functools import partial
 from numbers import Real
 from typing import List, Tuple, Union
+from collections.abc import Iterable
 
 import numpy as np
 from numpy.typing import ArrayLike
 from scipy import sparse
 from sklearn.linear_model._base import _preprocess_data
 from sklearn.linear_model._coordinate_descent import LinearModelCV, _check_sample_weight
-from sklearn.model_selection import check_cv
+from sklearn.model_selection import StratifiedKFold
+from sklearn.model_selection._split import _CVIterableWrapper
 from sklearn.utils.extmath import safe_sparse_dot
 from sklearn.utils.parallel import Parallel, delayed
 from sklearn.utils.validation import check_consistent_length, check_scalar
@@ -232,7 +234,18 @@ class CrossValidation(LinearModelCV):
         self.max_iter = max_iter
         self.tol = tol
         self.copy_X = copy_X
-        self.cv = cv
+
+        cv = 5 if cv is None else cv
+        if isinstance(cv, numbers.Integral):
+            self.cv = StratifiedKFold(cv)
+        elif isinstance(cv, Iterable):
+            self.cv = _CVIterableWrapper(cv)
+        elif hasattr(cv, "split"):
+            self.cv = cv
+        else:
+            raise ValueError(
+                "Expected cv to be an integer, sklearn model selection object or an iterable"
+            )
 
         self.n_jobs = n_jobs
 
@@ -314,9 +327,7 @@ class CrossValidation(LinearModelCV):
         n_alphas = len(alphas[0])
         path_params.update({"n_alphas": n_alphas})
 
-        cv = check_cv(self.cv)
-
-        folds = list(cv.split(X, y))
+        folds = list(self.cv.split(X, y))
         best_pl_score = 0.0
 
         jobs = (
