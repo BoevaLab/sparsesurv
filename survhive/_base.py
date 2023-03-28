@@ -8,7 +8,7 @@ from collections import defaultdict
 from .optimiser import Optimiser
 from .utils import inverse_transform_survival, transform_survival
 import inspect
-from ._utils_.cv import _alpha_grid
+from ._utils_.cv import _alpha_grid, regularisation_path
 
 
 @typechecked
@@ -162,8 +162,6 @@ class RegularizedLinearSurvivalModel(LinearModel):
         event: np.array
         time, event = inverse_transform_survival(y=y)
         sorted_indices: np.array = np.argsort(a=time, kind="stable")
-        time_sorted = time[sorted_indices]
-        event_sorted = event[sorted_indices]
         X_sorted = X[sorted_indices, :]
         y_sorted = y[sorted_indices]
         # sorted_indices = np.arange(event.shape[0])
@@ -173,51 +171,21 @@ class RegularizedLinearSurvivalModel(LinearModel):
         #    sorted_indices,
         # ]
         # y_sorted: np.array = transform_survival(time=time_sorted, event=event_sorted)
-        optimiser: Optimiser = Optimiser(
-            grad=self.gradient,
-            loss=self.loss,
-            alpha=self.alpha,
-            optimiser=self.optimiser,
-            l1_ratio=self.l1_ratio,
-            groups=self.groups,
-            line_search=self.line_search,
-            line_search_reduction_factor=self.line_search_reduction_factor,
-            warm_start=self.warm_start,
-            max_iter=self.max_iter,
-            tol=self.tol,
-            verbose=self.verbose,
-            random_state=self.random_state,
-        )
-        if self.warm_start and previous_fit is not None:
-            self.coef_: np.array = optimiser.optimise_path(
+        self.coef_ = np.squeeze(
+            regularisation_path(
                 X=X_sorted,
                 y=y_sorted,
-                previous_fit=previous_fit,
-            )
-        else:
-            self.coef_: np.array = optimiser.optimise(X=X_sorted, y=y_sorted)
-        # time = np.abs(y)
-        # event = (y > 0).astype(int)
-        # gradient, hessian = self.gradient(
-        #         linear_predictor=np.zeros(X.shape[0]),
-        #         time=time_sorted,
-        #         event=event_sorted,
-        #     )
-
-        # print(_alpha_grid(X_sorted, y_sorted, Xy=None, l1_ratio=self.l1_ratio, eps=0.05, n_alphas=100, gradient=gradient, hessian=hessian))
-        # self.coef_ = optimiser.optimise_path(X=X_sorted, y=y_sorted, alphas=_alpha_grid(X_sorted, y_sorted, Xy=None, l1_ratio=self.l1_ratio, eps=0.05, n_alphas=100, gradient=gradient, hessian=hessian))
-        # if alphas is None:
-        #     gradient, hessian = self.gradient(
-        #         linear_predictor=np.zeros(X.shape[0]),
-        #         time=time,
-        #         event=event,
-        #     )
-        #     alpha_grid = _alpha_grid(X, y, Xy=None, l1_ratio=self.l1_ratio, eps=0.05, n_alphas=100, gradient=gradient, hessian=hessian)
-        # self.coef_: np.array = optimiser.optimise_path(X=X, y=y, alphas=alpha_grid)
-        # self.train_time = time
-        # self.train_event = event
-        # self.train_eta = self.predict(X_sorted)
-        self.optimiser_state = optimiser
+                X_test=X,
+                model=self,
+                l1_ratio=self.l1_ratio,
+                eps=None,
+                n_alphas=None,
+                alphas=np.array([self.alpha]),
+            )[0]
+        )
+        self.train_time = time[sorted_indices]
+        self.train_event = event[sorted_indices]
+        self.train_eta = self.predict(X_sorted)
 
     def predict_cumulative_hazard_function(
         self, X: np.array, time: np.array

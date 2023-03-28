@@ -322,6 +322,7 @@ class Optimiser:
             }
         )
         for _ in range(self.max_iter):
+            print(_)
 
             eta: np.array = np.matmul(X, beta)
             gradient: np.array
@@ -357,30 +358,7 @@ class Optimiser:
                 np.max(np.abs(np.matmul(gradient.T[hessian_mask], X[hessian_mask, :])))
                 / correction_factor
             )
-            # print(alpha_max)
-            # strong_variables = np.where(np.abs(np.matul(X[hessian_mask, :].T  (inverse_hessian * gradient)[hessian_mask])) >= 2 * alphas[i] - alphas[i - 1])[0]
-            # print(np.sqrt(hessian[hessian_mask]).repeat(X.shape[1]).reshape((np.sum(hessian_mask), X.shape[1])))
-            # print(X[hessian_mask, :] * np.sqrt(weights).repeat(X.shape[1]).reshape((np.sum(hessian_mask), X.shape[1])))
-            # print(np.sqrt(weights) * (eta - inverse_hessian * gradient)[hessian_mask])
-            # print(np.sqrt(weights) * (eta - inverse_hessian * gradient)[hessian_mask])
-            # print(X[hessian_mask, :] * np.sqrt(weights).repeat(X.shape[1]).reshape((np.sum(hessian_mask), X.shape[1])))
-            # print(optimiser)
-            # print((X[hessian_mask, :] * np.sqrt(weights).repeat(X.shape[1]).reshape((np.sum(hessian_mask), X.shape[1]))).shape)
-            # print((np.sqrt(weights) * (eta - inverse_hessian * gradient)[hessian_mask]).shape)
-            print(
-                np.sum(
-                    X[hessian_mask, :]
-                    * np.sqrt(weights)
-                    .repeat(X.shape[1])
-                    .reshape((np.sum(hessian_mask), X.shape[1]))
-                )
-            )
-            print(
-                np.sum(
-                    np.sqrt(weights) * (eta - inverse_hessian * gradient)[hessian_mask]
-                )
-            )
-            print(np.sum(weights))
+            print(alpha_max)
             optimiser.fit(
                 X=X[hessian_mask, :]
                 * np.sqrt(weights)
@@ -417,11 +395,10 @@ class Optimiser:
             )
             beta = beta_updated
             # print(self.history[-1]["gap"])
-            # if (
-            #    self.history[-1]["gap"]
-            #    < self.tol * np.max(np.abs(beta)) + np.finfo(float).eps
-            # ):
-            if self.history[-1]["gap"] < 0.00001:
+            if (
+                self.history[-1]["gap"]
+                < self.tol * np.max(np.abs(beta)) + np.finfo(float).eps
+            ):
                 return beta
         if self.verbose:
             warnings.warn(
