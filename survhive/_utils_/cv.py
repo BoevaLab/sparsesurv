@@ -1,13 +1,10 @@
-import json
-import sys
-import math
 import numbers
-import os
 from abc import abstractmethod
 from functools import partial
 from numbers import Real
 from typing import List, Tuple, Union
-from numpy.typing import ArrayLike
+from collections.abc import Iterable
+
 import numpy as np
 import pandas as pd
 from survhive._utils_.hyperparams import (
@@ -15,15 +12,19 @@ from survhive._utils_.hyperparams import (
     # ESTIMATORFACTORY,
     # OPTIMISERFACTORY,
 )
+from numpy.typing import ArrayLike
 from numpy import ndarray
 from scipy import sparse
 from sklearn.linear_model._base import _preprocess_data
 from sklearn.linear_model._coordinate_descent import LinearModelCV, _check_sample_weight
-from sklearn.model_selection import check_cv
+from sklearn.model_selection import StratifiedKFold
+from sklearn.model_selection._split import _CVIterableWrapper
 from sklearn.utils.extmath import safe_sparse_dot
 from sklearn.utils.parallel import Parallel, delayed
-from sklearn.utils.validation import check_array, check_consistent_length, check_scalar
+from sklearn.utils.validation import check_consistent_length, check_scalar
 from typeguard import typechecked
+
+from survhive._utils_.hyperparams import CVSCORERFACTORY
 from survhive._utils_.scorer import *
 from survhive.optimiser import Optimiser
 from ..constants import EPS
@@ -572,14 +573,14 @@ def regularisation_path(
 def _path_xcoefs(
     X: ArrayLike,
     y: ArrayLike,
+    Xy: ArrayLike,
     model: object,
     sample_weight: ArrayLike,
     train: List,
     test: List,
-    path: callable,
-    path_params: dict,
     alphas: ArrayLike = None,
     l1_ratio: float = 1.0,
+    eps: float = 1e-3,
 ) -> Tuple:
     """Returns the dot product of samples and coefs for the models computed by 'path'.
 
@@ -592,9 +593,6 @@ def _path_xcoefs(
             there are no weights.
         train (List): The indices of the train set.
         test (List): The indices of the test set.
-        path (callable): Function returning a list of models on the path. See
-        enet_path for an example of signature.
-        path_params (dict): Parameters passed to the path function.
         alphas (ArrayLike, optional): Array of float that is used for cross-validation. If not
         provided, computed using 'path'. Defaults to None.
         l1_ratio (Union[float,List], optional): Scaling between
@@ -610,14 +608,17 @@ def _path_xcoefs(
     y_train = y[train]
     X_test = X[test]
     y_test = y[test]
+
+    n_samples_train, n_features_train = X_train.shape
+    n_samples_test, n_features_test = X_test.shape
+
     if sample_weight is None:
         sw_train, sw_test = None, None
     else:
         sw_train = sample_weight[train]
         sw_test = sample_weight[test]
-        n_samples = X_train.shape[0]
 
-        sw_train *= n_samples / np.sum(sw_train)
+        sw_train *= n_samples_train / np.sum(sw_train)
 
     if not sparse.issparse(X):
         for array, array_input in (
@@ -629,25 +630,30 @@ def _path_xcoefs(
             if array.base is not array_input and not array.flags["WRITEABLE"]:
                 array.setflags(write=True)
 
-    path_params_cp = path_params.copy()
-    path_params["copy_X"] = False
-    path_params_cp["alphas"] = alphas
-    path_params_cp["sample_weight"] = sw_train
+    if alphas is None:
+        alphas = _alpha_grid(X, y, Xy=Xy, l1_ratio=l1_ratio, eps=eps, n_alphas=n_alphas)
+    elif len(alphas) > 1:
+        alphas = np.sort(alphas)[::-1]
 
-    if "l1_ratios" in path_params_cp:
-        path_params_cp.pop("l1_ratios")
+    n_alphas = len(alphas)
 
-    path_params_cp["l1_ratio"] = l1_ratio
-    path_params_cp["Xy"] = None
+    coefs = np.empty((n_features_train, n_alphas), dtype=X.dtype)
+    train_eta = np.empty((n_samples_train, n_alphas), dtype=X.dtype)
+    test_eta = np.empty((n_samples_test, n_alphas), dtype=X.dtype)
 
-    path_params_cp.pop("optimiser")
-    path_params_cp.pop("random_state")
-    path_params_cp.pop("copy_X")
-    path_params_cp.pop("cv_score_method")
-    path_params_cp.pop("tol")
-    path_params_cp.pop("max_iter")
+    if sample_weight is None:
+        sample_weight = np.ones(X.shape[0])
 
-    train_eta, test_eta = path(X_train, y_train, X_test, model, **path_params_cp)
+    model.__setattr__("warm_start", True)
+    model.__setattr__("l1_ratio", l1_ratio)
+
+    for i, alpha in enumerate(alphas):
+        model.__setattr__("alpha", alpha)
+        model.fit(X, y)
+
+        coefs[..., i] = model.coef_
+        train_eta[..., i] = model.predict(X_train)
+        test_eta[..., i] = model.predict(X_test)
 
     return train_eta, test_eta, y_train, y_test
 
@@ -726,7 +732,18 @@ class CrossValidation(LinearModelCV):
         self.max_iter = max_iter
         self.tol = tol
         self.copy_X = copy_X
-        self.cv = cv
+
+        cv = 5 if cv is None else cv
+        if isinstance(cv, numbers.Integral):
+            self.cv = StratifiedKFold(cv)
+        elif isinstance(cv, Iterable):
+            self.cv = _CVIterableWrapper(cv)
+        elif hasattr(cv, "split"):
+            self.cv = cv
+        else:
+            raise ValueError(
+                "Expected cv to be an integer, sklearn model selection object or an iterable"
+            )
 
         self.n_jobs = n_jobs
 
@@ -758,7 +775,8 @@ class CrossValidation(LinearModelCV):
         y_sorted: np.array = y[sorted_indices]
         self._validate_params()
 
-        check_consistent_length(X_sorted, y_sorted)
+        check_consistent_length(X, y)
+        Xy = None
 
         if isinstance(sample_weight, numbers.Number):
             sample_weight = None
@@ -824,29 +842,27 @@ class CrossValidation(LinearModelCV):
         n_alphas = len(alphas[0])
         path_params.update({"n_alphas": n_alphas})
 
-        cv = check_cv(self.cv)
-
-        folds = list(cv.split(X_sorted, y_sorted))
+        folds = list(self.cv.split(X, y))
         best_pl_score = 0.0
 
         jobs = (
-            delayed(_path_xcoefs)(
-                X_sorted,
-                y_sorted,
+            delayed(alpha_path_eta)(
+                X,
+                y,
+                Xy,
                 model,
                 sample_weight,
                 train,
                 test,
-                regularisation_path,
-                path_params,
                 alphas=this_alphas,
                 l1_ratio=this_l1_ratio,
+                eps=self.eps,
             )
             for this_l1_ratio, this_alphas in zip(l1_ratios, alphas)
             for train, test in folds
         )
 
-        xcoefs_path = Parallel(
+        eta_path = Parallel(
             n_jobs=self.n_jobs,
             verbose=self.verbose,
             prefer="threads",
@@ -860,24 +876,24 @@ class CrossValidation(LinearModelCV):
 
         for i in range(len(l1_ratios)):
 
-            train_eta = train_xb[n_folds * i : n_folds * (i + 1)]
-            test_eta = test_xb[n_folds * i : n_folds * (i + 1)]
-            train_y_l1 = train_y[n_folds * i : n_folds * (i + 1)]
-            test_y_l1 = test_y[n_folds * i : n_folds * (i + 1)]
+            train_eta = train_eta_folds[n_folds * i : n_folds * (i + 1)]
+            test_eta = test_eta_folds[n_folds * i : n_folds * (i + 1)]
+            train_y = train_y_folds[n_folds * i : n_folds * (i + 1)]
+            test_y = test_y_folds[n_folds * i : n_folds * (i + 1)]
 
             if self.cv_score_method == "linear_predictor":
-                train_eta_lp = np.concatenate(train_eta)
-                test_eta_lp = np.concatenate(test_eta)
-                train_y_lp = np.concatenate(train_y_l1)
-                test_y_lp = np.concatenate(test_y_l1)
-                train_time, train_event = inverse_transform_survival(train_y_lp)
-                test_time, test_event = inverse_transform_survival(test_y_lp)
+                train_eta_method = np.concatenate(train_eta)
+                test_eta_method = np.concatenate(test_eta)
+                train_y_method = np.concatenate(train_y)
+                test_y_method = np.concatenate(test_y)
+                train_time, train_event = inverse_transform_survival(train_y_method)
+                test_time, test_event = inverse_transform_survival(test_y_method)
 
                 for j in range(len(alphas[i])):
 
                     # pass model.loss to do model.loss
                     likelihood = CVSCORERFACTORY[self.cv_score_method](
-                        test_eta_lp[:, j], test_time, test_event, model.loss
+                        test_eta_method[:, j], test_time, test_event, model.loss
                     )
                     mean_cv_score_l1.append(likelihood)
 
@@ -886,19 +902,19 @@ class CrossValidation(LinearModelCV):
             else:
                 test_fold_likelihoods = []
                 for k in range(n_folds):
-                    train_eta_nlp = train_eta[k]
-                    test_eta_nlp = test_eta[k]
-                    train_y_nlp = train_y_l1[k]
-                    test_y_nlp = test_y_l1[k]
+                    train_eta_method = train_eta[k]
+                    test_eta_method = test_eta[k]
+                    train_y_method = train_y[k]
+                    test_y_method = test_y[k]
 
-                    train_time, train_event = inverse_transform_survival(train_y_nlp)
-                    test_time, test_event = inverse_transform_survival(test_y_nlp)
+                    train_time, train_event = inverse_transform_survival(train_y_method)
+                    test_time, test_event = inverse_transform_survival(test_y_method)
                     for j in range(len(alphas[i])):
                         fold_likelihood = CVSCORERFACTORY[self.cv_score_method](
-                            test_eta_nlp[:, j],
+                            test_eta_method[:, j],
                             test_time,
                             test_event,
-                            train_eta_nlp[:, j],
+                            train_eta_method[:, j],
                             train_time,
                             train_event,
                             model.loss,

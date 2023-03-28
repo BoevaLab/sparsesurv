@@ -1,16 +1,19 @@
+from typing import Union
+
 from numpy.typing import ArrayLike
 from typing import Union
 from typing import Tuple, List
 from typeguard import typechecked
-from survhive.ah import *
+
+from survhive._utils_.cv import CrossValidation, alpha_path_eta
 from survhive.aft import *
+from survhive.ah import *
 from survhive.cox import *
-from survhive._utils_.cv import CrossValidation, regularisation_path
 
 
 @typechecked
 class AHLassoCV(CrossValidation):
-    path = staticmethod(regularisation_path)
+    path = staticmethod(alpha_path_eta)
 
     def __init__(
         self,
@@ -54,7 +57,7 @@ class AHLassoCV(CrossValidation):
 @typechecked
 class AHElasticNetCV(CrossValidation):
 
-    path = staticmethod(regularisation_path)
+    path = staticmethod(alpha_path_eta)
 
     def __init__(
         self,
@@ -95,7 +98,7 @@ class AHElasticNetCV(CrossValidation):
 
 @typechecked
 class AHGroupLassoCV(CrossValidation):
-    path = staticmethod(regularisation_path)
+    path = staticmethod(alpha_path_eta)
 
     def __init__(
         self,
@@ -135,7 +138,7 @@ class AHGroupLassoCV(CrossValidation):
 
 
 class AFTLassoCV(CrossValidation):
-    path = staticmethod(regularisation_path)
+    path = staticmethod(alpha_path_eta)
 
     def __init__(
         self,
@@ -179,7 +182,7 @@ class AFTLassoCV(CrossValidation):
 @typechecked
 class AFTElasticNetCV(CrossValidation):
 
-    path = staticmethod(regularisation_path)
+    path = staticmethod(alpha_path_eta)
 
     def __init__(
         self,
@@ -220,7 +223,7 @@ class AFTElasticNetCV(CrossValidation):
 
 @typechecked
 class AFTGroupLassoCV(CrossValidation):
-    path = staticmethod(regularisation_path)
+    path = staticmethod(alpha_path_eta)
 
     def __init__(
         self,
@@ -261,7 +264,7 @@ class AFTGroupLassoCV(CrossValidation):
 
 @typechecked
 class CoxPHLassoCV(CrossValidation):
-    path = staticmethod(regularisation_path)
+    path = staticmethod(alpha_path_eta)
 
     def __init__(
         self,
@@ -305,7 +308,7 @@ class CoxPHLassoCV(CrossValidation):
 @typechecked
 class CoxPHElasticNetCV(CrossValidation):
 
-    path = staticmethod(regularisation_path)
+    path = staticmethod(alpha_path_eta)
 
     def __init__(
         self,
@@ -346,7 +349,7 @@ class CoxPHElasticNetCV(CrossValidation):
 
 @typechecked
 class CoxPHGroupLassoCV(CrossValidation):
-    path = staticmethod(regularisation_path)
+    path = staticmethod(alpha_path_eta)
 
     def __init__(
         self,
