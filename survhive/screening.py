@@ -21,16 +21,25 @@ class StrongScreener(object):
         self.ever_active_set = np.array([]).astype(np.int_)
         return None
 
-    def compute_strong_set(self, X, y, eta_previous, alpha, alpha_previous):
-        self.strong_set = np.where(
-            1 / X.shape[0] * np.abs(np.matmul(X.T, y - eta_previous))
-            >= (2 * alpha - alpha_previous) - EPS
-        )[0]
+    def compute_strong_set(
+        self, X, y, eta_previous, alpha, alpha_previous, correction_factor, active
+    ):
+        self.strong_set = np.setdiff1d(
+            np.where(
+                1
+                / (X.shape[0])
+                * np.abs(np.matmul(X.T, (y - eta_previous) * correction_factor))
+                >= (2 * alpha - alpha_previous)
+            )[0],
+            active,
+        )
         return None
 
-    def check_kkt_strong(self, X, y, eta, alpha):
+    def check_kkt_strong(self, X, y, eta, alpha, correction_factor):
         self.strong_kkt_violated = check_kkt(
-            a=1 / X.shape[0] * np.abs(np.matmul(X[:, self.strong_set].T, y - eta)),
+            a=1
+            / X.shape[0]
+            * np.abs(np.matmul(X[:, self.strong_set].T, (y - eta) * correction_factor)),
             b=alpha,
         )
         return None
@@ -40,14 +49,15 @@ class StrongScreener(object):
             self.complete_set, np.union1d(self.strong_set, self.working_set)
         )
 
-    def check_kkt_all(self, X, y, eta, alpha):
+    def check_kkt_all(self, X, y, eta, alpha, correction_factor):
         self.any_kkt_violated = self.calculate_non_strong_non_working_set()[
             check_kkt(
                 a=1
                 / X.shape[0]
                 * np.abs(
                     np.matmul(
-                        X[:, self.calculate_non_strong_non_working_set()].T, y - eta
+                        X[:, self.calculate_non_strong_non_working_set()].T,
+                        (y - eta) * correction_factor,
                     )
                 ),
                 b=alpha,
@@ -69,4 +79,46 @@ class StrongScreener(object):
     def expand_working_set_with_overall_violations(self):
         self.working_set = np.union1d(self.working_set, self.any_kkt_violated)
         self.strong_set = np.setdiff1d(self.strong_set, self.any_kkt_violated)
+        return None
+
+
+class PureStrongScreener(object):
+    def __init__(self, p: int):
+        self.strong_set: np.array = np.array([]).astype(int)
+        self.complete_set: np.array = np.arange(p).astype(np.int_)
+        self.any_kkt_violated = np.array([]).astype(int)
+        return None
+
+    def compute_strong_set(
+        self, X, y, eta_previous, alpha, alpha_previous, correction_factor
+    ):
+        self.strong_set = np.where(
+            1
+            / (X.shape[0])
+            * np.abs(np.matmul(X.T, (y - eta_previous) * correction_factor))
+            >= (2 * alpha - alpha_previous)
+        )[0]
+        return None
+
+    def calculate_non_strong_set(self):
+        return np.setdiff1d(self.complete_set, self.strong_set)
+
+    def check_kkt_all(self, X, y, eta, alpha, correction_factor):
+        self.any_kkt_violated = self.calculate_non_strong_set()[
+            check_kkt(
+                a=1
+                / X.shape[0]
+                * np.abs(
+                    np.matmul(
+                        X[:, self.calculate_non_strong_set()].T,
+                        (y - eta) * correction_factor,
+                    )
+                ),
+                b=alpha,
+            )
+        ]
+        return None
+
+    def expand_strong_set_with_overall_violations(self):
+        self.strong_set = np.union1d(self.strong_set, self.any_kkt_violated)
         return None

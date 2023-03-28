@@ -17,7 +17,8 @@ def modify_hessian(hessian: np.array, hessian_modification_strategy: str):
     elif hessian_modification_strategy == "eps":
         hessian[hessian < 0] = SQRT_EPS
     elif hessian_modification_strategy == "flip":
-        hessian[hessian < 0] = np.negative(hessian[hessian < 0])
+        # hessian[hessian < 0] = np.negative(hessian[hessian < 0])
+        hessian += np.abs(np.min(hessian)) + SQRT_EPS
     return hessian
 
 
@@ -27,12 +28,18 @@ def aft_numba(
     event: np.array,
     linear_predictor: np.array,
     bandwidth_function: str,
-    hessian_modification_strategy: str = "eps",
+    hessian_modification_strategy: str = "flip",
 ):
+    # print(linear_predictor)
+    # print(time)
+    # print(event)
     if bandwidth_function == "jones_1990":
         bandwidth: float = jones_1990(time=time, event=event)
     else:
         bandwidth: float = jones_1991(time=time, event=event)
+    # bandwidth = time.shape[0]  ** (-1/7)
+    bandwidth = np.std(np.log((time))) * (time.shape[0] ** (-1 / 7))
+    # print(bandwidth)
     linear_predictor: np.array = np.exp(linear_predictor)
     linear_predictor = np.log(time * linear_predictor)
     n_samples: int = time.shape[0]
@@ -218,7 +225,7 @@ def ah_numba(
     event: np.array,
     linear_predictor: np.array,
     bandwidth_function: str = "jones_1990",
-    hessian_modification_strategy: str = "eps",
+    hessian_modification_strategy: str = "flip",
 ):
     if bandwidth_function == "jones_1990":
         bandwidth: float = jones_1990(time=time, event=event)
