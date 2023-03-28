@@ -319,6 +319,7 @@ def regularisation_path(
                 strong_screener.expand_working_set(active_variables)
                 # strong_screener.expand_ever_active_set(active_variables)
 
+            print(np.sum(beta_new))
             learning_rate = 1.0
             # learning_rate = backtracking_line_search(
             #         loss=self.loss,
@@ -570,7 +571,7 @@ def regularisation_path(
 #     return train_eta, test_eta
 
 
-def _path_xcoefs(
+def alpha_path_eta(
     X: ArrayLike,
     y: ArrayLike,
     Xy: ArrayLike,
