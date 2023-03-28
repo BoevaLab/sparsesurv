@@ -12,8 +12,8 @@ import numpy as np
 import pandas as pd
 from survhive._utils_.hyperparams import (
     CVSCORERFACTORY,
-    ESTIMATORFACTORY,
-    OPTIMISERFACTORY,
+    # ESTIMATORFACTORY,
+    # OPTIMISERFACTORY,
 )
 from numpy import ndarray
 from scipy import sparse
@@ -26,13 +26,22 @@ from sklearn.utils.validation import check_array, check_consistent_length, check
 from typeguard import typechecked
 from survhive._utils_.scorer import *
 from survhive.optimiser import Optimiser
+from ..constants import EPS
+from sklearn.linear_model._coordinate_descent import _set_order
+from ..screening import StrongScreener
+from sklearn.linear_model import ElasticNet as ScikitElasticNet
+from celer import ElasticNet
+from glum import GeneralizedLinearRegressor
 
 
 def _alpha_grid(
     X: ArrayLike,
     y: ArrayLike,
+    gradient,
+    hessian,
+    l1_ratio,
     Xy: ArrayLike = None,
-    eps: float = 1e-3,
+    eps: float = 0.05,
     n_alphas: int = 100,
 ) -> np.array:
     """Compute the grid of alpha values for model parameter search
@@ -50,9 +59,7 @@ def _alpha_grid(
     Returns:
         np.array: Regularisation parameters to try for the model.
     """
-
     n_samples = len(y)
-
     if Xy is None:
         X_sparse = sparse.isspmatrix(X)
         if not X_sparse:
@@ -61,21 +68,23 @@ def _alpha_grid(
 
     if Xy.ndim == 1:
         Xy = Xy[:, np.newaxis]
-
-    ## Calculate alpha path (first get alpha_max):
-    ## sum/max needs an iterable
-    alpha_max = max(abs(Xy.sum(axis=-1)) / n_samples)
-
+    hessian_mask: np.array = (hessian > 0).astype(bool)
+    alpha_max = np.max(
+        np.abs(np.matmul(gradient.T[hessian_mask], X[hessian_mask, :]))
+    ) / (np.sum(hessian[hessian_mask]))
     if alpha_max <= np.finfo(float).resolution:
         alphas = np.empty(n_alphas)
         alphas.fill(np.finfo(float).resolution)
         return alphas
 
+    eps = 0.1
+    n_alphas = 100
     alphas = np.round(
-        np.logspace(np.log10(alpha_max * eps), np.log10(alpha_max), num=n_alphas)[::-1],
+        np.logspace(
+            np.log10((alpha_max + 1e-9) * eps), np.log10(alpha_max + 1e-9), num=n_alphas
+        )[::-1],
         decimals=10,
     )
-
     return alphas
 
 
@@ -86,11 +95,12 @@ def regularisation_path(
     model: object,
     *,
     l1_ratio: float = 1.0,
-    eps: float = 1e-3,
+    eps: float = 0.05,
     n_alphas: int = 100,
     alphas: np.ndarray = None,
     Xy: ArrayLike = None,
     sample_weight=None,
+    n_irls_iter=10,
 ) -> Tuple:
     """Compute estimator path with coordinate descent.
 
@@ -121,33 +131,442 @@ def regularisation_path(
 
     n_samples, n_features = X.shape
     test_samples, _ = X_test.shape
-
+    time, event = inverse_transform_survival(y)
+    eta_previous = np.zeros(X.shape[0])
+    gradient, hessian = model.gradient(
+        linear_predictor=eta_previous,
+        time=time,
+        event=event,
+    )
     if alphas is None:
-        alphas = _alpha_grid(X, y, Xy=Xy, l1_ratio=l1_ratio, eps=eps, n_alphas=n_alphas)
+        alphas = _alpha_grid(
+            X,
+            y,
+            Xy=Xy,
+            l1_ratio=l1_ratio,
+            eps=0.05,
+            n_alphas=n_alphas,
+            gradient=gradient,
+            hessian=hessian,
+        )
     elif len(alphas) > 1:
         alphas = np.sort(alphas)[::-1]
-
     n_alphas = len(alphas)
 
-    coefs = np.empty((n_features, n_alphas), dtype=X.dtype)
+    coefs = np.zeros((n_features, n_alphas), dtype=X.dtype)
     train_eta = np.empty((n_samples, n_alphas), dtype=X.dtype)
     test_eta = np.empty((test_samples, n_alphas), dtype=X.dtype)
-
-    if sample_weight is None:
-        sample_weight = np.ones(X.shape[0])
-
-    model.__setattr__("warm_start", True)
-    model.__setattr__("l1_ratio", l1_ratio)
-
+    beta_previous = np.zeros(X.shape[1])
+    strong_screener = StrongScreener(p=X.shape[1])
+    optimiser = ScikitElasticNet(
+        l1_ratio=l1_ratio, fit_intercept=False, warm_start=True
+    )
     for i, alpha in enumerate(alphas):
-        model.__setattr__("alpha", alpha)
-        model.fit(X, y, sample_weight=sample_weight)
+        # print(alpha)
+        # print(eta_previous)
+        optimiser.__setattr__("alpha", alpha)
+        print(f"Starting alpha: {i}")
+        for q in range(n_irls_iter):
+            print(f"Starting IRLS: {q}")
+            gradient: np.array
+            hessian: np.array
+            gradient, hessian = model.gradient(
+                linear_predictor=eta_previous,
+                time=time,
+                event=event,
+            )
+            inverse_hessian = hessian.copy()
+            hessian_mask = (hessian > 0).astype(bool)
+            inverse_hessian[np.logical_not(hessian_mask)] = np.inf
+            inverse_hessian = 1 / inverse_hessian
+            inverse_hessian[inverse_hessian == 1 / np.inf] = 0
+            weights = hessian[hessian_mask]
+            correction_factor = np.sum(weights)
+            weights = weights * (np.sum(hessian_mask) / np.sum(weights))
+            weights_sqrt = np.sqrt(weights)
 
-        coefs[..., i] = model.coef_
-        train_eta[..., i] = model.predict(X)
-        test_eta[..., i] = model.predict(X_test)
+            # weights_sqrt_matrix = weights_sqrt.repeat(X.shape[1]).reshape((np.sum(hessian_mask), X.shape[1]))
+            weights_sqrt_matrix = np.expand_dims(weights_sqrt, 1).repeat(X.shape[1], 1)
+            # print(weights_sqrt_matrix.shape)
+            if i + q < 1:
+                X_irls = X[hessian_mask, :] * weights_sqrt_matrix
+                y_irls = (
+                    weights_sqrt_matrix[:, 0]
+                    * (eta_previous - inverse_hessian * gradient)[hessian_mask]
+                )
+            # Update them somehow
+            elif (hessian_mask == hessian_mask_old).all():
+                X_irls = X_irls * weights_sqrt_matrix / weights_sqrt_matrix_old
+                y_irls = (
+                    y_irls * weights_sqrt_matrix[:, 0] / weights_sqrt_matrix_old[:, 0]
+                )
+            else:
+                X_irls = X[hessian_mask, :] * weights_sqrt.repeat(X.shape[1]).reshape(
+                    (np.sum(hessian_mask), X.shape[1])
+                )
+                y_irls = (
+                    weights_sqrt
+                    * (eta_previous - inverse_hessian * gradient)[hessian_mask]
+                )
+            eta_previous = eta_previous[hessian_mask]
+            if i + q > 0 and i + q < 2:
+                strong_screener.compute_strong_set(
+                    X=X_irls,
+                    y=y_irls,
+                    eta_previous=eta_previous,
+                    alpha=alpha,
+                    alpha_previous=alpha_previous,
+                )
+                # warm_start_coef = beta_previous[strong_screener.working_set]
+                optimiser.coef_ = np.zeros(strong_screener.strong_set.shape[0])
+
+                optimiser.fit(X=X_irls[:, strong_screener.strong_set], y=y_irls)
+                # Compute strong set only using the previously active set.
+                # strong_screener.compute_strong_set(X=X_irls, y=y_irls, eta_previous=eta_previous, alpha=alpha, alpha_previous=alpha_previous)
+                # eta_new: np.array = np.matmul(X_irls[:, strong_screener.working_set], optimiser.coef_)
+                strong_screener.expand_working_set(strong_screener.strong_set)
+                eta_new: np.array = np.matmul(
+                    X_irls[:, strong_screener.strong_set], optimiser.coef_
+                )
+                while True:
+                    strong_screener.check_kkt_all(
+                        X=X_irls, y=y_irls, eta=eta_new, alpha=alpha
+                    )
+                    # If there are violations, add the violators to the
+                    # working set and recompute the strong set based on them
+                    # and go back to the start.
+                    if strong_screener.any_kkt_violated.shape[0] > 0:
+                        # print("HEY")
+                        # warm_start_coef_ = np.zeros(strong_screener.working_set.shape[0] + strong_screener.any_kkt_violated.shape[0])
+                        warm_start_coef = np.zeros(X_irls.shape[1])
+                        warm_start_coef[strong_screener.working_set] = optimiser.coef_
+                        strong_screener.expand_working_set_with_overall_violations()
+                        warm_start_coef = warm_start_coef[strong_screener.working_set]
+                        optimiser.coef_ = warm_start_coef
+                        optimiser.fit(
+                            X=X_irls[:, strong_screener.working_set], y=y_irls
+                        )
+                        continue
+                    break
+
+            elif i + q > 1:
+                if not optimiser.warm_start:
+                    optimiser.__setattr__("warm_start", True)
+                warm_start_coef = beta_previous[strong_screener.working_set]
+                optimiser.coef_ = warm_start_coef
+
+                optimiser.fit(X=X_irls[:, strong_screener.working_set], y=y_irls)
+                # Compute strong set only using the previously active set.
+                strong_screener.compute_strong_set(
+                    X=X_irls,
+                    y=y_irls,
+                    eta_previous=eta_previous,
+                    alpha=alpha,
+                    alpha_previous=alpha_previous,
+                )
+                eta_new: np.array = np.matmul(
+                    X_irls[:, strong_screener.working_set], optimiser.coef_
+                )
+                while True:
+                    # Check KKT conditions for strong set computed
+                    # using only the working set.
+                    strong_screener.check_kkt_strong(
+                        X=X_irls, y=y_irls, eta=eta_new, alpha=alpha
+                    )
+                    # If there are violations, add violators to the working
+                    # set and refit.
+                    if strong_screener.strong_kkt_violated.shape[0] > 0:
+                        # warm_start_coef_ = np.zeros(strong_screener.working_set.shape[0] + strong_screener.strong_kkt_violated.shape[0])
+                        warm_start_coef = np.zeros(X_irls.shape[1])
+                        # warm_start_coef =
+                        warm_start_coef[strong_screener.working_set] = optimiser.coef_
+                        strong_screener.expand_working_set_with_kkt_violations()
+                        warm_start_coef = warm_start_coef[strong_screener.working_set]
+                        optimiser.coef_ = warm_start_coef
+                        optimiser.fit(
+                            X=X_irls[:, strong_screener.working_set],
+                            y=y_irls,
+                        )
+                        continue
+                    # Finally, check KKT conditions for all variables.
+                    strong_screener.check_kkt_all(
+                        X=X_irls, y=y_irls, eta=eta_new, alpha=alpha
+                    )
+                    # If there are violations, add the violators to the
+                    # working set and recompute the strong set based on them
+                    # and go back to the start.
+                    if strong_screener.any_kkt_violated.shape[0] > 0:
+                        # print("HEY")
+                        # warm_start_coef_ = np.zeros(strong_screener.working_set.shape[0] + strong_screener.any_kkt_violated.shape[0])
+                        warm_start_coef = np.zeros(X_irls.shape[1])
+                        warm_start_coef[strong_screener.working_set] = optimiser.coef_
+                        strong_screener.expand_working_set_with_overall_violations()
+                        warm_start_coef = warm_start_coef[strong_screener.working_set]
+                        optimiser.coef_ = warm_start_coef
+                        optimiser.fit(
+                            X=X_irls[:, strong_screener.working_set], y=y_irls
+                        )
+                        continue
+                    break
+            else:
+                optimiser.fit(X=X_irls, y=y_irls)
+                beta_new = optimiser.coef_
+                active_variables = np.where(beta_new != 0)[0]
+                eta_final = np.matmul(
+                    X[:, active_variables], beta_new[active_variables]
+                )
+                strong_screener.expand_working_set(active_variables)
+                # strong_screener.expand_ever_active_set(active_variables)
+
+            learning_rate = 1.0
+            # learning_rate = backtracking_line_search(
+            #         loss=self.loss,
+            #         time=time,
+            #         event=event,
+            #         current_prediction=eta_final,
+            #         previous_prediction=eta,
+            #         previous_loss=self.history[-1]["loss"],
+            #         reduction_factor=self.line_search_reduction_factor,
+            #         max_learning_rate=1.0,
+            #         gradient_direction=np.matmul(X.T, gradient),
+            #         search_direction=(model.optimiser.coef_ - beta),
+            # )
+
+            beta_updated: np.array = (1 - learning_rate) * beta_previous + (
+                learning_rate
+            ) * beta_new
+
+            # TODO: Adjust this convergence criterion
+            if np.max(np.abs(beta_previous - beta_updated)) < 0.001:
+                eta_previous = eta_final
+                beta_previous = beta_updated
+                active_variables = np.where(beta_updated != 0)[0]
+                alpha_previous = alpha
+                weights_sqrt_matrix_old = weights_sqrt_matrix
+                hessian_mask_old = hessian_mask
+                break
+            else:
+                eta_previous = eta_final
+                beta_previous = beta_updated
+                active_variables = np.where(beta_updated != 0)[0]
+                # strong_screener.expand_ever_active_set(active_variables)
+                alpha_previous = alpha
+                weights_sqrt_matrix_old = weights_sqrt_matrix
+                hessian_mask_old = hessian_mask
+
+        coefs[..., i] = beta_previous
+        train_eta[..., i] = eta_previous
+        test_eta[..., i] = np.matmul(
+            X_test[:, active_variables], beta_previous[active_variables]
+        )
 
     return train_eta, test_eta
+
+
+# def regularisation_path_optimised(
+#     X: ArrayLike,
+#     y: ArrayLike,
+#     X_test: ArrayLike,
+#     model: object,
+#     *,
+#     l1_ratio: float = 1.0,
+#     eps: float = 0.05,
+#     n_alphas: int = 100,
+#     alphas: np.ndarray = None,
+#     Xy: ArrayLike = None,
+#     sample_weight=None,
+#     n_irls_iter=10
+# ) -> Tuple:
+#     """Compute estimator path with coordinate descent.
+
+#     Args:
+#         X (ArrayLike): Training data of shape (n_samples, n_features).
+#         y (ArrayLike): Target values of shape (n_samples,) or (n_samples, n_targets).
+#         X_test (ArrayLike): Test data of shape (n_samples, n_features).
+#         model (object): The model object pre-initialised to fit the data for each alpha
+#             and learn the coefficients.
+#         l1_ratio (Union[float, ArrayLike], optional): Scaling between l1 and l2 penalties.
+#             ``l1_ratio=1`` corresponds to the Lasso. Defaults to 0.5.
+#         eps (float, optional) : Length of the path. Defaults to 1e-3.
+#         n_alphas (int, optional): Number of alphas along the regularization path.
+#             Defaults to 100.
+#         alphas (np.ndarray, optional): List of alphas where to compute the models.
+#             Defaults to None. If None alphas are set automatically.
+#         Xy (ArrayLike, optional): Dot product between X and y, of shape (n_features,) or
+#             (n_features, n_targets). Defaults to None.
+#         sample_weight (np.array): The weights for samples.
+
+
+#     Returns:
+#         Tuple: Tuple of the dot products of train and test samples with the coefficients
+#             learned during training.
+
+
+#     """
+
+#     n_samples, n_features = X.shape
+#     test_samples, _ = X_test.shape
+#     time, event = inverse_transform_survival(y)
+#     eta_previous = np.zeros(X.shape[0])
+#     gradient, hessian = model.gradient(
+#                 linear_predictor=eta_previous,
+#                 time=time,
+#                 event=event,
+#             )
+#     if alphas is None:
+#         alphas = _alpha_grid(X, y, Xy=Xy, l1_ratio=l1_ratio, eps=0.05, n_alphas=n_alphas, gradient=gradient, hessian=hessian)
+#     elif len(alphas) > 1:
+#         alphas = np.sort(alphas)[::-1]
+#     n_alphas = len(alphas)
+
+#     coefs = np.zeros((n_features, n_alphas), dtype=X.dtype)
+#     train_eta = np.empty((n_samples, n_alphas), dtype=X.dtype)
+#     test_eta = np.empty((test_samples, n_alphas), dtype=X.dtype)
+#     beta_previous = np.zeros(X.shape[1])
+#     #strong_screener = StrongScreener(p=X.shape[1])
+#     eps = np.array([]).astype(int)
+#     working_set = np.array([]).astype(int)
+#     complete_set = 2
+#     optimiser = ScikitElasticNet(l1_ratio=l1_ratio, fit_intercept=False, warm_start=True)
+#     for i, alpha in enumerate(alphas):
+#         #print(alpha)
+#         #print(eta_previous)
+#         optimiser.__setattr__("alpha", alpha)
+#         print(f"Starting alpha: {i}")
+#         for q in range(n_irls_iter):
+#             print(f"Starting IRLS: {q}")
+#             gradient: np.array
+#             hessian: np.array
+#             gradient, hessian = model.gradient(
+#                 linear_predictor=eta_previous,
+#                 time=time,
+#                 event=event,
+#             )
+#             inverse_hessian = hessian.copy()
+#             hessian_mask = (hessian > 0).astype(bool)
+#             inverse_hessian[np.logical_not(hessian_mask)] = np.inf
+#             inverse_hessian = 1 / inverse_hessian
+#             inverse_hessian[inverse_hessian == 1 / np.inf] = 0
+#             weights = (hessian[hessian_mask])
+#             correction_factor = np.sum(weights)
+#             weights = weights * (np.sum(hessian_mask) / np.sum(weights))
+#             weights_sqrt = np.sqrt(weights)
+#             weights_sqrt_matrix = weights_sqrt.repeat(X.shape[1]).reshape((np.sum(hessian_mask), X.shape[1]))
+#             if i + q < 1:
+#                 X_irls = X[hessian_mask, :] * weights_sqrt_matrix
+#                 y_irls = weights_sqrt_matrix[0, :] * (eta_previous - inverse_hessian * gradient)[hessian_mask]
+#             # Update them somehow
+#             elif hessian_mask == hessian_mask_old:
+#                 X_irls = X_irls * weights_sqrt_matrix / weights_sqrt_matrix_old
+#                 y_irls = y_irls * weights_sqrt_matrix[0, :] / weights_sqrt_matrix_old[0, :]
+#             else:
+#                 X_irls = X[hessian_mask, :] * weights_sqrt.repeat(X.shape[1]).reshape((np.sum(hessian_mask), X.shape[1]))
+#                 y_irls = weights_sqrt * (eta_previous - inverse_hessian * gradient)[hessian_mask]
+#             eta_previous = eta_previous[hessian_mask]
+#             if i + q > 1:
+#                 if not optimiser.warm_start:
+#                     optimiser.__setattr__("warm_start", True)
+#                 warm_start_coef = beta_previous[strong_screener.working_set]
+#                 optimiser.coef_ = warm_start_coef
+
+#                 optimiser.fit(
+#                         X=X_irls[:, strong_screener.working_set],
+#                         y=y_irls
+#                     )
+#                 # Compute strong set only using the previously active set.
+#                 strong_screener.compute_strong_set(X=X_irls, y=y_irls, eta_previous=eta_previous, alpha=alpha, alpha_previous=alpha_previous)
+#                 eta_new: np.array = np.matmul(X_irls[:, strong_screener.working_set], optimiser.coef_)
+#                 while True:
+#                     # Check KKT conditions for strong set computed
+#                     # using only the working set.
+#                     strong_screener.check_kkt_strong(
+#                         X=X_irls, y=y_irls, eta=eta_new, alpha=alpha
+#                     )
+#                     # If there are violations, add violators to the working
+#                     # set and refit.
+#                     if strong_screener.strong_kkt_violated.shape[0] > 0:
+#                         #warm_start_coef_ = np.zeros(strong_screener.working_set.shape[0] + strong_screener.strong_kkt_violated.shape[0])
+#                         warm_start_coef = np.zeros(X_irls.shape[1])
+#                         #warm_start_coef =
+#                         warm_start_coef[strong_screener.working_set] = optimiser.coef_
+#                         strong_screener.expand_working_set_with_kkt_violations()
+#                         warm_start_coef = warm_start_coef[strong_screener.working_set]
+#                         optimiser.coef_ = warm_start_coef
+#                         optimiser.fit(
+#                                 X=X_irls[:, strong_screener.working_set],
+#                                 y=y_irls,
+#                             )
+#                         continue
+#                     # Finally, check KKT conditions for all variables.
+#                     strong_screener.check_kkt_all(X=X_irls, y=y_irls, eta=eta_new, alpha=alpha)
+#                     # If there are violations, add the violators to the
+#                     # working set and recompute the strong set based on them
+#                     # and go back to the start.
+#                     if strong_screener.any_kkt_violated.shape[0] > 0:
+#                         print("HEY")
+#                         #warm_start_coef_ = np.zeros(strong_screener.working_set.shape[0] + strong_screener.any_kkt_violated.shape[0])
+#                         warm_start_coef = np.zeros(X_irls.shape[1])
+#                         warm_start_coef[strong_screener.working_set] = optimiser.coef_
+#                         strong_screener.expand_working_set_with_overall_violations()
+#                         warm_start_coef = warm_start_coef[strong_screener.working_set]
+#                         optimiser.coef_ = warm_start_coef
+#                         optimiser.fit(
+#                                 X=X_irls[:, strong_screener.working_set],
+#                                 y=y_irls
+#                             )
+#                         continue
+#                     break
+#             else:
+#                 optimiser.fit(
+#                         X=X_irls,
+#                         y=y_irls
+#                     )
+#                 beta_new = optimiser.coef_
+#                 active_variables = np.where(beta_new != 0)[0]
+#                 eta_final = np.matmul(X[:, active_variables], beta_new[active_variables])
+#                 #strong_screener.expand_ever_active_set(active_variables)
+
+
+#             learning_rate = 1.0
+#             # learning_rate = backtracking_line_search(
+#             #         loss=self.loss,
+#             #         time=time,
+#             #         event=event,
+#             #         current_prediction=eta_final,
+#             #         previous_prediction=eta,
+#             #         previous_loss=self.history[-1]["loss"],
+#             #         reduction_factor=self.line_search_reduction_factor,
+#             #         max_learning_rate=1.0,
+#             #         gradient_direction=np.matmul(X.T, gradient),
+#             #         search_direction=(model.optimiser.coef_ - beta),
+#             # )
+
+#             beta_updated: np.array = (1 - learning_rate) * beta_previous + (
+#                     learning_rate
+#                 ) * beta_new
+
+#             # TODO: Adjust this convergence criterion
+#             if np.max(np.abs(beta_previous - beta_updated)) < 0.001:
+#                 eta_previous = eta_final
+#                 beta_previous = beta_updated
+#                 active_variables = np.where(beta_updated != 0)[0]
+#                 alpha_previous = alpha
+#                 weights_sqrt_matrix_old = weights_sqrt_matrix
+#                 break
+#             else:
+#                 eta_previous = eta_final
+#                 beta_previous = beta_updated
+#                 active_variables = np.where(beta_updated != 0)[0]
+#                 #strong_screener.expand_ever_active_set(active_variables)
+#                 alpha_previous = alpha
+#                 weights_sqrt_matrix_old = weights_sqrt_matrix
+
+
+#         coefs[..., i] = beta_previous
+#         train_eta[..., i] = eta_previous
+#         test_eta[..., i] = np.matmul(X_test[:, active_variables], beta_previous[active_variables])
+
+#     return train_eta, test_eta
 
 
 def _path_xcoefs(
@@ -329,15 +748,24 @@ class CrossValidation(LinearModelCV):
         Returns:
             self(object): Returns an instance of fitted model.
         """
-
+        time: np.array
+        event: np.array
+        time, event = inverse_transform_survival(y=y)
+        sorted_indices: np.array = np.argsort(a=time, kind="stable")
+        time_sorted: np.array = time[sorted_indices]
+        event_sorted: np.array = event[sorted_indices]
+        X_sorted: np.array = X[sorted_indices, :]
+        y_sorted: np.array = y[sorted_indices]
         self._validate_params()
 
-        check_consistent_length(X, y)
+        check_consistent_length(X_sorted, y_sorted)
 
         if isinstance(sample_weight, numbers.Number):
             sample_weight = None
         if sample_weight is not None:
-            sample_weight = _check_sample_weight(sample_weight, X, dtype=X.dtype)
+            sample_weight = _check_sample_weight(sample_weight, X_sorted, dtype=X.dtype)
+
+        # X, y = _set_order(X, y, order="F")
 
         model = self._get_estimator()
 
@@ -367,14 +795,22 @@ class CrossValidation(LinearModelCV):
             include_boundaries="left",
         )
 
+        gradient, hessian = model.gradient(
+            linear_predictor=np.zeros(X_sorted.shape[0]),
+            time=time_sorted,
+            event=event_sorted,
+        )
         if alphas is None:
             alphas = [
                 _alpha_grid(
-                    X,
-                    y,
+                    X_sorted,
+                    y_sorted,
                     Xy=None,
                     eps=self.eps,
                     n_alphas=self.n_alphas,
+                    gradient=gradient,
+                    hessian=hessian,
+                    l1_ratio=l1_ratio,
                 )
                 for l1_ratio in l1_ratios
             ]
@@ -390,13 +826,13 @@ class CrossValidation(LinearModelCV):
 
         cv = check_cv(self.cv)
 
-        folds = list(cv.split(X, y))
+        folds = list(cv.split(X_sorted, y_sorted))
         best_pl_score = 0.0
 
         jobs = (
             delayed(_path_xcoefs)(
-                X,
-                y,
+                X_sorted,
+                y_sorted,
                 model,
                 sample_weight,
                 train,
@@ -418,9 +854,9 @@ class CrossValidation(LinearModelCV):
 
         train_xb, test_xb, train_y, test_y = zip(*xcoefs_path)
         n_folds = int(len(train_xb) / len(l1_ratios))
-
         mean_cv_score_l1 = []
         mean_cv_score = []
+        self.coef_ = np.zeros(X.shape[1])
 
         for i in range(len(l1_ratios)):
 

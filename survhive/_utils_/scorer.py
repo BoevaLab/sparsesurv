@@ -26,9 +26,7 @@ def basic_cv_fold(
         float: Scalar value of the mean partial log-likelihoods across all test folds.
     """
 
-    test_fold_likelihood = -scorer(
-        z_test, test_time, test_event, np.ones(z_test.shape[0])
-    )
+    test_fold_likelihood = -scorer(z_test, test_time, test_event)
 
     return test_fold_likelihood
 
@@ -63,10 +61,8 @@ def vvh_cv_fold(
     time = np.append(train_time, test_time)
     event = np.append(train_event, test_event)
 
-    z_likelihood = -scorer(z, time, event, np.ones(z.shape[0]))
-    z_train_likelihood = -scorer(
-        z_train, train_time, train_event, np.ones(z_train.shape[0])
-    )
+    z_likelihood = -scorer(z, time, event)
+    z_train_likelihood = -scorer(z_train, train_time, train_event)
 
     test_fold_likelihood = z_likelihood - z_train_likelihood
     return test_fold_likelihood
@@ -90,6 +86,6 @@ def linear_cv(
 
     assert z_test.ndim == 1
 
-    log_likelihood = -scorer(z_test, time, event, np.ones(z_test.shape[0]))
+    log_likelihood = -scorer(z_test, time, event)
 
     return log_likelihood

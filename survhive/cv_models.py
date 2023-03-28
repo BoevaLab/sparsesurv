@@ -1,4 +1,5 @@
 from numpy.typing import ArrayLike
+from typing import Union
 from typing import Tuple, List
 from typeguard import typechecked
 from survhive.ah import *
@@ -295,7 +296,7 @@ class CoxPHLassoCV(CrossValidation):
         self.optimiser = optimiser
 
     def _get_estimator(self):
-        return CoxPHLasso(alpha=0.01, optimiser=self.optimiser)
+        return CoxPHLasso(alpha=0.01, optimiser=self.optimiser, warm_start=True)
 
     def _is_multitask(self):
         return False
