@@ -1,24 +1,24 @@
 import numbers
 from abc import abstractmethod
+from collections.abc import Iterable
 from functools import partial
 from numbers import Real
 from typing import List, Tuple, Union
-from collections.abc import Iterable
 
 import numpy as np
 import pandas as pd
-from survhive._utils_.hyperparams import (
-    CVSCORERFACTORY,
-    # ESTIMATORFACTORY,
-    # OPTIMISERFACTORY,
-)
+
+# from celer import ElasticNet
+# from glum import GeneralizedLinearRegressor
+# from numpy import ndarray
 from numpy.typing import ArrayLike
-from numpy import ndarray
 from scipy import sparse
+from sklearn.linear_model import ElasticNet as ScikitElasticNet
 from sklearn.linear_model._base import _preprocess_data
 from sklearn.linear_model._coordinate_descent import (
     LinearModelCV,
     _check_sample_weight,
+    # _set_order,
 )
 from sklearn.model_selection import StratifiedKFold
 from sklearn.model_selection._split import _CVIterableWrapper
@@ -29,14 +29,12 @@ from typeguard import typechecked
 
 from survhive._utils_.hyperparams import CVSCORERFACTORY
 from survhive._utils_.scorer import *
-from survhive.optimiser import Optimiser
+
+# from survhive.optimiser import Optimiser
+
 from ..constants import EPS
-from sklearn.linear_model._coordinate_descent import _set_order
-from ..screening import StrongScreener
-from sklearn.linear_model import ElasticNet as ScikitElasticNet
-from celer import ElasticNet
-from glum import GeneralizedLinearRegressor
 from ..optimiser import backtracking_line_search
+from ..screening import StrongScreener
 
 
 def _alpha_grid(
@@ -44,9 +42,8 @@ def _alpha_grid(
     y: ArrayLike,
     gradient,
     hessian,
-    l1_ratio,
     Xy: ArrayLike = None,
-    eps: float = 0.05,
+    eps: float = 0.1,
     n_alphas: int = 100,
 ) -> np.array:
     """Compute the grid of alpha values for model parameter search
@@ -55,10 +52,12 @@ def _alpha_grid(
     Args:
         X (ArrayLike): Array-like object of training data of shape (n_samples, n_features).
         y (ArrayLike): Array-like object of target values of shape (n_samples,) or (n_samples, n_outputs).
+        gradient ():
+        hessian ():
         Xy (ArrayLike, optional): Dot product of X and y arrays having shape (n_features,)
         or (n_features, n_outputs). Defaults to None.
         eps (float, optional): Length of the path. ``eps=1e-3`` means that
-        ``alpha_min / alpha_max = 1e-3``. Defaults to 1e-3.
+        ``alpha_min / alpha_max = 1e-3``. Defaults to 1e-1.
         n_alphas (int, optional): Number of alphas along the regularization path. Defaults to 100.
 
     Returns:
@@ -82,12 +81,10 @@ def _alpha_grid(
         alphas.fill(np.finfo(float).resolution)
         return alphas
 
-    eps = 0.1
-    n_alphas = 100
     alphas = np.round(
         np.logspace(
-            np.log10((alpha_max + 1e-9) * eps),
-            np.log10(alpha_max + 1e-9),
+            np.log10((alpha_max + EPS) * eps),
+            np.log10(alpha_max + EPS),
             num=n_alphas,
         )[::-1],
         decimals=10,
@@ -135,36 +132,24 @@ def regularisation_path(
     test_samples, _ = X_test.shape
     time, event = inverse_transform_survival(y)
     eta_previous = np.zeros(X.shape[0])
+    beta_previous = np.zeros(X.shape[1])
+
     gradient, hessian = model.gradient(
         linear_predictor=eta_previous,
         time=time,
         event=event,
-    )
-    if alphas is None:
-        alphas = _alpha_grid(
-            X,
-            y,
-            Xy=None,
-            l1_ratio=l1_ratio,
-            eps=eps,
-            n_alphas=n_alphas,
-            gradient=gradient,
-            hessian=hessian,
-        )
-    elif len(alphas) > 1:
-        alphas = np.sort(alphas)[::-1]
-    n_alphas = len(alphas)
-    beta_previous = np.zeros(X.shape[1])
-    strong_screener = StrongScreener(p=X.shape[1])
-    optimiser = ScikitElasticNet(
-        l1_ratio=l1_ratio, fit_intercept=False, warm_start=True
     )
     hessian_mask = (hessian > 0).astype(bool)
     X_backup = X.copy()
     X = X[hessian_mask, :]
     time = time[hessian_mask]
     event = event[hessian_mask]
-    eta_previous = np.zeros(X.shape[0])
+
+    strong_screener = StrongScreener(p=X.shape[1])
+    optimiser = ScikitElasticNet(
+        l1_ratio=l1_ratio, fit_intercept=False, warm_start=True
+    )
+
     coefs = np.zeros((n_features, n_alphas), dtype=X.dtype)
     train_eta = np.empty((hessian_mask.shape[0], n_alphas), dtype=X.dtype)
     test_eta = np.empty((test_samples, n_alphas), dtype=X.dtype)
@@ -181,9 +166,9 @@ def regularisation_path(
             )
             inverse_hessian = 1 / hessian
             weights = hessian
-            correction_factor = np.sum(weights)
+
             weights_scaled = weights * (np.sum(hessian_mask) / np.sum(weights))
-            weights_sqrt = np.sqrt(weights)
+
             y_irls = eta_previous - inverse_hessian * gradient
             if i + q > 0 and i + q < 2:
                 strong_screener.compute_strong_set(
@@ -433,13 +418,6 @@ def alpha_path_eta(
         ):
             if array.base is not array_input and not array.flags["WRITEABLE"]:
                 array.setflags(write=True)
-    print(alphas)
-    if alphas is None:
-        alphas = _alpha_grid(
-            X_train, y_train, Xy=None, l1_ratio=l1_ratio, eps=eps, n_alphas=n_alphas
-        )
-    elif len(alphas) > 1:
-        alphas = np.sort(alphas)[::-1]
 
     n_alphas = len(alphas)
 
@@ -592,8 +570,6 @@ class CrossValidation(LinearModelCV):
         if sample_weight is not None:
             sample_weight = _check_sample_weight(sample_weight, X_sorted, dtype=X.dtype)
 
-        # X, y = _set_order(X, y, order="F")
-
         model = self._get_estimator()
 
         path_params = self.get_params()
@@ -637,7 +613,7 @@ class CrossValidation(LinearModelCV):
                     n_alphas=self.n_alphas,
                     gradient=gradient,
                     hessian=hessian,
-                    l1_ratio=l1_ratio,
+                    # l1_ratio=l1_ratio,
                 )
                 for l1_ratio in l1_ratios
             ]
