@@ -10,8 +10,10 @@ from .utils import difference_kernels
 
 @jit(nopython=True, cache=True, fastmath=True)
 def modify_hessian(hessian: np.array, hessian_modification_strategy: str):
-    if not np.any(hessian < 0):
+    if not np.any(hessian <= 0):
         return hessian
+    else:
+        return np.ones(hessian.shape[0])
     if hessian_modification_strategy == "ignore":
         hessian[hessian < 0] = 0
     elif hessian_modification_strategy == "eps":
