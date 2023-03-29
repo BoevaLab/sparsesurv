@@ -195,19 +195,29 @@ def regularisation_path(
                     correction_factor=weights_scaled,
                     active=strong_screener.working_set,
                 )
-                optimiser.coef_ = np.zeros(strong_screener.strong_set.shape[0])
-                optimiser.fit(
-                    X=X[:, strong_screener.strong_set],
-                    y=y_irls,
-                    sample_weight=weights,
-                )
-                eta_new: np.array = np.matmul(
-                    X[:, strong_screener.strong_set], optimiser.coef_
-                )
-                strong_screener.expand_working_set(strong_screener.strong_set)
+                if strong_screener.strong_set.shape[0] > 0:
+                    optimiser.coef_ = np.zeros(strong_screener.strong_set.shape[0])
+                    optimiser.fit(
+                        X=X[:, strong_screener.strong_set],
+                        y=y_irls,
+                        sample_weight=weights,
+                    )
+                    eta_new: np.array = np.matmul(
+                        X[:, strong_screener.strong_set], optimiser.coef_
+                    )
+                    strong_screener.expand_working_set(strong_screener.strong_set)
+                else:
+                    eta_new = eta_previous
                 while True:
+                    strong_screener.check_kkt_all(
+                        X=X,
+                        y=y_irls,
+                        eta=eta_new,
+                        alpha=alpha,
+                        correction_factor=weights_scaled,
+                    )
                     if strong_screener.any_kkt_violated.shape[0] > 0:
-                        warm_start_coef = np.zeros(X_irls.shape[1])
+                        warm_start_coef = np.zeros(X.shape[1])
                         warm_start_coef[strong_screener.working_set] = optimiser.coef_
                         strong_screener.expand_working_set_with_overall_violations()
                         warm_start_coef = warm_start_coef[strong_screener.working_set]
@@ -219,11 +229,13 @@ def regularisation_path(
                         )
                         continue
                     beta_new = np.zeros(X.shape[1])
-                    beta_new[strong_screener.strong_set] = optimiser.coef_
-
-                    eta_final = np.matmul(
-                        X[:, strong_screener.strong_set], optimiser.coef_
-                    )
+                    if strong_screener.strong_set.shape[0] > 0:
+                        beta_new[strong_screener.strong_set] = optimiser.coef_
+                        eta_final = np.matmul(
+                            X[:, strong_screener.strong_set], optimiser.coef_
+                        )
+                    else:
+                        eta_final = eta_previous
                     break
 
             elif i + q > 1:
@@ -336,7 +348,6 @@ def regularisation_path(
                 < tol * np.max(np.abs(beta_updated))
                 or i == 0
             ):
-                print(q)
                 eta_previous = eta_final
                 beta_previous = beta_updated
                 active_variables = np.where(beta_updated != 0)[0]
@@ -398,6 +409,10 @@ def alpha_path_eta(
     X_test = X[test]
     y_test = y[test]
 
+    train_order = np.argsort(np.abs(y_train), kind="stable")
+    X_train = X_train[train_order, :]
+    y_train = y_train[train_order]
+
     n_samples_train, n_features_train = X_train.shape
     n_samples_test, n_features_test = X_test.shape
 
@@ -418,10 +433,10 @@ def alpha_path_eta(
         ):
             if array.base is not array_input and not array.flags["WRITEABLE"]:
                 array.setflags(write=True)
-
+    print(alphas)
     if alphas is None:
         alphas = _alpha_grid(
-            X, y, Xy=None, l1_ratio=l1_ratio, eps=eps, n_alphas=n_alphas
+            X_train, y_train, Xy=None, l1_ratio=l1_ratio, eps=eps, n_alphas=n_alphas
         )
     elif len(alphas) > 1:
         alphas = np.sort(alphas)[::-1]
@@ -437,15 +452,15 @@ def alpha_path_eta(
 
     model.__setattr__("warm_start", True)
     model.__setattr__("l1_ratio", l1_ratio)
-
-    for i, alpha in enumerate(alphas):
-        model.__setattr__("alpha", alpha)
-        model.fit(X, y)
-
-        coefs[..., i] = model.coef_
-        train_eta[..., i] = model.predict(X_train)
-        test_eta[..., i] = model.predict(X_test)
-
+    coefs, train_eta, test_eta = regularisation_path(
+        X=X_train,
+        y=y_train,
+        X_test=X_test,
+        model=model,
+        l1_ratio=l1_ratio,
+        eps=eps,
+        alphas=alphas,
+    )
     return train_eta, test_eta, y_train, y_test
 
 
@@ -526,7 +541,7 @@ class CrossValidation(LinearModelCV):
 
         cv = 5 if cv is None else cv
         if isinstance(cv, numbers.Integral):
-            self.cv = StratifiedKFold(cv)
+            self.cv = StratifiedKFold(cv, shuffle=True, random_state=42)
         elif isinstance(cv, Iterable):
             self.cv = _CVIterableWrapper(cv)
         elif hasattr(cv, "split"):
@@ -635,9 +650,8 @@ class CrossValidation(LinearModelCV):
         n_alphas = len(alphas[0])
         path_params.update({"n_alphas": n_alphas})
 
-        folds = list(self.cv.split(X, y))
+        folds = list(self.cv.split(X, (y > 0).astype(int)))
         best_pl_score = 0.0
-
         jobs = (
             delayed(alpha_path_eta)(
                 X,
@@ -654,18 +668,17 @@ class CrossValidation(LinearModelCV):
             for this_l1_ratio, this_alphas in zip(l1_ratios, alphas)
             for train, test in folds
         )
-
         eta_path = Parallel(
             n_jobs=self.n_jobs,
             verbose=self.verbose,
             prefer="threads",
         )(jobs)
 
-        train_xb, test_xb, train_y, test_y = zip(*xcoefs_path)
-        n_folds = int(len(train_xb) / len(l1_ratios))
+        train_eta_folds, test_eta_folds, train_y_folds, test_y_folds = zip(*eta_path)
+        n_folds = int(len(train_eta_folds) / len(l1_ratios))
+
         mean_cv_score_l1 = []
         mean_cv_score = []
-        self.coef_ = np.zeros(X.shape[1])
 
         for i in range(len(l1_ratios)):
             train_eta = train_eta_folds[n_folds * i : n_folds * (i + 1)]
