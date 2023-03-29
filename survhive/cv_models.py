@@ -19,7 +19,7 @@ class AHLassoCV(CrossValidation):
         self,
         optimiser: str,
         cv_score_method: str = "linear_predictor",
-        eps: float = 1e-3,
+        eps: float = 0.05,
         n_alphas: int = 100,
         alphas: ArrayLike = None,
         l1_ratios: Union[float, ArrayLike] = [1.0],
@@ -313,6 +313,7 @@ class CoxPHElasticNetCV(CrossValidation):
     def __init__(
         self,
         optimiser: str,
+        tie_correction: str = "efron",
         cv_score_method: str = "linear_predictor",
         eps: float = 1e-3,
         n_alphas: int = 100,
@@ -339,9 +340,15 @@ class CoxPHElasticNetCV(CrossValidation):
             n_jobs=n_jobs,
             random_state=random_state,
         )
+        self.tie_correction = tie_correction
 
     def _get_estimator(self):
-        return CoxPHElasticNet(alpha=0.01, optimiser=self.optimiser, l1_ratio=0.5)
+        return CoxPHElasticNet(
+            alpha=0.01,
+            optimiser=self.optimiser,
+            l1_ratio=0.5,
+            tie_correction=self.tie_correction,
+        )
 
     def _is_multitask(self):
         return False
