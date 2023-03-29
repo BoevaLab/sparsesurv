@@ -22,15 +22,15 @@ def modify_hessian(hessian: np.array, hessian_modification_strategy: str) -> np.
     """
     if not np.any(hessian <= 0):
         return hessian
-    else:
-        return np.ones(hessian.shape[0])
+    # else:
+    #    return np.ones(hessian.shape[0])
     if hessian_modification_strategy == "ignore":
         hessian[hessian < 0] = 0
     elif hessian_modification_strategy == "eps":
-        hessian[hessian < 0] = SQRT_EPS
+        hessian[hessian <= 0] = np.mean(np.abs(hessian))
     elif hessian_modification_strategy == "flip":
-        # hessian[hessian < 0] = np.negative(hessian[hessian < 0])
-        hessian += np.abs(np.min(hessian)) + SQRT_EPS
+        hessian[hessian < 0] = np.negative(hessian[hessian < 0])
+        # hessian += np.abs(np.min(hessian)) + SQRT_EPS
     return hessian
 
 
@@ -56,6 +56,8 @@ def aft_numba(
         Tuple[np.array, np.array]: Tuple containing the negative gradients and the hessian
             of with the linear predictor.
     """
+    hessian_modification_strategy: str = "eps",
+):
     # print(linear_predictor)
     # print(time)
     # print(event)
@@ -63,9 +65,14 @@ def aft_numba(
         bandwidth: float = jones_1990(time=time, event=event)
     else:
         bandwidth: float = jones_1991(time=time, event=event)
-    # bandwidth = time.shape[0]  ** (-1/7)
-    bandwidth = np.std(np.log((time))) * (time.shape[0] ** (-1 / 7))
+
+    # bandwidth = (np.std(np.log(time)) + (time.shape[0] ** (-1/5))) * np.log(20000)
     # print(bandwidth)
+    #
+    # bandwidth = 5
+    # bandwidth = 10
+    # bandwidth = 3
+    # print
     linear_predictor: np.array = np.exp(linear_predictor)
     linear_predictor = np.log(time * linear_predictor)
     n_samples: int = time.shape[0]
@@ -109,7 +116,6 @@ def aft_numba(
     )
 
     for _ in range(n_samples):
-
         sample_event: int = event[_]
         gradient_three = -(
             inverse_sample_size
@@ -266,11 +272,14 @@ def ah_numba(
         Tuple[np.array, np.array]: Tuple containing the negative gradients and the hessian
             of with the linear predictor.
     """
+):
     if bandwidth_function == "jones_1990":
         bandwidth: float = jones_1990(time=time, event=event)
     else:
         bandwidth: float = jones_1991(time=time, event=event)
 
+    # bandwidth = 10
+    bandwidth = np.std(np.log(time)) * (time.shape[0] ** (-1 / 7))
     linear_predictor_vanilla: np.array = np.exp(linear_predictor)
     linear_predictor = np.log(time * linear_predictor_vanilla)
     n_samples: int = time.shape[0]
@@ -317,7 +326,6 @@ def ah_numba(
     ).sum(axis=0)
 
     for _ in range(n_samples):
-
         sample_event: int = event[_]
         gradient_three = -(
             inverse_sample_size

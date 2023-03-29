@@ -135,7 +135,6 @@ def ah_likelihood(
         bandwidth: float = jones_1990(time=time, event=event)
     else:
         bandwidth: float = jones_1991(time=time, event=event)
-
     n_samples: int = time.shape[0]
     linear_predictor: np.array = linear_predictor
     exp_linear_predictor: np.array = np.exp(linear_predictor)
@@ -192,6 +191,10 @@ def aft_likelihood(
         bandwidth: float = jones_1990(time=time, event=event)
     else:
         bandwidth: float = jones_1991(time=time, event=event)
+    # bandwidth = 10
+    # bandwidth = 10
+    # print(bandwidth)
+    # bandwidth = 5
     n_samples: int = time.shape[0]
     linear_predictor: np.array = linear_predictor
     R_linear_predictor: np.array = np.log(time * np.exp(linear_predictor))

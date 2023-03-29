@@ -198,7 +198,6 @@ class Optimiser:
         # )
         coef = np.zeros((X.shape[1], alphas.shape[0]))
         for _ in range(self.max_iter):
-            print(_)
             eta: np.array = np.matmul(X, coef[:, 1])
             # print(eta)
             gradient: np.array
