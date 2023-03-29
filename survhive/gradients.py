@@ -9,10 +9,17 @@ from .utils import difference_kernels
 
 
 @jit(nopython=True, cache=True, fastmath=True)
-def modify_hessian(hessian: np.array, hessian_modification_strategy: str):
-    # return hessian
-    # return hessian
-    # return hessian
+def modify_hessian(hessian: np.array, hessian_modification_strategy: str) -> np.array:
+    """Function to modify the Hessian matrix such that it is positive semi-definite.
+
+    Args:
+        hessian (np.array): Non-positive semi-definite Hessian matrix to be modified.
+        hessian_modification_strategy (str): Strategy by which the hessian is to be modified.
+            Default is to replace negative values in the matrix with +1.
+
+    Returns:
+        np.array: Modified positive semi-definite hessian matrix.
+    """
     if not np.any(hessian <= 0):
         return hessian
     # else:
@@ -33,6 +40,22 @@ def aft_numba(
     event: np.array,
     linear_predictor: np.array,
     bandwidth_function: str,
+    hessian_modification_strategy: str,
+) -> Tuple[np.array, np.array]:
+    """Gradient of the Accelerated Failure Time model in numba-compatible form.
+
+    Args:
+        time (np.array): Array containing event/censoring times of shape = (n_samples,).
+        event (np.array): Array containing binary event indicators of shape = (n_samples,).
+        linear_predictor (np.array): Linear predictor of risk: `X @ coef`. Shape = (n_samples,).
+        bandwidth_function (str): _description_
+        hessian_modification_strategy (str, optional): Strategy by which the hessian is to be modified.
+            Default is to replace negative values in the matrix with +1.
+
+    Returns:
+        Tuple[np.array, np.array]: Tuple containing the negative gradients and the hessian
+            of with the linear predictor.
+    """
     hessian_modification_strategy: str = "eps",
 ):
     # print(linear_predictor)
@@ -234,7 +257,21 @@ def ah_numba(
     event: np.array,
     linear_predictor: np.array,
     bandwidth_function: str = "jones_1990",
-    hessian_modification_strategy: str = "eps",
+    hessian_modification_strategy: str = "flip",
+) -> Tuple[np.array, np.array]:
+    """Gradient of the Accelerated Hazards model in numba-compatible form.
+
+    Args:
+        time (np.array): Array containing event/censoring times of shape = (n_samples,).
+        event (np.array): Array containing binary event indicators of shape = (n_samples,).
+        linear_predictor (np.array): Linear predictor of risk: `X @ coef`. Shape = (n_samples,).
+        bandwidth_function (str, optional): _description_. Defaults to "jones_1990".
+        hessian_modification_strategy (str, optional): _description_. Defaults to "flip".
+
+    Returns:
+        Tuple[np.array, np.array]: Tuple containing the negative gradients and the hessian
+            of with the linear predictor.
+    """
 ):
     if bandwidth_function == "jones_1990":
         bandwidth: float = jones_1990(time=time, event=event)
@@ -479,6 +516,17 @@ def update_risk_sets_breslow(
     local_risk_set: float,
     local_risk_set_hessian: float,
 ) -> Tuple[float, float]:
+    """_summary_
+
+    Args:
+        risk_set_sum (float): _description_
+        death_set_count (int): _description_
+        local_risk_set (float): _description_
+        local_risk_set_hessian (float): _description_
+
+    Returns:
+        Tuple[float, float]: _description_
+    """
     local_risk_set += 1 / (risk_set_sum / death_set_count)
     local_risk_set_hessian += 1 / ((risk_set_sum**2) / death_set_count)
     return local_risk_set, local_risk_set_hessian
@@ -491,6 +539,17 @@ def calculate_sample_grad_hess(
     local_risk_set: float,
     local_risk_set_hessian: float,
 ) -> Tuple[float, float]:
+    """_summary_
+
+    Args:
+        sample_partial_hazard (float): _description_
+        sample_event (int): _description_
+        local_risk_set (float): _description_
+        local_risk_set_hessian (float): _description_
+
+    Returns:
+        Tuple[float, float]: _description_
+    """
     return (
         sample_partial_hazard * local_risk_set
     ) - sample_event, sample_partial_hazard * local_risk_set - local_risk_set_hessian * (
@@ -503,7 +562,18 @@ def breslow_numba(
     linear_predictor: np.array,
     time: np.array,
     event: np.array,
-):
+) -> Tuple[np.array, np.array]:
+    """Gradient of the Breslow approximated version of CoxPH in numba-compatible form.
+
+    Args:
+        linear_predictor (np.array): Linear predictor of risk: `X @ coef`. Shape = (n_samples,).
+        time (np.array): Array containing event/censoring times of shape = (n_samples,).
+        event (np.array): Array containing binary event indicators of shape = (n_samples,).
+
+    Returns:
+        Tuple[np.array, np.array]: Tuple containing the negative gradients and the hessian
+            of with the linear predictor.
+    """
     # Assumes times have been sorted beforehand.
     partial_hazard = np.exp(linear_predictor)
     samples = time.shape[0]
@@ -584,6 +654,19 @@ def calculate_sample_grad_hess_efron(
     local_risk_set_death: float,
     local_risk_set_hessian_death: float,
 ) -> Tuple[float, float]:
+    """_summary_
+
+    Args:
+        sample_partial_hazard (float): _description_
+        sample_event (int): _description_
+        local_risk_set (float): _description_
+        local_risk_set_hessian (float): _description_
+        local_risk_set_death (float): _description_
+        local_risk_set_hessian_death (float): _description_
+
+    Returns:
+        Tuple[float, float]: _description_
+    """
     if sample_event:
         return ((sample_partial_hazard) * (local_risk_set_death)) - (sample_event), (
             sample_partial_hazard
@@ -604,6 +687,18 @@ def update_risk_sets_efron_pre(
     local_risk_set_hessian: float,
     death_set_risk: float,
 ) -> Tuple[float, float, float, float]:
+    """_summary_
+
+    Args:
+        risk_set_sum (float): _description_
+        death_set_count (int): _description_
+        local_risk_set (float): _description_
+        local_risk_set_hessian (float): _description_
+        death_set_risk (float): _description_
+
+    Returns:
+        Tuple[float, float, float, float]: _description_
+    """
     local_risk_set_death: float = local_risk_set
     local_risk_set_hessian_death: float = local_risk_set_hessian
 
@@ -635,6 +730,17 @@ def efron_numba(
     time: np.array,
     event: np.array,
 ) -> Tuple[np.array, np.array]:
+    """Gradient of the Efron approximated version of CoxPH in numba-compatible form.
+
+    Args:
+        linear_predictor (np.array): Linear predictor of risk: `X @ coef`. Shape = (n_samples,).
+        time (np.array): Array containing event/censoring times of shape = (n_samples,).
+        event (np.array): Array containing binary event indicators of shape = (n_samples,).
+
+    Returns:
+        Tuple[np.array, np.array]: Tuple containing the negative gradients and the hessian
+            of with the linear predictor.
+    """
     # Assumes times have been sorted beforehand.
     partial_hazard = np.exp(linear_predictor)
     samples = time.shape[0]

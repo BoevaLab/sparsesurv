@@ -7,9 +7,6 @@ from typing import List, Tuple, Union
 
 import numpy as np
 import pandas as pd
-from celer import ElasticNet
-from glum import GeneralizedLinearRegressor
-from numpy import ndarray
 from numpy.typing import ArrayLike
 from scipy import sparse
 from sklearn.linear_model import ElasticNet as ScikitElasticNet
@@ -17,7 +14,6 @@ from sklearn.linear_model._base import _preprocess_data
 from sklearn.linear_model._coordinate_descent import (
     LinearModelCV,
     _check_sample_weight,
-    _set_order,
 )
 from sklearn.model_selection import StratifiedKFold
 from sklearn.model_selection._split import _CVIterableWrapper
@@ -42,9 +38,8 @@ def _alpha_grid(
     y: ArrayLike,
     gradient,
     hessian,
-    l1_ratio,
     Xy: ArrayLike = None,
-    eps: float = 0.05,
+    eps: float = 0.1,
     n_alphas: int = 100,
 ) -> np.array:
     """Compute the grid of alpha values for model parameter search
@@ -53,10 +48,12 @@ def _alpha_grid(
     Args:
         X (ArrayLike): Array-like object of training data of shape (n_samples, n_features).
         y (ArrayLike): Array-like object of target values of shape (n_samples,) or (n_samples, n_outputs).
+        gradient ():
+        hessian ():
         Xy (ArrayLike, optional): Dot product of X and y arrays having shape (n_features,)
         or (n_features, n_outputs). Defaults to None.
         eps (float, optional): Length of the path. ``eps=1e-3`` means that
-        ``alpha_min / alpha_max = 1e-3``. Defaults to 1e-3.
+        ``alpha_min / alpha_max = 1e-3``. Defaults to 1e-1.
         n_alphas (int, optional): Number of alphas along the regularization path. Defaults to 100.
 
     Returns:
@@ -132,11 +129,14 @@ def regularisation_path(
     test_samples, _ = X_test.shape
     time, event = inverse_transform_survival(y)
     eta_previous = np.zeros(X.shape[0])
+    beta_previous = np.zeros(X.shape[1])
+
     gradient, hessian = model.gradient(
         linear_predictor=eta_previous,
         time=time,
         event=event,
     )
+    hessian_mask = (hessian > 0).astype(bool)
     if alphas is None:
         alphas = _alpha_grid(
             X,
@@ -166,7 +166,12 @@ def regularisation_path(
     X = X[hessian_mask, :]
     time = time[hessian_mask]
     event = event[hessian_mask]
-    eta_previous = np.zeros(X.shape[0])
+
+    strong_screener = StrongScreener(p=X.shape[1])
+    optimiser = ScikitElasticNet(
+        l1_ratio=l1_ratio, fit_intercept=False, warm_start=True
+    )
+
     coefs = np.zeros((n_features, n_alphas), dtype=X.dtype)
     train_eta = np.empty((hessian_mask.shape[0], n_alphas), dtype=X.dtype)
     test_eta = np.empty((test_samples, n_alphas), dtype=X.dtype)
@@ -615,8 +620,6 @@ class CrossValidation(LinearModelCV):
         if sample_weight is not None:
             sample_weight = _check_sample_weight(sample_weight, X_sorted, dtype=X.dtype)
 
-        # X, y = _set_order(X, y, order="F")
-
         model = self._get_estimator()
 
         path_params = self.get_params()
@@ -660,7 +663,7 @@ class CrossValidation(LinearModelCV):
                     n_alphas=self.n_alphas,
                     gradient=gradient,
                     hessian=hessian,
-                    l1_ratio=l1_ratio,
+                    # l1_ratio=l1_ratio,
                 )
                 for l1_ratio in l1_ratios
             ]
