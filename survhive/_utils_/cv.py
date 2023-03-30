@@ -4,7 +4,7 @@ from collections.abc import Iterable
 from functools import partial
 from numbers import Real
 from typing import List, Tuple, Union
-
+import time
 import numpy as np
 import pandas as pd
 from numpy.typing import ArrayLike
@@ -28,9 +28,10 @@ from survhive._utils_.hyperparams import (  # ESTIMATORFACTORY,; OPTIMISERFACTOR
 from survhive._utils_.scorer import *
 from survhive.optimiser import Optimiser
 
-from ..constants import EPS
-from ..optimiser import backtracking_line_search
-from ..screening import StrongScreener
+
+from survhive.constants import EPS
+from survhive.optimiser import backtracking_line_search
+from survhive.screening import StrongScreener
 
 
 def _alpha_grid(
@@ -39,6 +40,7 @@ def _alpha_grid(
     gradient,
     hessian,
     Xy: ArrayLike = None,
+    l1_ratio: float = 0.9,
     eps: float = 0.1,
     n_alphas: int = 100,
 ) -> np.array:
@@ -78,6 +80,7 @@ def _alpha_grid(
         alphas = np.empty(n_alphas)
         alphas.fill(np.finfo(float).resolution)
         return alphas
+
     alphas = np.round(
         np.logspace(
             np.log10((alpha_max + EPS) * eps),
@@ -129,13 +132,13 @@ def regularisation_path(
     test_samples, _ = X_test.shape
     time, event = inverse_transform_survival(y)
     eta_previous = np.zeros(X.shape[0])
-    beta_previous = np.zeros(X.shape[1])
 
     gradient, hessian = model.gradient(
         linear_predictor=eta_previous,
         time=time,
         event=event,
     )
+
     hessian_mask = (hessian > 0).astype(bool)
     if alphas is None:
         alphas = _alpha_grid(
@@ -151,7 +154,7 @@ def regularisation_path(
     elif len(alphas) > 1:
         alphas = np.sort(alphas)[::-1]
     n_alphas = len(alphas)
-    beta_previous = np.zeros(X.shape[1])
+
     strong_screener = StrongScreener(p=X.shape[1], l1_ratio=l1_ratio)
     optimiser = ScikitElasticNet(
         l1_ratio=l1_ratio,
@@ -166,17 +169,14 @@ def regularisation_path(
     X = X[hessian_mask, :]
     time = time[hessian_mask]
     event = event[hessian_mask]
-
-    strong_screener = StrongScreener(p=X.shape[1])
-    optimiser = ScikitElasticNet(
-        l1_ratio=l1_ratio, fit_intercept=False, warm_start=True
-    )
-
+    eta_previous = np.zeros(X.shape[0])
+    beta_previous = np.zeros(X.shape[1])
     coefs = np.zeros((n_features, n_alphas), dtype=X.dtype)
     train_eta = np.empty((hessian_mask.shape[0], n_alphas), dtype=X.dtype)
     test_eta = np.empty((test_samples, n_alphas), dtype=X.dtype)
     for i, alpha in enumerate(alphas):
         optimiser.__setattr__("alpha", alpha)
+        model.__setattr__("alpha", alpha)
         for q in range(n_irls_iter):
             gradient: np.array
             hessian: np.array
@@ -188,6 +188,7 @@ def regularisation_path(
             inverse_hessian = 1 / hessian
             weights = hessian
             weights_scaled = weights * (np.sum(hessian_mask) / np.sum(weights))
+
             y_irls = eta_previous - inverse_hessian * gradient
             if i > 0 and q < 1:
                 strong_screener.compute_strong_set(
@@ -399,10 +400,13 @@ def alpha_path_eta(
     y: ArrayLike,
     Xy: ArrayLike,
     model: object,
+    gradient,
+    hessian,
     sample_weight: ArrayLike,
     train: List,
     test: List,
     alphas: ArrayLike = None,
+    n_alphas: int = 100,
     l1_ratio: float = 1.0,
     eps: float = 1e-3,
 ) -> Tuple:
@@ -457,10 +461,13 @@ def alpha_path_eta(
         ):
             if array.base is not array_input and not array.flags["WRITEABLE"]:
                 array.setflags(write=True)
+
     if alphas is None:
         alphas = _alpha_grid(
             X_train,
             y_train,
+            gradient,
+            hessian,
             Xy=None,
             l1_ratio=l1_ratio,
             eps=eps,
@@ -469,7 +476,7 @@ def alpha_path_eta(
     elif len(alphas) > 1:
         alphas = np.sort(alphas)[::-1]
 
-    n_alphas = len(alphas)
+    # n_alphas = len(alphas)
 
     coefs = np.empty((n_features_train, n_alphas), dtype=X.dtype)
     train_eta = np.empty((n_samples_train, n_alphas), dtype=X.dtype)
@@ -480,6 +487,7 @@ def alpha_path_eta(
 
     model.__setattr__("warm_start", True)
     model.__setattr__("l1_ratio", l1_ratio)
+    st = time.process_time()
     coefs, train_eta, test_eta = regularisation_path(
         X=X_train,
         y=y_train,
@@ -487,9 +495,13 @@ def alpha_path_eta(
         model=model,
         l1_ratio=l1_ratio,
         eps=eps,
+        n_alphas=n_alphas,
         alphas=alphas,
+        line_search=model.line_search,
     )
-    return train_eta, test_eta, y_train, y_test
+    et = time.process_time()
+    res = et - st
+    return res, train_eta, test_eta, y_train, y_test
 
 
 class CrossValidation(LinearModelCV):
@@ -734,15 +746,20 @@ class CrossValidation(LinearModelCV):
 
             else:
                 test_fold_likelihoods = []
-                for k in range(n_folds):
-                    train_eta_method = train_eta[k]
-                    test_eta_method = test_eta[k]
-                    train_y_method = train_y[k]
-                    test_y_method = test_y[k]
+                for j in range(len(alphas[i])):
+                    for k in range(n_folds):
+                        train_eta_method = train_eta[k]
+                        test_eta_method = test_eta[k]
+                        train_y_method = train_y[k]
+                        test_y_method = test_y[k]
 
-                    train_time, train_event = inverse_transform_survival(train_y_method)
-                    test_time, test_event = inverse_transform_survival(test_y_method)
-                    for j in range(len(alphas[i])):
+                        train_time, train_event = inverse_transform_survival(
+                            train_y_method
+                        )
+                        test_time, test_event = inverse_transform_survival(
+                            test_y_method
+                        )
+                        # for j in range(len(alphas[i])):
                         fold_likelihood = CVSCORERFACTORY[self.cv_score_method](
                             test_eta_method[:, j],
                             test_time,
@@ -755,6 +772,7 @@ class CrossValidation(LinearModelCV):
                         test_fold_likelihoods.append(fold_likelihood)
                     mean_cv_score_l1.append(np.mean(test_fold_likelihoods))
                 mean_cv_score.append(mean_cv_score_l1)
+
         self.pl_path_ = mean_cv_score
         for l1_ratio, l1_alphas, pl_alphas in zip(l1_ratios, alphas, mean_cv_score):
             i_best_alpha = np.argmax(mean_cv_score)
