@@ -74,7 +74,6 @@ def _alpha_grid(
     hessian_mask: np.array = (hessian > 0).astype(bool)
     alpha_max = (
         np.max(np.abs(np.matmul(gradient.T[hessian_mask], X[hessian_mask, :])))
-        / (np.sum(hessian[hessian_mask]))
         / l1_ratio
     )
     if alpha_max <= np.finfo(float).resolution:
@@ -88,7 +87,7 @@ def _alpha_grid(
             num=n_alphas,
         )[::-1],
         decimals=10,
-    )
+    ) / (np.sum(hessian[hessian_mask]))
     return alphas
 
 
@@ -606,8 +605,7 @@ class CrossValidation(LinearModelCV):
         X_sorted: np.array = X[sorted_indices, :]
         y_sorted: np.array = y[sorted_indices]
         self._validate_params()
-
-        check_consistent_length(X, y)
+        check_consistent_length(X_sorted, y_sorted)
         Xy = None
 
         if isinstance(sample_weight, numbers.Number):
@@ -673,12 +671,12 @@ class CrossValidation(LinearModelCV):
         n_alphas = len(alphas[0])
         path_params.update({"n_alphas": n_alphas})
 
-        folds = list(self.cv.split(X, (y > 0).astype(int)))
+        folds = list(self.cv.split(X_sorted, (y_sorted > 0).astype(int)))
         best_pl_score = 0.0
         jobs = (
             delayed(alpha_path_eta)(
-                X,
-                y,
+                X_sorted,
+                y_sorted,
                 Xy,
                 model,
                 sample_weight,
@@ -725,7 +723,10 @@ class CrossValidation(LinearModelCV):
                         test_event,
                         model.loss,
                     )
-                    mean_cv_score_l1.append(likelihood)
+                    if np.isnan(likelihood):
+                        mean_cv_score_l1.append(-np.inf)
+                    else:
+                        mean_cv_score_l1.append(likelihood)
 
                 mean_cv_score.append(mean_cv_score_l1)
 
@@ -749,7 +750,10 @@ class CrossValidation(LinearModelCV):
                             train_event,
                             model.loss,
                         )
-                        test_fold_likelihoods.append(fold_likelihood)
+                        if np.isnan(fold_likelihood):
+                            test_fold_likelihoods.append(-np.inf)
+                        else:
+                            test_fold_likelihoods.append(fold_likelihood)
                     mean_cv_score_l1.append(np.mean(test_fold_likelihoods))
                 mean_cv_score.append(mean_cv_score_l1)
         self.pl_path_ = mean_cv_score
@@ -780,11 +784,10 @@ class CrossValidation(LinearModelCV):
         model.set_params(**common_params)
         model.alpha = best_alpha
         model.l1_ratio = best_l1_ratio
-
         if sample_weight is None:
-            model.fit(X, y)
+            model.fit(X_sorted, y_sorted)
         else:
-            model.fit(X, y, sample_weight=sample_weight)
+            model.fit(X_sorted, y_sorted, sample_weight=sample_weight)
 
         if not hasattr(self, "l1_ratio"):
             del self.l1_ratio_
