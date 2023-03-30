@@ -487,7 +487,7 @@ def alpha_path_eta(
 
     model.__setattr__("warm_start", True)
     model.__setattr__("l1_ratio", l1_ratio)
-    st = time.process_time()
+
     coefs, train_eta, test_eta = regularisation_path(
         X=X_train,
         y=y_train,
@@ -499,9 +499,8 @@ def alpha_path_eta(
         alphas=alphas,
         line_search=model.line_search,
     )
-    et = time.process_time()
-    res = et - st
-    return res, train_eta, test_eta, y_train, y_test
+
+    return train_eta, test_eta, y_train, y_test
 
 
 class CrossValidation(LinearModelCV):
@@ -690,16 +689,20 @@ class CrossValidation(LinearModelCV):
 
         folds = list(self.cv.split(X, (y > 0).astype(int)))
         best_pl_score = 0.0
+
         jobs = (
             delayed(alpha_path_eta)(
                 X,
                 y,
                 Xy,
                 model,
+                gradient,
+                hessian,
                 sample_weight,
                 train,
                 test,
                 alphas=this_alphas,
+                n_alphas=n_alphas,
                 l1_ratio=this_l1_ratio,
                 eps=self.eps,
             )
