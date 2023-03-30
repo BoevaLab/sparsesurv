@@ -8,7 +8,20 @@ from .utils import difference_kernels
 
 
 @jit(nopython=True, cache=True)
-def efron_likelihood(linear_predictor, time, event):
+def efron_likelihood(
+    linear_predictor: np.array, time: np.array, event: np.array
+) -> np.array:
+    """Efron approximation of the cumulative baseline hazard function to compute partial
+        likelihood of the CoxPH model.
+
+    Args:
+        linear_predictor (np.array): Linear predictor of risk: `X @ coef`. Shape = (n_samples,).
+        time (np.array): Array containing event/censoring times of shape = (n_samples,).
+        event (np.array): Array containing binary event indicators of shape = (n_samples,).
+
+    Returns:
+        np.array: Scalar value of mean partial log likelihood estimate.
+    """
     partial_hazard = np.exp(linear_predictor)
     samples = time.shape[0]
     previous_time = time[0]
@@ -51,7 +64,21 @@ def efron_likelihood(linear_predictor, time, event):
 
 
 @jit(nopython=True, cache=True)
-def breslow_likelihood(linear_predictor, time, event):
+def breslow_likelihood(
+    linear_predictor: np.array, time: np.array, event: np.array
+) -> np.array:
+    """Breslow approximation of the cumulative baseline hazard function to compute partial
+        likelihood of the CoxPH model.
+
+    Args:
+        linear_predictor (np.array): Linear predictor of risk: `X @ coef`. Shape = (n_samples,).
+        time (np.array): Array containing event/censoring times of shape = (n_samples,).
+        event (np.array): Array containing binary event indicators of shape = (n_samples,).
+
+
+    Returns:
+        np.array: Scalar value of mean partial log likelihood estimate.
+    """
     # Assumes times have been sorted beforehand.
     partial_hazard = np.exp(linear_predictor)
     samples = time.shape[0]
@@ -66,7 +93,9 @@ def breslow_likelihood(linear_predictor, time, event):
 
     for k in range(samples):
         current_time = time[k]
-        if current_time > previous_time:
+        if (
+            current_time > previous_time
+        ):  # if time is sorted this will always hold unless current = prev
             # correct set-count, have to go back to set the different hazards for the ties
             likelihood -= set_count * log(risk_set_sum)
             risk_set_sum -= accumulated_sum
@@ -91,6 +120,17 @@ def ah_likelihood(
     event: np.array,
     bandwidth_function: str = "jones_1990",
 ) -> np.array:
+    """Partial likelihood estimator for Accelerated Hazards model.
+
+    Args:
+        linear_predictor (np.array): Linear predictor of risk: `X @ coef`. Shape = (n_samples,).
+        time (np.array): Array containing event/censoring times of shape = (n_samples,).
+        event (np.array): Array containing binary event indicators of shape = (n_samples,).
+        bandwidth_function (str, optional): _description_. Defaults to "jones_1990".
+
+    Returns:
+        np.array: Scalar value of mean partial log likelihood estimate.
+    """
     if bandwidth_function == "jones_1990":
         bandwidth: float = jones_1990(time=time, event=event)
     else:
@@ -136,6 +176,17 @@ def aft_likelihood(
     event: np.array,
     bandwidth_function: str,
 ) -> np.array:
+    """Partial likelihood estimator for Accelerated Failure Time model.
+
+    Args:
+        linear_predictor (np.array): Linear predictor of risk: `X @ coef`. Shape = (n_samples,).
+        time (np.array): Array containing event/censoring times of shape = (n_samples,).
+        event (np.array): Array containing binary event indicators of shape = (n_samples,).
+        bandwidth_function (str): _description_
+
+    Returns:
+        np.array: Scalar value of mean partial log likelihood estimate.
+    """
     if bandwidth_function == "jones_1990":
         bandwidth: float = jones_1990(time=time, event=event)
     else:
@@ -170,11 +221,3 @@ def aft_likelihood(
         - np.log(inverse_sample_size * integrated_kernel_sum).sum()
     )
     return -likelihood
-
-
-LOSS_FACTORY = {
-    "efron": efron_likelihood,
-    "breslow": breslow_likelihood,
-    "aft": aft_likelihood,
-    "ah": ah_likelihood,
-}
