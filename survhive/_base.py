@@ -164,13 +164,6 @@ class RegularizedLinearSurvivalModel(LinearModel):
         sorted_indices: np.array = np.argsort(a=time, kind="stable")
         X_sorted = X[sorted_indices, :]
         y_sorted = y[sorted_indices]
-        # sorted_indices = np.arange(event.shape[0])
-        # time_sorted: np.array = time[sorted_indices]
-        # event_sorted: np.array = event[sorted_indices]
-        # X_sorted: np.array = X[
-        #    sorted_indices,
-        # ]
-        # y_sorted: np.array = transform_survival(time=time_sorted, event=event_sorted)
         self.coef_ = np.squeeze(
             regularisation_path(
                 X=X_sorted,
@@ -181,6 +174,7 @@ class RegularizedLinearSurvivalModel(LinearModel):
                 eps=None,
                 n_alphas=None,
                 alphas=np.array([self.alpha]),
+                max_first=False,
             )[0]
         )
         self.train_time = time[sorted_indices]

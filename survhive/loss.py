@@ -2,8 +2,8 @@ from math import log
 
 import numpy as np
 from numba import jit
+import math
 
-from .bandwidth_estimation import jones_1990, jones_1991
 from .utils import difference_kernels
 
 
@@ -115,10 +115,7 @@ def breslow_likelihood(
 
 @jit(nopython=True, cache=True, fastmath=True)
 def ah_likelihood(
-    linear_predictor: np.array,
-    time: np.array,
-    event: np.array,
-    bandwidth_function: str = "jones_1990",
+    linear_predictor: np.array, time: np.array, event: np.array
 ) -> np.array:
     """Partial likelihood estimator for Accelerated Hazards model.
 
@@ -131,13 +128,10 @@ def ah_likelihood(
     Returns:
         np.array: Scalar value of mean partial log likelihood estimate.
     """
-    if bandwidth_function == "jones_1990":
-        bandwidth: float = jones_1990(time=time, event=event)
-    else:
-        bandwidth: float = jones_1991(time=time, event=event)
     n_samples: int = time.shape[0]
+    bandwidth = 1.30 * math.pow(n_samples, -0.2)
     linear_predictor: np.array = linear_predictor
-    exp_linear_predictor: np.array = np.exp(linear_predictor)
+    exp_linear_predictor: np.array = np.exp(-linear_predictor)
     R_linear_predictor: np.array = np.log(time * exp_linear_predictor)
     inverse_sample_size_bandwidth: float = 1 / (n_samples * bandwidth)
     event_mask: np.array = event.astype(np.bool_)
@@ -171,10 +165,7 @@ def ah_likelihood(
 
 @jit(nopython=True, cache=True, fastmath=True)
 def aft_likelihood(
-    linear_predictor: np.array,
-    time: np.array,
-    event: np.array,
-    bandwidth_function: str,
+    linear_predictor: np.array, time: np.array, event: np.array
 ) -> np.array:
     """Partial likelihood estimator for Accelerated Failure Time model.
 
@@ -187,15 +178,8 @@ def aft_likelihood(
     Returns:
         np.array: Scalar value of mean partial log likelihood estimate.
     """
-    if bandwidth_function == "jones_1990":
-        bandwidth: float = jones_1990(time=time, event=event)
-    else:
-        bandwidth: float = jones_1991(time=time, event=event)
-    # bandwidth = 10
-    # bandwidth = 10
-    # print(bandwidth)
-    # bandwidth = 5
     n_samples: int = time.shape[0]
+    bandwidth = 1.30 * math.pow(n_samples, -0.2)
     linear_predictor: np.array = linear_predictor
     R_linear_predictor: np.array = np.log(time * np.exp(linear_predictor))
     inverse_sample_size_bandwidth: float = 1 / (n_samples * bandwidth)
