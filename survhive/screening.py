@@ -74,6 +74,10 @@ class StrongScreener(object):
         return None
 
     def expand_working_set(self, a):
+        self.working_set = np.union1d(self.working_set, a)
+        return None
+
+    def expand_working_set_raw(self, a):
         self.working_set = np.append(self.working_set, a)
         return None
 

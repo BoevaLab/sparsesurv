@@ -3,13 +3,13 @@ from typing import Tuple
 import numpy as np
 from numba import jit
 
-from .bandwidth_estimation import jones_1990, jones_1991
-from .constants import CDF_ZERO, PDF_PREFACTOR, SQRT_EPS
+from .constants import CDF_ZERO, PDF_PREFACTOR
 from .utils import difference_kernels
+import math
 
 
 @jit(nopython=True, cache=True, fastmath=True)
-def modify_hessian(hessian: np.array, hessian_modification_strategy: str) -> np.array:
+def modify_hessian(hessian: np.array) -> np.array:
     """Function to modify the Hessian matrix such that it is positive semi-definite.
 
     Args:
@@ -20,27 +20,14 @@ def modify_hessian(hessian: np.array, hessian_modification_strategy: str) -> np.
     Returns:
         np.array: Modified positive semi-definite hessian matrix.
     """
-    if not np.any(hessian <= 0):
-        return hessian
-    # else:
-    #    return np.ones(hessian.shape[0])
-    if hessian_modification_strategy == "ignore":
-        hessian[hessian < 0] = 0
-    elif hessian_modification_strategy == "eps":
-        hessian[hessian <= 0] = np.mean(np.abs(hessian))
-    elif hessian_modification_strategy == "flip":
-        hessian[hessian < 0] = np.negative(hessian[hessian < 0])
-        # hessian += np.abs(np.min(hessian)) + SQRT_EPS
+    if np.any(hessian < 0):
+        hessian[hessian < 0] = np.mean(hessian[hessian > 0])
     return hessian
 
 
 @jit(nopython=True, cache=True, fastmath=True)
 def aft_numba(
-    time: np.array,
-    event: np.array,
-    linear_predictor: np.array,
-    bandwidth_function: str,
-    hessian_modification_strategy: str,
+    time: np.array, event: np.array, linear_predictor: np.array
 ) -> Tuple[np.array, np.array]:
     """Gradient of the Accelerated Failure Time model in numba-compatible form.
 
@@ -56,26 +43,11 @@ def aft_numba(
         Tuple[np.array, np.array]: Tuple containing the negative gradients and the hessian
             of with the linear predictor.
     """
-    hessian_modification_strategy: str = "eps",
-):
-    # print(linear_predictor)
-    # print(time)
-    # print(event)
-    if bandwidth_function == "jones_1990":
-        bandwidth: float = jones_1990(time=time, event=event)
-    else:
-        bandwidth: float = jones_1991(time=time, event=event)
-
-    # bandwidth = (np.std(np.log(time)) + (time.shape[0] ** (-1/5))) * np.log(20000)
-    # print(bandwidth)
-    #
-    # bandwidth = 5
-    # bandwidth = 10
-    # bandwidth = 3
-    # print
+    n = time.shape[0]
+    n_samples: int = time.shape[0]
+    bandwidth = 1.30 * math.pow(n_samples, -0.2)
     linear_predictor: np.array = np.exp(linear_predictor)
     linear_predictor = np.log(time * linear_predictor)
-    n_samples: int = time.shape[0]
     gradient: np.array = np.empty(n_samples)
     hessian: np.array = np.empty(n_samples)
     event_mask: np.array = event.astype(np.bool_)
@@ -245,19 +217,15 @@ def aft_numba(
         else:
             gradient[_] = gradient_three
             hessian[_] = hessian_five + hessian_six
-    return np.negative(gradient), modify_hessian(
-        hessian=np.negative(hessian),
-        hessian_modification_strategy=hessian_modification_strategy,
+    return (
+        np.negative(gradient),
+        modify_hessian(hessian=np.negative(hessian)),
     )
 
 
 @jit(nopython=True, cache=True, fastmath=True)
 def ah_numba(
-    time: np.array,
-    event: np.array,
-    linear_predictor: np.array,
-    bandwidth_function: str = "jones_1990",
-    hessian_modification_strategy: str = "flip",
+    time: np.array, event: np.array, linear_predictor: np.array
 ) -> Tuple[np.array, np.array]:
     """Gradient of the Accelerated Hazards model in numba-compatible form.
 
@@ -272,17 +240,10 @@ def ah_numba(
         Tuple[np.array, np.array]: Tuple containing the negative gradients and the hessian
             of with the linear predictor.
     """
-):
-    if bandwidth_function == "jones_1990":
-        bandwidth: float = jones_1990(time=time, event=event)
-    else:
-        bandwidth: float = jones_1991(time=time, event=event)
-
-    # bandwidth = 10
-    bandwidth = np.std(np.log(time)) * (time.shape[0] ** (-1 / 7))
-    linear_predictor_vanilla: np.array = np.exp(linear_predictor)
-    linear_predictor = np.log(time * linear_predictor_vanilla)
     n_samples: int = time.shape[0]
+    bandwidth = 1.30 * math.pow(n_samples, -0.2)
+    linear_predictor_vanilla: np.array = np.exp(-linear_predictor)
+    linear_predictor = np.log(time * np.exp(linear_predictor))
     n_events: int = np.sum(event)
     gradient: np.array = np.empty(n_samples)
     hessian: np.array = np.empty(n_samples)
@@ -503,10 +464,7 @@ def ah_numba(
         else:
             gradient[_] = gradient_three
             hessian[_] = hessian_five + hessian_six
-    return np.negative(gradient), modify_hessian(
-        hessian=np.negative(hessian),
-        hessian_modification_strategy=hessian_modification_strategy,
-    )
+    return np.negative(gradient), modify_hessian(hessian=np.negative(hessian))
 
 
 @jit(nopython=True, cache=True, fastmath=True)
@@ -760,6 +718,7 @@ def efron_numba(
     for i in range(samples):
         risk_set_sum += partial_hazard[i]
 
+    # print(risk_set_sum)
     for i in range(samples):
         sample_time: float = time[i]
         sample_event: int = event[i]
