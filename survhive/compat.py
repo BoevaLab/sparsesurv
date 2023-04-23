@@ -5,19 +5,24 @@ from .baseline_hazard_estimation import (
     breslow_estimator_breslow,
     breslow_estimator_efron,
 )
-from .gradients import aft_numba, ah_numba, breslow_numba, efron_numba
-from .loss import aft_likelihood, ah_likelihood, breslow_likelihood, efron_likelihood
+from .gradients import aft_numba, ah_numba, breslow_numba_stable, efron_numba_stable
+from .loss import (
+    aft_likelihood,
+    ah_likelihood,
+    breslow_likelihood_stable,
+    efron_likelihood_stable,
+)
 
 GRADIENT_FACTORY = {
-    "breslow": breslow_numba,
-    "efron": efron_numba,
+    "breslow": breslow_numba_stable,
+    "efron": efron_numba_stable,
     "accelerated_hazards": ah_numba,
     "accelerated_failure_time": aft_numba,
 }
 
 LOSS_FACTORY = {
-    "breslow": breslow_likelihood,
-    "efron": efron_likelihood,
+    "breslow": breslow_likelihood_stable,
+    "efron": efron_likelihood_stable,
     "accelerated_failure_time": aft_likelihood,
     "accelerated_hazards": ah_likelihood,
 }

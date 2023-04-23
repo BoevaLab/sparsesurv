@@ -44,8 +44,8 @@ def _alpha_grid(
     gradient,
     hessian,
     Xy: ArrayLike = None,
-    l1_ratio: float = 0.9,
-    eps: float = 0.1,
+    l1_ratio: float = 1.0,
+    eps: float = 0.01,
     n_alphas: int = 100,
 ) -> np.array:
     """Compute the grid of alpha values for model parameter search
@@ -74,7 +74,6 @@ def _alpha_grid(
 
     if Xy.ndim == 1:
         Xy = Xy[:, np.newaxis]
-    hessian_mask: np.array = (hessian > 0).astype(bool)
     alpha_max = np.max(np.abs(np.matmul(gradient.T, X))) / l1_ratio
     if alpha_max <= np.finfo(float).resolution:
         alphas = np.empty(n_alphas)
@@ -83,8 +82,8 @@ def _alpha_grid(
 
     alphas = np.round(
         np.logspace(
-            np.log10((alpha_max + EPS) * eps),
-            np.log10(alpha_max + EPS),
+            np.log10((alpha_max) * eps),
+            np.log10(alpha_max),
             num=n_alphas,
         )[::-1],
         decimals=10,
@@ -167,7 +166,7 @@ def regularisation_path(
     coefs = np.zeros((n_features, n_alphas), dtype=X.dtype)
     train_eta = np.empty((n_samples, n_alphas), dtype=X.dtype)
     test_eta = np.empty((test_samples, n_alphas), dtype=X.dtype)
-
+    print(alphas)
     eta_previous_alpha = np.zeros(X.shape[0])
     active_variables = np.empty(0, dtype=int)
     for i, alpha in enumerate(alphas):
@@ -215,6 +214,7 @@ def regularisation_path(
                     weights_scaled,
                     strong_screener.working_set,
                 )
+                # strong_screener.expand_working_set_raw(strong_screener.strong_set)
             # For the first alpha, we calculate our optimiser
             # without any screening.
             if i == 0:
@@ -662,7 +662,7 @@ class CrossValidation(LinearModelCV):
                     n_alphas=self.n_alphas,
                     gradient=gradient,
                     hessian=hessian,
-                    # l1_ratio=l1_ratio,
+                    l1_ratio=l1_ratio,
                 )
                 for l1_ratio in l1_ratios
             ]
@@ -731,11 +731,12 @@ class CrossValidation(LinearModelCV):
                         model.loss,
                     )
                     print(f"Alpha: {j}/100")
+                    print(likelihood)
                     if np.isnan(likelihood):
-                        print(j)
-                        print(alphas[i][j])
-                        print(test_eta_method[:, j])
-                        print("HEYOOOO")
+                        # print(j)
+                        # print(alphas[i][j])
+                        # print(test_eta_method[:, j])
+                        # print("HEYOOOO")
                         # raise ValueError
                         mean_cv_score_l1.append(-np.inf)
                     else:

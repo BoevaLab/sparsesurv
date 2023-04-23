@@ -39,6 +39,7 @@ class AH(RegularizedLinearSurvivalModel):
             tol=tol,
             verbose=verbose,
             random_state=random_state,
+            is_convex=False,
         )
         self.gradient: Callable = partial(
             GRADIENT_FACTORY["accelerated_hazards"],

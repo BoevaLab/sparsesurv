@@ -1,4 +1,5 @@
 from math import log
+import math
 
 import numpy as np
 from numba import jit
@@ -76,7 +77,6 @@ def breslow_estimator_efron(
 
         if sample_time > previous_time and local_death_set:
             for ell in range(local_death_set):
-
                 cumulative_baseline_hazards[n_events_counted] += 1 / (
                     local_risk_set - (ell / local_death_set) * local_death_set_risk
                 )
@@ -110,31 +110,27 @@ def baseline_hazard_estimator_aft(
     train_time,
     train_event,
     train_eta,
-    bandwidth_function: str = "jones_1990",
 ):
-    if bandwidth_function == "jones_1990":
-        bandwidth: float = jones_1990(time=train_time, event=train_event)
-    else:
-        bandwidth: float = jones_1991(time=train_time, event=train_event)
-
     n_samples: int = train_time.shape[0]
+    bandwidth = 1.30 * math.pow(n_samples, -0.2)
     inverse_bandwidth: float = 1 / bandwidth
     inverse_sample_size: float = 1 / n_samples
-    inverse_bandwidth_sample_size: float = inverse_bandwidth * inverse_sample_size
     log_time: float = log(time + EPS)
+    inverse_bandwidth_sample_size_time: float = (
+        inverse_sample_size * (1 / (time + EPS)) * inverse_bandwidth
+    )
+
     R_lp: np.array = np.log(train_time * np.exp(train_eta))
     difference_lp_log_time: np.array = (R_lp - log_time) / bandwidth
     numerator: float = 0.0
     denominator: float = 0.0
-
     for _ in range(n_samples):
-        difference: float = difference_lp_log_time[_]
-        denominator += gaussian_integrated_kernel(difference)
+        difference_div: float = difference_lp_log_time[_]
+        denominator += gaussian_integrated_kernel(difference_div)
         if train_event[_]:
-            numerator += gaussian_kernel(difference)
-    numerator = inverse_bandwidth_sample_size * numerator
+            numerator += gaussian_kernel(difference_div)
+    numerator = inverse_bandwidth_sample_size_time * numerator
     denominator = inverse_sample_size * denominator
-
     return numerator / denominator
 
 
@@ -144,26 +140,22 @@ def baseline_hazard_estimator_ah(
     train_time,
     train_event,
     train_eta,
-    bandwidth_function: str = "jones_1990",
 ):
-    if bandwidth_function == "jones_1990":
-        bandwidth: float = jones_1990(time=train_time, event=train_event)
-    else:
-        bandwidth: float = jones_1991(time=train_time, event=train_event)
     n_samples: int = train_time.shape[0]
+    bandwidth = 1.30 * math.pow(n_samples, -0.2)
     inverse_bandwidth: float = 1 / bandwidth
     inverse_sample_size: float = 1 / n_samples
-    inverse_bandwidth_sample_size: float = inverse_bandwidth * inverse_sample_size
-    log_time: float = log(time + EPS)
-    exp_linear_predictor: np.array = np.exp(train_eta)
-    R_lp: np.array = np.log(train_time * exp_linear_predictor)
-    difference_lp_log_time: np.array = R_lp - log_time
+    inverse_bandwidth_sample_size: float = (
+        inverse_sample_size * (1 / (time + EPS)) * inverse_bandwidth
+    )
+    log_time: float = time
+    R_lp: np.array = np.log(train_time * np.exp(train_eta))
+    difference_lp_log_time: np.array = (R_lp - log_time) / bandwidth
     numerator: float = 0.0
     denominator: float = 0.0
-
     for _ in range(n_samples):
         difference: float = difference_lp_log_time[_]
-        denominator += exp_linear_predictor[_] * gaussian_integrated_kernel(difference)
+        denominator += np.exp(-train_eta) * gaussian_integrated_kernel(difference)
         if train_event[_]:
             numerator += gaussian_kernel(difference)
     numerator = inverse_bandwidth_sample_size * numerator
