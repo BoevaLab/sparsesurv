@@ -3,11 +3,12 @@ from typing import Callable, List, Optional
 
 import numpy as np
 import pandas as pd
-from scipy.integrate import cumtrapz
+from scipy.integrate import cumulative_trapezoid, quad
 from typeguard import typechecked
 
 from ._base import RegularizedLinearSurvivalModel
 from .compat import BASELINE_HAZARD_FACTORY, GRADIENT_FACTORY, LOSS_FACTORY
+from .constants import EPS
 
 
 @typechecked
@@ -54,35 +55,44 @@ class AFT(RegularizedLinearSurvivalModel):
         self.bandwidth_function = bandwidth_function
 
     def predict_baseline_hazard_function(self, time):
-        baseline_hazard: np.array = np.empty(time.shape[0])
-        for _ in range(time.shape[0]):
-            baseline_hazard[_] = self.baseline_hazard(
-                time=time[_],
-                train_time=self.train_time,
-                train_event=self.train_event,
-                train_eta=self.train_eta,
-                bandwidth_function=self.bandwidth_function,
-            )
+        # äbaseline_hazard: np.array = np.empty(time.shape[0])
+        # for _ in range(time.shape[0]):
+        return self.baseline_hazard(
+            time=time,
+            train_time=self.train_time,
+            train_event=self.train_event,
+            train_eta=self.train_eta,
+            bandwidth_function=self.bandwidth_function,
+        )
         return baseline_hazard
 
     def predict_cumulative_hazard_function(self, X, time):
         theta: np.array = np.exp(self.predict(X))
         n_samples: int = X.shape[0]
-        cumulative_hazard: np.array = np.empty((n_samples, time.shape[0] + 1))
+
         zero_flag: bool = False
         if 0 not in time:
             zero_flag = True
             time = np.concatenate([np.array([0]), time])
+            cumulative_hazard: np.array = np.empty((n_samples, time.shape[0]))
+        else:
+            cumulative_hazard: np.array = np.empty((n_samples, time.shape[0]))
+
+        def hazard_function_integrate(s):
+            return self.predict_baseline_hazard_function(s)
 
         for _ in range(n_samples):
-            cumulative_hazard[_, :] = cumtrapz(
-                y=self.predict_baseline_hazard_function(time * theta[_]) * theta[_],
-                x=time,
-                initial=0,
-            )
+            for ix, q in enumerate(time):
+                if q == 0:
+                    cumulative_hazard[_, ix] = 0.0
+                else:
+                    cumulative_hazard[_, ix] = quad(
+                        hazard_function_integrate, 0, q * theta[_]
+                    )[0]
         if zero_flag:
             cumulative_hazard = cumulative_hazard[:, 1:]
             time = time[1:]
+        # print(cumulative_hazard.shape)
         return pd.DataFrame(cumulative_hazard, columns=time)
 
 
