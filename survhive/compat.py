@@ -24,7 +24,6 @@ from .baseline_hazard_estimation import (
     breslow_estimator_breslow,
     breslow_estimator_efron,
 )
-from .compat import CVSCORERFACTORY, LOSS_FACTORY
 from .cv_scoring import basic_cv_fold, linear_cv, vvh_cv_fold
 from .gradients import breslow_numba_stable, efron_numba_stable
 from .loss import breslow_likelihood_stable, efron_likelihood_stable
@@ -131,7 +130,9 @@ def _path_residuals_preconditioning(
 
     # Do the ordering and type casting here, as if it is done in the path,
     # X is copied and a reference is kept here
-    X_train = check_array(X_train, accept_sparse="csc", dtype=dtype, order=X_order)
+    X_train = check_array(
+        X_train, accept_sparse="csc", dtype=dtype, order=X_order
+    )
     alphas, coefs, _ = path(X_train, y_train, **path_params)
     # del X_train, y_train
 
@@ -229,9 +230,9 @@ class ElasticNetCVPreconditioner(CelerElasticNetCV):
                 X, y, validate_separately=(check_X_params, check_y_params)
             )
             if sparse.isspmatrix(X):
-                if hasattr(reference_to_old_X, "data") and not np.may_share_memory(
-                    reference_to_old_X.data, X.data
-                ):
+                if hasattr(
+                    reference_to_old_X, "data"
+                ) and not np.may_share_memory(reference_to_old_X.data, X.data):
                     # X is a sparse matrix and has been copied
                     copy_X = False
             elif not np.may_share_memory(reference_to_old_X, X):
@@ -259,15 +260,19 @@ class ElasticNetCVPreconditioner(CelerElasticNetCV):
         if not self._is_multitask():
             if y.ndim > 1 and y.shape[1] > 1:
                 raise ValueError(
-                    "For multi-task outputs, use MultiTask%s" % self.__class__.__name__
+                    "For multi-task outputs, use MultiTask%s"
+                    % self.__class__.__name__
                 )
             y = column_or_1d(y, warn=True)
         else:
             if sparse.isspmatrix(X):
-                raise TypeError("X should be dense but a sparse matrix waspassed")
+                raise TypeError(
+                    "X should be dense but a sparse matrix waspassed"
+                )
             elif y.ndim == 1:
                 raise ValueError(
-                    "For mono-task outputs, use %sCV" % self.__class__.__name__[9:]
+                    "For mono-task outputs, use %sCV"
+                    % self.__class__.__name__[9:]
                 )
 
         model = self._get_estimator()
@@ -350,7 +355,9 @@ class ElasticNetCVPreconditioner(CelerElasticNetCV):
             prefer="threads",
         )(jobs)
 
-        train_eta_folds, test_eta_folds, train_y_folds, test_y_folds = zip(*eta_path)
+        train_eta_folds, test_eta_folds, train_y_folds, test_y_folds = zip(
+            *eta_path
+        )
         n_folds = int(len(train_eta_folds) / len(l1_ratios))
 
         mean_cv_score_l1 = []
@@ -369,8 +376,12 @@ class ElasticNetCVPreconditioner(CelerElasticNetCV):
                 test_eta_method = np.concatenate(test_eta).squeeze()
                 train_y_method = np.concatenate(train_y).squeeze()
                 test_y_method = np.concatenate(test_y).squeeze()
-                train_time, train_event = inverse_transform_survival(train_y_method)
-                test_time, test_event = inverse_transform_survival(test_y_method)
+                train_time, train_event = inverse_transform_survival(
+                    train_y_method
+                )
+                test_time, test_event = inverse_transform_survival(
+                    test_y_method
+                )
                 for j in range(len(alphas[i])):
                     likelihood = CVSCORERFACTORY[self.cv_score_method](
                         test_eta_method[:, j],
@@ -401,7 +412,9 @@ class ElasticNetCVPreconditioner(CelerElasticNetCV):
                             test_y_method
                         )
                         # for j in range(len(alphas[i])):
-                        fold_likelihood = CVSCORERFACTORY[self.cv_score_method](
+                        fold_likelihood = CVSCORERFACTORY[
+                            self.cv_score_method
+                        ](
                             test_eta_method[:, j],
                             test_time,
                             test_event,
@@ -426,9 +439,9 @@ class ElasticNetCVPreconditioner(CelerElasticNetCV):
         ):
             i_best_alpha = np.argmax(pl_alphas)
 
-            lambda_1se = pl_alphas[i_best_alpha] - sd_alphas[i_best_alpha] / np.sqrt(
-                n_folds
-            )
+            lambda_1se = pl_alphas[i_best_alpha] - sd_alphas[
+                i_best_alpha
+            ] / np.sqrt(n_folds)
 
             i_alpha = np.min(np.where(pl_alphas >= lambda_1se))
 

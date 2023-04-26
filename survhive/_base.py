@@ -7,7 +7,6 @@ import pandas as pd
 from sklearn.linear_model._base import LinearModel
 from typeguard import typechecked
 
-from ._utils_.cv import regularisation_path
 from .utils import (
     calculate_sgl_groups,
     estimate_group_weights,
