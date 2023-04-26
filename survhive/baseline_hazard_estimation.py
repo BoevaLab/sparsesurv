@@ -1,12 +1,5 @@
-from math import log
-import math
-
 import numpy as np
 from numba import jit
-
-from .bandwidth_estimation import jones_1990, jones_1991
-from .constants import EPS
-from .utils import gaussian_integrated_kernel, gaussian_kernel
 
 
 @jit(nopython=True, cache=True, fastmath=True)
@@ -102,63 +95,3 @@ def breslow_estimator_efron(
         np.unique(time[event_mask]),
         np.cumsum(cumulative_baseline_hazards),
     )
-
-
-@jit(nopython=True, cache=True, fastmath=True)
-def baseline_hazard_estimator_aft(
-    time,
-    train_time,
-    train_event,
-    train_eta,
-):
-    n_samples: int = train_time.shape[0]
-    bandwidth = 1.30 * math.pow(n_samples, -0.2)
-    inverse_bandwidth: float = 1 / bandwidth
-    inverse_sample_size: float = 1 / n_samples
-    log_time: float = log(time + EPS)
-    inverse_bandwidth_sample_size_time: float = (
-        inverse_sample_size * (1 / (time + EPS)) * inverse_bandwidth
-    )
-
-    R_lp: np.array = np.log(train_time * np.exp(train_eta))
-    difference_lp_log_time: np.array = (R_lp - log_time) / bandwidth
-    numerator: float = 0.0
-    denominator: float = 0.0
-    for _ in range(n_samples):
-        difference_div: float = difference_lp_log_time[_]
-        denominator += gaussian_integrated_kernel(difference_div)
-        if train_event[_]:
-            numerator += gaussian_kernel(difference_div)
-    numerator = inverse_bandwidth_sample_size_time * numerator
-    denominator = inverse_sample_size * denominator
-    return numerator / denominator
-
-
-@jit(nopython=True, cache=True, fastmath=True)
-def baseline_hazard_estimator_ah(
-    time,
-    train_time,
-    train_event,
-    train_eta,
-):
-    n_samples: int = train_time.shape[0]
-    bandwidth = 1.30 * math.pow(n_samples, -0.2)
-    inverse_bandwidth: float = 1 / bandwidth
-    inverse_sample_size: float = 1 / n_samples
-    inverse_bandwidth_sample_size: float = (
-        inverse_sample_size * (1 / (time + EPS)) * inverse_bandwidth
-    )
-    log_time: float = time
-    R_lp: np.array = np.log(train_time * np.exp(train_eta))
-    difference_lp_log_time: np.array = (R_lp - log_time) / bandwidth
-    numerator: float = 0.0
-    denominator: float = 0.0
-    for _ in range(n_samples):
-        difference: float = difference_lp_log_time[_]
-        denominator += np.exp(-train_eta) * gaussian_integrated_kernel(difference)
-        if train_event[_]:
-            numerator += gaussian_kernel(difference)
-    numerator = inverse_bandwidth_sample_size * numerator
-    denominator = inverse_sample_size * denominator
-
-    return numerator / denominator
