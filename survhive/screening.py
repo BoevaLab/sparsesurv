@@ -1,8 +1,4 @@
 import numpy as np
-import numpy as np
-from numba import int32, float32  # import the types
-from numba.experimental import jitclass
-from numba import njit
 
 from .constants import EPS
 
@@ -12,7 +8,14 @@ def check_kkt(a, b):
 
 
 class StrongScreener(object):
-    def __init__(self, p: int, l1_ratio: float):
+    def __init__(
+        self,
+        p: int,
+        type: str,
+        l1_ratio: float,
+        groups: np.array,
+        group_weights: np.array,
+    ):
         self.working_set: np.array = np.array([]).astype(np.int_)
         self.complete_set: np.array = np.arange(p).astype(np.int_)
         self.strong_set: np.array = np.array([]).astype(np.int_)
@@ -20,6 +23,9 @@ class StrongScreener(object):
         self.any_kkt_violated = np.array([]).astype(np.int_)
         self.ever_active_set = np.array([]).astype(np.int_)
         self.l1_ratio = l1_ratio
+        self.groups = groups
+        self.group_weights = group_weights
+        self.type = type
         return None
 
     def compute_strong_set(
@@ -32,24 +38,59 @@ class StrongScreener(object):
         correction_factor,
         active,
     ):
-        self.strong_set = np.setdiff1d(
-            np.where(
-                1
-                / (X.shape[0])
-                * np.abs(np.matmul(X.T, (y - eta_previous) * correction_factor))
-                >= self.l1_ratio * (2 * alpha - alpha_previous)
-            )[0],
-            active,
-        )
+        if self.type == "elastic_net":
+            self.strong_set = np.setdiff1d(
+                np.where(
+                    1
+                    / (X.shape[0])
+                    * np.abs(np.matmul(X.T, (y - eta_previous) * correction_factor))
+                    >= self.l1_ratio * (2 * alpha - alpha_previous)
+                )[0],
+                active,
+            )
+        else:
+            for group in range(len(self.groups)):
+                if 1 / (X.shape[0]) * np.linalg.norm(
+                    np.matmul(
+                        X[:, self.groups[group]].T,
+                        (y - eta_previous) * correction_factor,
+                    ),
+                    ord=2,
+                ) >= self.group_weights[group] * (2 * alpha - alpha_previous):
+                    self.strong_set = np.setdiff1d(self.groups[group], active)
         return None
 
     def check_kkt_strong(self, X, y, eta, alpha, correction_factor):
-        self.strong_kkt_violated = check_kkt(
-            a=1
-            / X.shape[0]
-            * np.abs(np.matmul(X[:, self.strong_set].T, (y - eta) * correction_factor)),
-            b=self.l1_ratio * alpha,
-        )
+        if self.type == "elastic_net":
+            self.strong_kkt_violated = check_kkt(
+                a=1
+                / X.shape[0]
+                * np.abs(
+                    np.matmul(X[:, self.strong_set].T, (y - eta) * correction_factor)
+                ),
+                b=self.l1_ratio * alpha,
+            )
+        else:
+            for group in range(len(self.groups)):
+                if self.groups[group] in self.strong_set:
+                    if (
+                        check_kkt(
+                            1
+                            / (X.shape[0])
+                            * np.linalg.norm(
+                                np.matmul(
+                                    X[:, self.groups[group]].T,
+                                    (y - eta) * correction_factor,
+                                ),
+                                ord=2,
+                            ),
+                            self.group_weights[group] * alpha,
+                        ).shape[0]
+                        > 0
+                    ):
+                        self.strong_kkt_violated = np.append(
+                            self.strong_kkt_violated, self.groups[group]
+                        )
         return None
 
     def calculate_non_strong_non_working_set(self):
@@ -58,19 +99,41 @@ class StrongScreener(object):
         )
 
     def check_kkt_all(self, X, y, eta, alpha, correction_factor):
-        self.any_kkt_violated = self.calculate_non_strong_non_working_set()[
-            check_kkt(
-                a=1
-                / X.shape[0]
-                * np.abs(
-                    np.matmul(
-                        X[:, self.calculate_non_strong_non_working_set()].T,
-                        (y - eta) * correction_factor,
-                    )
-                ),
-                b=self.l1_ratio * alpha,
-            )
-        ]
+        if self.type == "elastic_net":
+            self.any_kkt_violated = self.calculate_non_strong_non_working_set()[
+                check_kkt(
+                    a=1
+                    / X.shape[0]
+                    * np.abs(
+                        np.matmul(
+                            X[:, self.calculate_non_strong_non_working_set()].T,
+                            (y - eta) * correction_factor,
+                        )
+                    ),
+                    b=self.l1_ratio * alpha,
+                )
+            ]
+        else:
+            for group in range(len(self.groups)):
+                if self.groups[group] not in self.working_set:
+                    if (
+                        check_kkt(
+                            1
+                            / (X.shape[0])
+                            * np.linalg.norm(
+                                np.matmul(
+                                    X[:, self.groups[group]].T,
+                                    (y - eta) * correction_factor,
+                                ),
+                                ord=2,
+                            ),
+                            self.group_weights[group] * alpha,
+                        ).shape[0]
+                        > 0
+                    ):
+                        self.any_kkt_violated = np.append(
+                            self.any_kkt_violated, self.groups[group]
+                        )
         return None
 
     def expand_working_set(self, a):

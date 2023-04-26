@@ -6,6 +6,7 @@ from typeguard import typechecked
 
 from ._base import RegularizedLinearSurvivalModel
 from .compat import BASELINE_HAZARD_FACTORY, GRADIENT_FACTORY, LOSS_FACTORY
+from .utils import calculate_sgl_groups
 
 
 @typechecked
@@ -13,30 +14,34 @@ class CoxPH(RegularizedLinearSurvivalModel):
     def __init__(
         self,
         alpha: float,
-        optimiser: str,
+        type: str,
         l1_ratio: float = 1.0,
         groups: Optional[List[List[int]]] = None,
-        line_search: bool = True,
-        line_search_reduction_factor: float = 0.5,
+        group_weights: Optional[str] = "scale_by_group_group_lasso",
         warm_start: bool = True,
-        max_iter: int = 1000,
-        tol: float = 1e-7,
+        n_irls_iter: int = 5,
+        tol: float = 0.0001,
         verbose: int = 0,
-        random_state: Optional[int] = None,
         tie_correction: str = "efron",
+        inner_solver_max_iter: int = 100,
+        inner_solver_max_epochs: int = 50000,
+        inner_solver_p0: int = 10,
+        inner_solver_prune: bool = True,
     ) -> None:
         super().__init__(
             alpha=alpha,
-            optimiser=optimiser,
+            type=type,
             l1_ratio=l1_ratio,
             groups=groups,
-            line_search=line_search,
-            line_search_reduction_factor=line_search_reduction_factor,
+            group_weights=group_weights,
             warm_start=warm_start,
-            max_iter=max_iter,
+            n_irls_iter=n_irls_iter,
             tol=tol,
             verbose=verbose,
-            random_state=random_state,
+            inner_solver_max_iter=inner_solver_max_iter,
+            inner_solver_max_epochs=inner_solver_max_epochs,
+            inner_solver_p0=inner_solver_p0,
+            inner_solver_prune=inner_solver_prune,
         )
         if tie_correction not in ["efron", "breslow"]:
             raise ValueError(
@@ -96,65 +101,66 @@ class CoxPH(RegularizedLinearSurvivalModel):
 
 
 @typechecked
-class CoxPHLasso(CoxPH):
-    def __init__(
-        self,
-        alpha: float,
-        optimiser: str,
-        line_search: bool = True,
-        line_search_reduction_factor: float = 0.5,
-        warm_start: bool = True,
-        max_iter: int = 1000,
-        tol: float = 1e-7,
-        verbose: int = 0,
-        random_state: Optional[int] = None,
-        tie_correction: str = "efron",
-    ) -> None:
-        super().__init__(
-            alpha=alpha,
-            optimiser=optimiser,
-            l1_ratio=1.0,
-            groups=None,
-            line_search=line_search,
-            line_search_reduction_factor=line_search_reduction_factor,
-            warm_start=warm_start,
-            max_iter=max_iter,
-            tol=tol,
-            verbose=verbose,
-            random_state=random_state,
-            tie_correction=tie_correction,
-        )
-
-
-@typechecked
 class CoxPHElasticNet(CoxPH):
     def __init__(
         self,
         alpha: float,
-        optimiser: str,
         l1_ratio: float,
-        line_search: bool = True,
-        line_search_reduction_factor: float = 0.5,
         warm_start: bool = True,
-        max_iter: int = 1000,
-        tol: float = 1e-7,
+        n_irls_iter: int = 5,
+        tol: float = 0.0001,
         verbose: int = 0,
-        random_state: Optional[int] = None,
         tie_correction: str = "efron",
+        inner_solver_max_iter: int = 100,
+        inner_solver_max_epochs: int = 50000,
+        inner_solver_p0: int = 10,
+        inner_solver_prune: bool = True,
     ) -> None:
         super().__init__(
             alpha=alpha,
-            optimiser=optimiser,
+            type="elastic_net",
             l1_ratio=l1_ratio,
             groups=None,
-            line_search=line_search,
-            line_search_reduction_factor=line_search_reduction_factor,
+            group_weights=None,
             warm_start=warm_start,
-            max_iter=max_iter,
+            n_irls_iter=n_irls_iter,
             tol=tol,
             verbose=verbose,
-            random_state=random_state,
             tie_correction=tie_correction,
+            inner_solver_max_iter=inner_solver_max_iter,
+            inner_solver_max_epochs=inner_solver_max_epochs,
+            inner_solver_p0=inner_solver_p0,
+            inner_solver_prune=inner_solver_prune,
+        )
+
+
+@typechecked
+class CoxPHLasso(CoxPHElasticNet):
+    def __init__(
+        self,
+        alpha: float,
+        warm_start: bool = True,
+        n_irls_iter: int = 5,
+        tol: float = 0.0001,
+        verbose: int = 0,
+        tie_correction: str = "efron",
+        inner_solver_max_iter: int = 100,
+        inner_solver_max_epochs: int = 50000,
+        inner_solver_p0: int = 10,
+        inner_solver_prune: bool = True,
+    ) -> None:
+        super().__init__(
+            alpha=alpha,
+            l1_ratio=1.0,
+            warm_start=warm_start,
+            n_irls_iter=n_irls_iter,
+            tol=tol,
+            verbose=verbose,
+            tie_correction=tie_correction,
+            inner_solver_max_iter=inner_solver_max_iter,
+            inner_solver_max_epochs=inner_solver_max_epochs,
+            inner_solver_p0=inner_solver_p0,
+            inner_solver_prune=inner_solver_prune,
         )
 
 
@@ -163,29 +169,68 @@ class CoxPHGroupLasso(CoxPH):
     def __init__(
         self,
         alpha: float,
-        optimiser: str,
-        l1_ratio: float,
         groups: List[List[int]],
-        line_search: bool = True,
-        line_search_reduction_factor: float = 0.5,
+        group_weights: str = "scale_by_group_group_lasso",
         warm_start: bool = True,
-        max_iter: int = 1000,
-        tol: float = 1e-7,
+        n_irls_iter: int = 5,
+        tol: float = 0.0001,
         verbose: int = 0,
-        random_state: Optional[int] = None,
         tie_correction: str = "efron",
+        inner_solver_max_iter: int = 100,
+        inner_solver_max_epochs: int = 50000,
+        inner_solver_p0: int = 10,
+        inner_solver_prune: bool = True,
     ) -> None:
         super().__init__(
             alpha=alpha,
-            optimiser=optimiser,
-            l1_ratio=l1_ratio,
+            type="group_lasso",
+            l1_ratio=None,
             groups=groups,
-            line_search=line_search,
-            line_search_reduction_factor=line_search_reduction_factor,
+            group_weights=group_weights,
             warm_start=warm_start,
-            max_iter=max_iter,
+            n_irls_iter=n_irls_iter,
             tol=tol,
             verbose=verbose,
-            random_state=random_state,
             tie_correction=tie_correction,
+            inner_solver_max_iter=inner_solver_max_iter,
+            inner_solver_max_epochs=inner_solver_max_epochs,
+            inner_solver_p0=inner_solver_p0,
+            inner_solver_prune=inner_solver_prune,
+        )
+
+
+@typechecked
+class CoxPHSparseGroupLasso(CoxPH):
+    def __init__(
+        self,
+        alpha: float,
+        l1_ratio: float,
+        groups: List[List[int]],
+        group_weights: str = "scale_by_group_sparse_group_lasso",
+        warm_start: bool = True,
+        n_irls_iter: int = 5,
+        tol: float = 0.0001,
+        verbose: int = 0,
+        tie_correction: str = "efron",
+        inner_solver_max_iter: int = 100,
+        inner_solver_max_epochs: int = 50000,
+        inner_solver_p0: int = 10,
+        inner_solver_prune: bool = True,
+    ) -> None:
+        groups = calculate_sgl_groups(groups=groups)
+        super().__init__(
+            alpha=alpha,
+            type="group_lasso",
+            l1_ratio=l1_ratio,
+            groups=groups,
+            group_weights=group_weights,
+            warm_start=warm_start,
+            n_irls_iter=n_irls_iter,
+            tol=tol,
+            verbose=verbose,
+            tie_correction=tie_correction,
+            inner_solver_max_iter=inner_solver_max_iter,
+            inner_solver_max_epochs=inner_solver_max_epochs,
+            inner_solver_p0=inner_solver_p0,
+            inner_solver_prune=inner_solver_prune,
         )
