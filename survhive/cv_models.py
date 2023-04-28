@@ -1,21 +1,23 @@
-from typing import Union, List
+from typing import Union
 
 import numpy as np
-from typeguard import typechecked
 
-from survhive._utils_.cv import CrossValidation, alpha_path_eta
-from survhive.cox import CoxPHElasticNet, CoxPHGroupLasso
+from .cox import CoxPHElasticNet, CoxPHPrecond
+from .cv import (
+    RegularizedLinearSurvivalModelCV,
+    RegularizedPreconditionedLinearSurvivalModelCV,
+    alpha_path_eta,
+    alpha_path_eta_precond,
+)
 
 
-@typechecked
-class CoxPHElasticNetCV(CrossValidation):
+class CoxPHElasticNetCV(RegularizedLinearSurvivalModelCV):
     path = staticmethod(alpha_path_eta)
 
     def __init__(
         self,
         tie_correction: str = "efron",
-        cv_score_method: str = "linear_predictor",
-        eps: float = 1e-3,
+        eps: float = 0.05,
         n_alphas: int = 100,
         alphas: np.array = None,
         l1_ratios: Union[float, np.array] = [1.0],
@@ -26,7 +28,6 @@ class CoxPHElasticNetCV(CrossValidation):
         tol: float = 0.0001,
     ) -> None:
         super().__init__(
-            cv_score_method=cv_score_method,
             eps=eps,
             n_alphas=n_alphas,
             alphas=alphas,
@@ -52,13 +53,11 @@ class CoxPHElasticNetCV(CrossValidation):
         return False
 
 
-@typechecked
 class CoxPHLassoCV(CoxPHElasticNetCV):
     def __init__(
         self,
         tie_correction: str = "efron",
-        cv_score_method: str = "linear_predictor",
-        eps: float = 1e-3,
+        eps: float = 0.05,
         n_alphas: int = 100,
         alphas: np.array = None,
         cv: Union[int, object] = None,
@@ -68,7 +67,6 @@ class CoxPHLassoCV(CoxPHElasticNetCV):
         tol: float = 0.0001,
     ) -> None:
         super().__init__(
-            cv_score_method=cv_score_method,
             eps=eps,
             n_alphas=n_alphas,
             alphas=alphas,
@@ -82,45 +80,48 @@ class CoxPHLassoCV(CoxPHElasticNetCV):
         )
 
 
-@typechecked
-class CoxPHGroupLassoCV(CrossValidation):
-    path = staticmethod(alpha_path_eta)
+class CoxPHPrecondCV(RegularizedPreconditionedLinearSurvivalModelCV):
+    path = staticmethod(alpha_path_eta_precond)
 
     def __init__(
         self,
-        groups: List[List[int]],
-        group_weights: str = "scale_by_group",
-        cv_score_method: str = "linear_predictor",
-        eps: float = 0.01,
+        tie_correction: str = "efron",
+        eps: float = 0.05,
         n_alphas: int = 100,
         alphas: np.array = None,
+        taus: Union[float, np.array] = [1.0],
         cv: Union[int, object] = None,
         n_jobs: int = None,
         random_state: int = None,
-        n_irls_iter: int = 5,
-        tol: float = 0.0001,
+        maxiter=1000,
+        rtol=1e-6,
+        verbose=0,
+        default_step_size=1.0,
     ) -> None:
         super().__init__(
-            cv_score_method=cv_score_method,
             eps=eps,
             n_alphas=n_alphas,
             alphas=alphas,
+            taus=taus,
             cv=cv,
             n_jobs=n_jobs,
             random_state=random_state,
         )
-        self.n_irls_iter = n_irls_iter
-        self.tol = tol
-        self.groups = groups
-        self.group_weights = group_weights
+        self.tie_correction = tie_correction
+        self.maxiter = maxiter
+        self.rtol = rtol
+        self.verbose = verbose
+        self.default_step_size = default_step_size
 
     def _get_estimator(self):
-        return CoxPHGroupLasso(
+        return CoxPHPrecond(
+            tie_correction=self.tie_correction,
             alpha=0.01,
-            groups=self.groups,
-            group_weights=self.group_weights,
-            n_irls_iter=self.n_irls_iter,
-            tol=self.tol,
+            tau=self.taus[0],
+            maxiter=self.maxiter,
+            rtol=self.rtol,
+            verbose=self.verbose,
+            default_step_size=self.default_step_size,
         )
 
     def _is_multitask(self):
