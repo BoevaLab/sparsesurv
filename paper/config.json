@@ -1,0 +1,21 @@
+{
+    "random_state": 42,
+    "datasets": [
+        "BLCA",
+        "BRCA",
+        "HNSC",
+        "KIRC",
+        "LGG",
+        "LIHC",
+        "LUAD",
+        "LUSC",
+        "OV",
+        "STAD",
+        "OV",
+        "PAAD",
+        "SKCM",
+        "STAD"
+    ],
+    "n_outer_splits": 5,
+    "n_outer_repetitions": 5
+}
