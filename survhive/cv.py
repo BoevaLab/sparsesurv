@@ -117,7 +117,6 @@ def regularisation_path_precond(
     eps: float = 0.05,
     n_alphas: int = 100,
     alphas: np.array = None,
-    check_global_kkt: bool = True,
     max_first: bool = True,
 ) -> Tuple:
     """Compute estimator path with coordinate descent.
@@ -312,7 +311,7 @@ def regularisation_path_precond(
             beta_new = np.zeros(X.shape[1])
             beta_new[strong_screener.working_set] = _.x
 
-            if check_global_kkt and i > 0:
+            if model.check_global_kkt and i > 0:
                 while True:
                     active_variables = np.where(beta_new != 0)[0]
                     strong_screener.check_kkt_all(
@@ -383,7 +382,7 @@ def regularisation_path(
     eps: float = 0.05,
     n_alphas: int = 100,
     alphas: np.array = None,
-    max_first: bool = True,
+    max_first: bool = True
 ) -> Tuple:
     """Compute estimator path with coordinate descent.
 
