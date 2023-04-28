@@ -1,40 +1,36 @@
-import numpy as np
-from .gradients import ah_numba, aft_numba, breslow_numba, efron_numba
-from .loss import (
-    ah_likelihood,
-    aft_likelihood,
-    breslow_likelihood,
-    efron_likelihood,
-)
-from .bandwidth_estimation import jones_1990, jones_1991
 from .baseline_hazard_estimation import (
     breslow_estimator_breslow,
     breslow_estimator_efron,
 )
-
+from .gradients import (
+    breslow_numba_stable,
+    breslow_preconditioning,
+    efron_numba_stable,
+    efron_preconditioning,
+)
+from .loss import (
+    breslow_likelihood_stable,
+    breslow_preconditioning_loss,
+    efron_likelihood_stable,
+    efron_preconditioning_loss,
+)
 
 GRADIENT_FACTORY = {
-    "cox_breslow": breslow_numba,
-    "cox_efron": efron_numba,
-    "accelerated_hazards": ah_numba,
-    "accelerated_failure_time": aft_numba,
+    "breslow": breslow_numba_stable,
+    "breslow_preconditioning": breslow_preconditioning,
+    "efron": efron_numba_stable,
+    "efron_preconditioning": efron_preconditioning,
 }
 
 LOSS_FACTORY = {
-    "cox_breslow": breslow_likelihood,
-    "cox_efron": efron_likelihood,
-    "accelerated_failure_time": aft_likelihood,
-    "accelerated_hazards": ah_likelihood,
+    "breslow": breslow_likelihood_stable,
+    "breslow_preconditioning": breslow_preconditioning_loss,
+    "efron": efron_likelihood_stable,
+    "efron_preconditioning": efron_preconditioning_loss,
 }
 
-BANDWIDTH_FUNCTION_FACTORY = {
-    "jones_1990": jones_1990,
-    "jones_1991": jones_1991,
-}
 
 BASELINE_HAZARD_FACTORY = {
-    "cox_breslow": breslow_estimator_breslow,
-    "cox_efron": breslow_estimator_efron,
-    "accelerated_failure_time": np.array,
-    "accelerated_hazards": np.array,
+    "breslow": breslow_estimator_breslow,
+    "efron": breslow_estimator_efron,
 }

@@ -1,129 +1,61 @@
-from math import erf
+from math import log
 
 import numpy as np
-from numba import jit, vectorize, float64
-from math import exp
-
-PDF_PREFACTOR: float = 0.3989424488876037
-SQRT_TWO: float = 1.4142135623730951
-SQRT_EPS: float = 1.4901161193847656e-08
-CDF_ZERO: float = 0.5
-
-
-@jit(nopython=True, cache=True, fastmath=True)
-def gaussian_integrated_kernel(x):
-    return 0.5 * (1 + erf(x / SQRT_TWO))
-
-
-@jit(nopython=True, cache=True, fastmath=True)
-def gaussian_kernel(x):
-    # return (1 / sqrt(2 * 3.14159)) * exp(-1 / 2 * (x**2))
-    return PDF_PREFACTOR * exp(-0.5 * (x**2))
-
-
-@jit(nopython=True, cache=True, fastmath=True)
-def kernel(a, b, bandwidth):
-    kernel_matrix: np.array = np.empty(shape=(a.shape[0], b.shape[0]))
-    # intermediate_result: np.array = np.subtract.outer(a, b) / bandwidth
-    for ix in range(a.shape[0]):
-        for qx in range(b.shape[0]):
-            kernel_matrix[ix, qx] = gaussian_kernel((a[ix] - b[qx]) / bandwidth)
-    return kernel_matrix
-
-
-@jit(nopython=True, cache=True, fastmath=True)
-def integrated_kernel(a, b, bandwidth):
-    integrated_kernel_matrix: np.array = np.empty(shape=(a.shape[0], b.shape[0]))
-    # intermediate_result: np.array = np.subtract.outer(a, b) / bandwidth
-    for ix in range(a.shape[0]):
-        for qx in range(b.shape[0]):
-            integrated_kernel_matrix[ix, qx] = gaussian_integrated_kernel(
-                (a[ix] - b[qx]) / bandwidth
-            )
-    return integrated_kernel_matrix
-
-
-@jit(nopython=True, cache=True, fastmath=True)
-def difference_kernels(a, b, bandwidth):
-    difference: np.array = np.empty(shape=(a.shape[0], b.shape[0]))
-    kernel_matrix: np.array = np.empty(shape=(a.shape[0], b.shape[0]))
-    integrated_kernel_matrix: np.array = np.empty(shape=(a.shape[0], b.shape[0]))
-    # intermediate_result: np.array = np.subtract.outer(a, b) / bandwidth
-    for ix in range(a.shape[0]):
-        for qx in range(b.shape[0]):
-            difference[ix, qx] = (a[ix] - b[qx]) / bandwidth
-            kernel_matrix[ix, qx] = gaussian_kernel(difference[ix, qx])
-            integrated_kernel_matrix[ix, qx] = gaussian_integrated_kernel(
-                difference[ix, qx]
-            )
-
-    return difference, kernel_matrix, integrated_kernel_matrix
+from numba import jit
 
 
 @jit(nopython=True, cache=True)
-def inverse_transform_survival_target(
+def inverse_transform_survival(
     y: np.array,
 ) -> tuple[np.array, np.array]:
     event = y >= 0
-    event = event.flatten()
+    event = event.flatten().astype(np.int_)
     time = np.abs(y).flatten()
     return time, event
 
 
-# Gaussian norm kernel functions
 @jit(nopython=True, cache=True)
-def norm_pdf(x: float) -> float:
-    return np.exp(-(x**2) / 2) / np.sqrt(2 * np.pi)
+def transform_survival(time: np.array, event: np.array) -> np.array:
+    y: np.array = np.copy(time)
+    y[np.logical_not(event)] = np.negative(y[np.logical_not(event)])
+    return y
 
 
-@jit(nopython=True, cache=True)
-def norm_pdf_prime(x: float) -> float:
-    return -norm_pdf(x) * x
+def inverse_transform_preconditioning(
+    y: np.array,
+) -> tuple[np.array, np.array]:
+    y_survival = np.array([i.rsplit("|")[0] for i in y]).astype(float)
+    y_teacher = np.array([i.rsplit("|")[1] for i in y]).astype(float)
+    time, event = inverse_transform_survival(y_survival)
+    return time, event, y_teacher
 
 
-@jit(nopython=True, cache=True)
-# @vectorize([float64(float64)])
-def norm_cdf(x: float) -> float:
-    return 0.5 + erf(x / np.sqrt(2)) / 2
-
-
-# Utility function to calculate kernel input, coressponds to the e_i(coef) function in the paper
-@jit(nopython=True, cache=True)
-def e_func(
-    X: np.array,
-    time: np.array,
-    coef: np.array,
-) -> np.array:
-    return np.log(time) + np.dot(X, coef.T)
+def transform_preconditioning(time, event, y_teacher):
+    y_survival = transform_survival(time=time, event=event).astype(str)
+    y_teacher = y_teacher.astype(str)
+    y = np.array(
+        [f"{y_survival[i]}|{y_teacher[i]}" for i in range(y_teacher.shape[0])]
+    )
+    return y
 
 
 @jit(nopython=True, cache=True)
-def e_func_i(
-    X: np.array,
-    time: np.array,
-    coef: np.array,
-    i: int,
-) -> float:
-    return np.log(time[i]) + np.dot(X[i], coef.T)
+def logsubstractexp(a, b):
+    max_value = max(a, b)
+    return max_value + np.log(np.exp(a - max_value) - np.exp(b - max_value))
 
 
 @jit(nopython=True, cache=True)
-def summarise_groups(coef, inverse_groups):
-    summarised_coef: np.array = np.zeros(len(inverse_groups))
-    for ix, group in enumerate(inverse_groups):
-        summarised_coef[ix] = np.sum(coef[group])
-
-    return summarised_coef
+def logaddexp(a, b):
+    max_value = max(a, b)
+    return max_value + np.log(np.exp(a - max_value) + np.exp(b - max_value))
 
 
-@jit(nopython=True, cache=True)
-def get_gradient_latent_overlapping_group_lasso(gradient, original_groups, len_grad):
-    expanded_gradient: np.array = np.zeros(len_grad)
-    count = 0
-    for ix, group in enumerate(original_groups):
-        # TODO: Double check this.
-        group_size = len(group)
-        expanded_gradient[(count) : (count + group_size)] = gradient[ix] / group_size
-        count += group_size
+@jit(nopython=True, fastmath=True)
+def numba_logsumexp_stable(a):
+    max_ = np.max(a)
+    return max_ + log(np.sum(np.exp(a - max_)))
 
-    return expanded_gradient
+
+def _soft_threshold(thresh, a, step_size):
+    return np.maximum(np.abs(a) - thresh * step_size, 0.0) * np.sign(a)
