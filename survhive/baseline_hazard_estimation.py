@@ -38,7 +38,9 @@ def breslow_estimator_breslow(
         accumulated_risk_set += sample_eta
         previous_time = sample_time
 
-    cumulative_baseline_hazards[n_events_counted] = local_death_set / (local_risk_set)
+    cumulative_baseline_hazards[n_events_counted] = local_death_set / (
+        local_risk_set
+    )
 
     return (
         np.unique(time[event_mask]),
@@ -71,7 +73,8 @@ def breslow_estimator_efron(
         if sample_time > previous_time and local_death_set:
             for ell in range(local_death_set):
                 cumulative_baseline_hazards[n_events_counted] += 1 / (
-                    local_risk_set - (ell / local_death_set) * local_death_set_risk
+                    local_risk_set
+                    - (ell / local_death_set) * local_death_set_risk
                 )
 
             local_risk_set -= accumulated_risk_set

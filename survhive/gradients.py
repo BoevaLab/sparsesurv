@@ -93,7 +93,10 @@ def breslow_numba_stable(
         sample_partial_hazard = partial_hazard[i]
         if previous_time < sample_time:
             if death_set_count:
-                (local_risk_set, local_risk_set_hessian,) = update_risk_sets_breslow(
+                (
+                    local_risk_set,
+                    local_risk_set_hessian,
+                ) = update_risk_sets_breslow(
                     risk_set_sum,
                     death_set_count,
                     local_risk_set,
@@ -163,15 +166,19 @@ def calculate_sample_grad_hess_efron(
         Tuple[float, float]: _description_
     """
     if sample_event:
-        return ((sample_partial_hazard) * (local_risk_set_death)) - (sample_event), (
-            sample_partial_hazard
-        ) * (local_risk_set_death) - ((local_risk_set_hessian_death)) * (
+        return ((sample_partial_hazard) * (local_risk_set_death)) - (
+            sample_event
+        ), (sample_partial_hazard) * (local_risk_set_death) - (
+            (local_risk_set_hessian_death)
+        ) * (
             (sample_partial_hazard) ** 2
         )
     else:
         return ((sample_partial_hazard) * local_risk_set), (
             sample_partial_hazard
-        ) * local_risk_set - local_risk_set_hessian * ((sample_partial_hazard) ** 2)
+        ) * local_risk_set - local_risk_set_hessian * (
+            (sample_partial_hazard) ** 2
+        )
 
 
 @jit(nopython=True, cache=True, fastmath=True)
@@ -217,6 +224,11 @@ def update_risk_sets_efron_pre(
         local_risk_set_death,
         local_risk_set_hessian_death,
     )
+
+
+@jit(nopython=True, cache=True, fastmath=True)
+def l2_stable(linear_predictor: np.array, y: np.array):
+    return np.negative((y - linear_predictor) / y.shape[0])
 
 
 @jit(nopython=True, cache=True, fastmath=True)
@@ -276,7 +288,10 @@ def efron_numba_stable(
                 )
             for death in range(death_set_count + censoring_set_count):
                 death_ix = i - 1 - death
-                (grad[death_ix], hess[death_ix],) = calculate_sample_grad_hess_efron(
+                (
+                    grad[death_ix],
+                    hess[death_ix],
+                ) = calculate_sample_grad_hess_efron(
                     partial_hazard[death_ix],
                     event[death_ix],
                     local_risk_set,
@@ -326,3 +341,37 @@ def efron_numba_stable(
             local_risk_set_hessian_death,
         )
     return grad / samples, hess / samples
+
+
+def breslow_preconditioning(time, event, eta_hat, X, tau, coef):
+    eta = X @ coef
+    return X.T @ (
+        tau
+        * breslow_numba_stable(
+            linear_predictor=eta,
+            time=time,
+            event=event,
+        )[0]
+        + (1 - tau)
+        * l2_stable(
+            linear_predictor=eta,
+            y=eta_hat,
+        )
+    )
+
+
+def efron_preconditioning(time, event, eta_hat, X, tau, coef):
+    eta = X @ coef
+    return X.T @ (
+        tau
+        * efron_numba_stable(
+            linear_predictor=eta,
+            time=time,
+            event=event,
+        )[0]
+        + (1 - tau)
+        * l2_stable(
+            linear_predictor=eta,
+            y=eta_hat,
+        )
+    )

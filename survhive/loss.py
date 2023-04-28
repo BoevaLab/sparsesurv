@@ -30,17 +30,13 @@ def breslow_likelihood_stable(
     accumulated_sum = -np.inf
     log_risk_set_sum = numba_logsumexp_stable(linear_predictor)
 
-    # for i in range(samples):
-    #    risk_set_sum += partial_hazard[i]
-
     for k in range(samples):
         current_time = time[k]
-        if (
-            current_time > previous_time
-        ):  # if time is sorted this will always hold unless current = prev
-            # correct set-count, have to go back to set the different hazards for the ties
+        if current_time > previous_time:
             likelihood -= set_count * log_risk_set_sum
-            log_risk_set_sum = logsubstractexp(log_risk_set_sum, accumulated_sum)
+            log_risk_set_sum = logsubstractexp(
+                log_risk_set_sum, accumulated_sum
+            )
             set_count = 0
             accumulated_sum = -np.inf
 
@@ -93,7 +89,9 @@ def efron_likelihood_stable(
                 else:
                     likelihood -= log_risk_set_sum
 
-            log_risk_set_sum = logsubstractexp(log_risk_set_sum, accumulated_sum)
+            log_risk_set_sum = logsubstractexp(
+                log_risk_set_sum, accumulated_sum
+            )
             accumulated_sum = -np.inf
             death_set_count = 0
             log_death_set_risk = -np.inf
@@ -117,3 +115,17 @@ def efron_likelihood_stable(
         else:
             likelihood -= log_risk_set_sum
     return -likelihood / samples
+
+
+def breslow_preconditioning_loss(time, event, eta_hat, X, tau, coef):
+    eta = X @ coef
+    return tau * breslow_likelihood_stable(
+        linear_predictor=eta, time=time, event=event
+    ) + (1 - tau) * 1 / (2 * time.shape[0]) * np.sum(np.square(eta - eta_hat))
+
+
+def efron_preconditioning_loss(time, event, eta_hat, X, tau, coef):
+    eta = X @ coef
+    return tau * efron_likelihood_stable(
+        linear_predictor=eta, time=time, event=event
+    ) + (1 - tau) * 1 / (2 * time.shape[0]) * np.sum(np.square(eta - eta_hat))
