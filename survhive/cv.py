@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 from celer import ElasticNet as CelerElasticNet
 from sklearn.linear_model._coordinate_descent import LinearModelCV
-from sklearn.model_selection import StratifiedKFold
+from sklearn.model_selection import KFold
 from sklearn.model_selection._split import _CVIterableWrapper
 from sklearn.utils.parallel import Parallel, delayed
 from sklearn.utils.validation import check_consistent_length, check_scalar
@@ -494,7 +494,6 @@ def regularisation_path(
                     alpha=alpha,
                     alpha_previous=alpha_previous,
                 )
-
             # For the first alpha, we calculate our optimiser
             # without any screening.
             if i == 0:
@@ -919,9 +918,7 @@ class RegularizedLinearSurvivalModelCV(LinearModelCV):
 
         cv = 5 if cv is None else cv
         if isinstance(cv, numbers.Integral):
-            self.cv = StratifiedKFold(
-                cv, shuffle=True, random_state=random_state
-            )
+            self.cv = KFold(cv, shuffle=True, random_state=random_state)
         elif isinstance(cv, Iterable):
             self.cv = _CVIterableWrapper(cv)
         elif hasattr(cv, "split"):
@@ -1170,9 +1167,7 @@ class RegularizedPreconditionedLinearSurvivalModelCV(LinearModelCV):
 
         cv = 5 if cv is None else cv
         if isinstance(cv, numbers.Integral):
-            self.cv = StratifiedKFold(
-                cv, shuffle=True, random_state=random_state
-            )
+            self.cv = KFold(cv, shuffle=True, random_state=random_state)
         elif isinstance(cv, Iterable):
             self.cv = _CVIterableWrapper(cv)
         elif hasattr(cv, "split"):
