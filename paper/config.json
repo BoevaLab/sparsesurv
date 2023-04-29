@@ -11,10 +11,8 @@
         "LUSC",
         "OV",
         "STAD",
-        "OV",
         "PAAD",
-        "SKCM",
-        "STAD"
+        "SKCM"
     ],
     "n_outer_splits": 5,
     "n_outer_repetitions": 5

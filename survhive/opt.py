@@ -62,7 +62,7 @@ def fmin_cgprox(
 
     Notes
     ---
-    All code coped from https://github.com/lowks/gdprox.
+    All code copied from https://github.com/lowks/gdprox.
     """
     xk = x0
     fk_old = np.inf
@@ -103,6 +103,7 @@ def fmin_cgprox(
                 success = True
             break
     else:
+        pass
         warnings.warn(
             "fmin_cgprox did not reach the desired tolerance level",
             RuntimeWarning,
