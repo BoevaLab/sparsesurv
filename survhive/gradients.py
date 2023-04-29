@@ -140,6 +140,10 @@ def breslow_numba_stable(
             local_risk_set,
             local_risk_set_hessian,
         )
+
+    # Control underflow to zero.
+    if np.min(hess) < 0:
+        hess[hess < 0] = 0
     return grad / samples, hess / samples
 
 
@@ -340,6 +344,10 @@ def efron_numba_stable(
             local_risk_set_death,
             local_risk_set_hessian_death,
         )
+
+    # Control underflow to zero.
+    if np.min(hess) < 0:
+        hess[hess < 0] = 0
     return grad / samples, hess / samples
 
 

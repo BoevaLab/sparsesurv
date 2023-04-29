@@ -382,7 +382,7 @@ def regularisation_path(
     eps: float = 0.05,
     n_alphas: int = 100,
     alphas: np.array = None,
-    max_first: bool = True
+    max_first: bool = True,
 ) -> Tuple:
     """Compute estimator path with coordinate descent.
 
@@ -508,7 +508,6 @@ def regularisation_path(
                 )
                 beta_new = optimiser.coef_
                 X_working_set = X
-
             # For the any alpha after the maximum,
             # (indicated by a sparse working set), we first
             # check whether there is a non-sparse strong set.
@@ -662,8 +661,9 @@ def regularisation_path(
                             continue
                         else:
                             break
-                beta_new = np.zeros(X.shape[1])
-                beta_new[strong_screener.working_set] = optimiser.coef_
+                if strong_screener.working_set.shape[0] > 0:
+                    beta_new = np.zeros(X.shape[1])
+                    beta_new[strong_screener.working_set] = optimiser.coef_
                 eta_previous = eta_new
                 eta_previous_alpha = eta_previous
                 beta_previous = beta_new
@@ -854,7 +854,6 @@ def alpha_path_eta_precond(
         eps=eps,
         n_alphas=n_alphas,
         alphas=alphas,
-        check_global_kkt=model.check_global_kkt,
         max_first=True,
     )
 
@@ -1070,7 +1069,7 @@ class RegularizedLinearSurvivalModelCV(LinearModelCV):
         for l1_ratio, l1_alphas, pl_alphas in zip(
             l1_ratios, alphas, mean_cv_score
         ):
-            i_best_alpha = np.argmin(mean_cv_score)
+            i_best_alpha = np.argmin(pl_alphas)
             this_best_pl = pl_alphas[i_best_alpha]
             if this_best_pl < best_pl_score:
                 best_alpha = l1_alphas[i_best_alpha]
@@ -1097,6 +1096,7 @@ class RegularizedLinearSurvivalModelCV(LinearModelCV):
         model.alpha = best_alpha
         model.l1_ratio = best_l1_ratio
         model.fit(X_sorted, y_sorted)
+        model.check_global_kkt = False
         if not hasattr(self, "l1_ratio"):
             del self.l1_ratio_
         self.model = model
@@ -1352,6 +1352,7 @@ class RegularizedPreconditionedLinearSurvivalModelCV(LinearModelCV):
         model.set_params(**common_params)
         model.alpha = best_alpha
         model.tau = best_tau
+        model.check_global_kkt = False
         model.fit(X_sorted, y_sorted)
         self.model = model
         self.coef_ = model.coef_
