@@ -416,7 +416,6 @@ def regularisation_path(
         time=time,
         event=event,
     )
-
     if alphas is None:
         alphas = _alpha_grid_l1(
             X=X,
@@ -508,6 +507,7 @@ def regularisation_path(
                 )
                 beta_new = optimiser.coef_
                 X_working_set = X
+                eta_new: np.array = optimiser.predict(X_working_set)
             # For the any alpha after the maximum,
             # (indicated by a sparse working set), we first
             # check whether there is a non-sparse strong set.
