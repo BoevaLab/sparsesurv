@@ -9,7 +9,11 @@ import numpy.typing as npt
 import pandas as pd
 from joblib import effective_n_jobs
 from scipy import sparse
-from sklearn.linear_model._coordinate_descent import _alpha_grid
+from sklearn.linear_model._coordinate_descent import (
+    ElasticNet,
+    _alpha_grid,
+    enet_path,
+)
 from sklearn.model_selection import KFold, StratifiedKFold, check_cv
 from sklearn.utils.parallel import Parallel, delayed
 from sklearn.utils.validation import (
@@ -22,10 +26,13 @@ from typeguard import typechecked
 
 from ._base import SurvivalMixin
 from .compat import BASELINE_HAZARD_FACTORY, CVSCORERFACTORY, LOSS_FACTORY
-from .utils import _path_predictions, inverse_transform_survival_preconditioning
+from .utils import (
+    _path_predictions,
+    inverse_transform_survival_preconditioning,
+)
 
 
-@typechecked
+# @typechecked
 class PCSurvCV(SurvivalMixin, celer.ElasticNetCV):
     """Parent class to fit preconditioned sparse semiparametric right-censored survival models.
 
@@ -92,6 +99,9 @@ class PCSurvCV(SurvivalMixin, celer.ElasticNetCV):
     cv_score_method : str, optional, default="linear_predictor"
         TODO DW
 
+    max_coef: int
+        TODO DW
+
     Attributes
     ----------
     TODO DW
@@ -124,6 +134,8 @@ class PCSurvCV(SurvivalMixin, celer.ElasticNetCV):
         seed: Optional[int] = 42,
         shuffle_cv: bool = False,
         cv_score_method: str = "linear_predictor",
+        max_coef=np.inf,
+        alpha_type="min",
     ):
         super().__init__(
             l1_ratio=l1_ratio,
@@ -146,6 +158,8 @@ class PCSurvCV(SurvivalMixin, celer.ElasticNetCV):
         self.seed = seed
         self.shuffle_cv = shuffle_cv
         self.cv_score_method = cv_score_method
+        self.max_coef = max_coef
+        self.alpha_type = alpha_type
 
     def fit(
         self,
@@ -157,6 +171,12 @@ class PCSurvCV(SurvivalMixin, celer.ElasticNetCV):
         # TODO DW: Add additional parameter checks here and clean
         # up the docs a bit more.
         self._validate_params()
+        if self.alpha_type == "1se":
+            if self.cv_score_method == "linear_predictor":
+                raise ValueError(
+                    "`alpha_type` `1se` is not available with `cv_score_method` `linear_predictor`."
+                    + "Please choose another score method."
+                )
         # This makes sure that there is no duplication in memory.
         # Dealing right with copy_X is important in the following:
         # Multiple functions touch X and subsamples of X and can induce a
@@ -315,7 +335,7 @@ class PCSurvCV(SurvivalMixin, celer.ElasticNetCV):
         )
         # Compute path for all folds and compute MSE to get the best alpha
         folds = list(cv.split(X, event))
-        best_pl_score = np.inf
+        best_pl_score = -np.inf
 
         # We do a double for loop folded in one, in order to be able to
         # iterate in parallel on l1_ratio and folds
@@ -344,19 +364,29 @@ class PCSurvCV(SurvivalMixin, celer.ElasticNetCV):
             verbose=self.verbose,
             prefer="threads",
         )(jobs)
-        train_eta_folds, test_eta_folds, train_y_folds, test_y_folds = zip(
-            *predictions_paths
-        )
+        (
+            train_eta_folds,
+            test_eta_folds,
+            train_y_folds,
+            test_y_folds,
+            n_sparsity_folds,
+        ) = zip(*predictions_paths)
         n_folds = int(len(test_eta_folds) / len(l1_ratios))
 
         mean_cv_score_l1 = []
         mean_cv_score = []
+        mean_sd_score_l1 = []
+        mean_sd_score = []
+        mean_sparsity_l1 = []
+        mean_sparsity = []
 
         for i in range(len(l1_ratios)):
             train_eta = train_eta_folds[n_folds * i : n_folds * (i + 1)]
             test_eta = test_eta_folds[n_folds * i : n_folds * (i + 1)]
             train_y = train_y_folds[n_folds * i : n_folds * (i + 1)]
             test_y = test_y_folds[n_folds * i : n_folds * (i + 1)]
+            n_sparsity = n_sparsity_folds[n_folds * i : n_folds * (i + 1)]
+            n_sparsity = np.ceil(np.mean(np.stack(n_sparsity), axis=0))
 
             if self.cv_score_method == "linear_predictor":
                 train_eta_method = np.concatenate(train_eta)
@@ -383,15 +413,18 @@ class PCSurvCV(SurvivalMixin, celer.ElasticNetCV):
                         test_event=test_event,
                         score_function=self.loss,
                     )
-                    if np.isnan(likelihood):
-                        mean_cv_score_l1.append(-np.inf)
-                    else:
-                        mean_cv_score_l1.append(likelihood)
+
+                    mean_cv_score_l1.append(likelihood)
+                    mean_sd_score_l1.append(np.nan)
+                    mean_sparsity_l1.append(n_sparsity[j])
 
                 mean_cv_score.append(mean_cv_score_l1)
+                mean_sd_score.append(mean_sd_score_l1)
+                mean_sparsity.append(mean_sparsity_l1)
 
             else:
                 test_fold_likelihoods = []
+
                 for j in range(len(alphas[i])):
                     for k in range(n_folds):
                         train_eta_method = train_eta[k]
@@ -430,19 +463,97 @@ class PCSurvCV(SurvivalMixin, celer.ElasticNetCV):
                             score_function=self.loss,
                         )
                         test_fold_likelihoods.append(fold_likelihood)
+
                     mean_cv_score_l1.append(np.mean(test_fold_likelihoods))
+                    mean_sd_score_l1.append(np.std(test_fold_likelihoods))
+                    mean_sparsity_l1.append(n_sparsity[j])
                 mean_cv_score.append(mean_cv_score_l1)
+                mean_sd_score.append(mean_sd_score_l1)
+                mean_sparsity.append(mean_sparsity_l1)
 
         self.pl_path_ = mean_cv_score
-        for l1_ratio, l1_alphas, pl_alphas in zip(
-            l1_ratios, alphas, mean_cv_score
-        ):
-            i_best_alpha = np.argmax(mean_cv_score)
-            this_best_pl = pl_alphas[i_best_alpha]
-            if this_best_pl < best_pl_score:
-                best_alpha = l1_alphas[i_best_alpha]
-                best_l1_ratio = l1_ratio
-                best_pl_score = this_best_pl
+        if self.alpha_type == "min":
+            print("HEYO")
+            for l1_ratio, l1_alphas, pl_alphas, n_coefs in zip(
+                l1_ratios, alphas, mean_cv_score, mean_sparsity
+            ):
+                # print(n_coefs)
+                # raise ValueError
+                # np.array(n_coefs) <= self.max_coef
+                # print(np.array(n_coefs) <= self.max_coef)
+                # print(pl_alphas)
+                # print(n_coefs)
+                i_best_alpha = np.argmax(
+                    np.array(pl_alphas)[
+                        np.where(np.array(n_coefs) <= self.max_coef)[0]
+                    ]
+                )
+                this_best_pl = pl_alphas[i_best_alpha]
+                if this_best_pl > best_pl_score:
+                    best_alpha = l1_alphas[i_best_alpha]
+                    best_l1_ratio = l1_ratio
+                    best_pl_score = this_best_pl
+        elif self.alpha_type == "1se":
+            n_best_coef = np.inf
+            for l1_ratio, l1_alphas, pl_alphas, n_coefs, sd_alphas in zip(
+                l1_ratios, alphas, mean_cv_score, mean_sparsity, mean_sd_score
+            ):
+                i_best_alpha = np.argmax(
+                    np.array(pl_alphas)[
+                        np.where(np.array(n_coefs) <= self.max_coef)[0]
+                    ]
+                )
+                this_best_pl = pl_alphas[i_best_alpha]
+                if this_best_pl < best_pl_score:
+                    best_pl_score = this_best_pl - (sd_alphas[i_best_alpha] / np.sqrt(n_folds))
+            for l1_ratio, l1_alphas, pl_alphas, n_coefs, sd_alphas in zip(
+                l1_ratios, alphas, mean_cv_score, mean_sparsity, mean_sd_score
+            ):
+                i_best_alpha = np.argmin(
+                    np.array(np.array(n_coefs))[
+                        np.where(
+                            np.logical_and(
+                                np.array(n_coefs) <= self.max_coef,
+                                np.array(pl_alphas) >= best_pl_score,
+                            )
+                        )[0]
+                    ]
+                )
+                n_coef = np.array(n_coefs)[i_best_alpha]
+                if n_coef < n_best_coef:
+                    n_best_coef = n_coef
+                    best_alpha = l1_alphas[i_best_alpha]
+                    best_l1_ratio = l1_ratio
+
+        elif self.alpha_type == "pcvl":
+            for l1_ratio, l1_alphas, pl_alphas, n_coefs in zip(
+                l1_ratios, alphas, mean_cv_score, mean_sparsity
+            ):
+                pl_alphas = np.array(pl_alphas)
+                n_coefs = np.array(n_coefs)
+                i_best_alpha = np.argmax(
+                    np.array(pl_alphas)[
+                        np.where(np.array(n_coefs) <= self.max_coef)[0]
+                    ]
+                )
+                sparsity_best_alpha = np.array(n_coefs)[i_best_alpha]
+                pl_best_alpha = pl_alphas[i_best_alpha]
+                pl_alpha_max = pl_alphas[0]
+                transformed_range = np.arange(i_best_alpha)
+                transformed_pl_alphas = pl_alphas[transformed_range] - (
+                    ((pl_best_alpha - pl_alpha_max) / sparsity_best_alpha)
+                    * n_coefs[transformed_range]
+                )
+                transformed_i_best_alpha = np.argmax(transformed_pl_alphas)
+                this_best_pl_transformed = transformed_pl_alphas[
+                    transformed_i_best_alpha
+                ]
+                if this_best_pl_transformed > best_pl_score:
+                    best_alpha = l1_alphas[transformed_i_best_alpha]
+                    best_l1_ratio = l1_ratio
+                    best_pl_score = this_best_pl_transformed
+        else:
+            raise ValueError
 
         self.l1_ratio_ = best_l1_ratio
         self.alpha_ = best_alpha
@@ -496,7 +607,7 @@ class PCSurvCV(SurvivalMixin, celer.ElasticNetCV):
         return X @ self.coef_
 
 
-@typechecked
+# @typechecked
 class PCPHElasticNetCV(PCSurvCV):
     """TODO DW"""
 
@@ -518,6 +629,8 @@ class PCPHElasticNetCV(PCSurvCV):
         seed: Optional[int] = 42,
         shuffle_cv: bool = False,
         cv_score_method: str = "linear_predictor",
+        max_coef=np.inf,
+        alpha_type="min",
     ):
         super().__init__(
             l1_ratio=l1_ratio,
@@ -535,16 +648,17 @@ class PCPHElasticNetCV(PCSurvCV):
             seed=seed,
             shuffle_cv=shuffle_cv,
             cv_score_method=cv_score_method,
+            max_coef=max_coef,
+            alpha_type=alpha_type
         )
         if tie_correction not in ["breslow", "efron"]:
             raise ValueError(
                 "Expected `tie_corection` to be in ['breslow', 'efron']."
                 + f"Found {tie_correction} instead."
             )
+        self.tie_correction = tie_correction
         self.loss = LOSS_FACTORY[tie_correction]
-        self.cumulative_baseline_hazard = BASELINE_HAZARD_FACTORY[
-            tie_correction
-        ]
+        self.cumulative_baseline_hazard = BASELINE_HAZARD_FACTORY["breslow"]
 
     def predict_cumulative_hazard_function(
         self, X: npt.NDArray[np.float64], time: npt.NDArray[np.float64]
@@ -594,7 +708,7 @@ class PCPHElasticNetCV(PCSurvCV):
         return cumulative_hazard_function
 
 
-@typechecked
+# @typechecked
 class PCAFTElasticNetCV(PCSurvCV):
     """TODO DW"""
 
@@ -616,6 +730,8 @@ class PCAFTElasticNetCV(PCSurvCV):
         seed: Optional[int] = 42,
         shuffle_cv: bool = False,
         cv_score_method: str = "linear_predictor",
+        max_coef=np.inf,
+        alpha_type="min",
     ):
         super().__init__(
             l1_ratio=l1_ratio,
@@ -633,6 +749,8 @@ class PCAFTElasticNetCV(PCSurvCV):
             seed=seed,
             shuffle_cv=shuffle_cv,
             cv_score_method=cv_score_method,
+            max_coef=max_coef,
+            alpha_type=alpha_type
         )
         self.bandwidth = bandwidth
         self.loss = LOSS_FACTORY["aft"]
@@ -657,14 +775,12 @@ class PCAFTElasticNetCV(PCSurvCV):
         )
 
 
-@typechecked
-class PCEHElasticNetCV(PCSurvCV):
+class PCEHMultiTaskLassoCV(PCSurvCV):
     """TODO DW"""
 
     def __init__(
         self,
         bandwidth: Optional[float] = None,
-        l1_ratio: Union[float, List[float]] = 1.0,
         eps: float = 1e-3,
         n_alphas: int = 100,
         max_iter: int = 100,
@@ -679,9 +795,11 @@ class PCEHElasticNetCV(PCSurvCV):
         seed: Optional[int] = 42,
         shuffle_cv: bool = False,
         cv_score_method: str = "linear_predictor",
+        max_coef=np.inf,
+        alpha_type="min",
     ):
         super().__init__(
-            l1_ratio=l1_ratio,
+            l1_ratio=1.0,
             eps=eps,
             n_alphas=n_alphas,
             max_iter=max_iter,
@@ -696,6 +814,8 @@ class PCEHElasticNetCV(PCSurvCV):
             seed=seed,
             shuffle_cv=shuffle_cv,
             cv_score_method=cv_score_method,
+            max_coef=max_coef,
+            alpha_type=alpha_type
         )
         self.bandwidth = bandwidth
         self.loss = LOSS_FACTORY["eh"]
@@ -735,8 +855,11 @@ class PCEHElasticNetCV(PCSurvCV):
         """Return whether the model instance in question is a multitask model."""
         return True
 
+    def _get_estimator(self):
+        return celer.MultiTaskLasso()
+
     def predict_cumulative_hazard_function(
-        self, X: npt.NDArray[np.float64], time: npt.NDarray[np.float64]
+        self, X: npt.NDArray[np.float64], time: npt.NDArray[np.float64]
     ) -> pd.DataFrame:
         """TODO DW"""
         if np.min(time) < 0:

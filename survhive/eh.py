@@ -14,7 +14,7 @@ from .loss import eh_negative_likelihood_beta
 from .utils import inverse_transform_survival
 
 
-@typechecked
+#@typechecked
 class EH(SurvivalMixin):
     """Linear Extended Hazards (EH) model based on kernel-smoothed PL [1].
 
@@ -83,19 +83,19 @@ class EH(SurvivalMixin):
 
     def fit(
         self,
-        X: np.NDArray[np.float64],
+        X: npt.NDArray[np.float64],
         y: np.array,
-        sample_weight: Optional[np.NDArray[np.float64]] = None,
+        sample_weight: Optional[npt.NDArray[np.float64]] = None,
     ):
         """Fits the linear EH model using quasi-Newton methods.
 
         Parameters
         ----------
-        X: np.NDArray[np.float64]
+        X: npt.NDArray[np.float64]
             Design matrix.
         y: np.array
             Structured array containing right-censored survival information.
-        sample_weight: Optional[np.NDarray[np.float64]]
+        sample_weight: Optional[npt.NDArray[np.float64]]
             Sample weight used during model fitting. Currently unused
             and kept for sklearn compatibility.
 

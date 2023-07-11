@@ -14,7 +14,7 @@ from .loss import aft_negative_likelihood_beta
 from .utils import inverse_transform_survival
 
 
-@typechecked
+#@typechecked
 class AFT(SurvivalMixin):
     """Linear Accelerated Failure Time (AFT) model based on kernel-smoothed PL [1].
 
@@ -112,9 +112,9 @@ class AFT(SurvivalMixin):
             hess=BFGS(),
             hessp=None,
             bounds=None,
-            constraints=self.constraints,
+            constraints=None,
             tol=self.tol,
-            callback=self.callback,
+            callback=None,
             options=self.options,
         )
         if res.success:
@@ -155,8 +155,8 @@ class AFT(SurvivalMixin):
         ] = get_cumulative_hazard_function_aft(
             time_query=time,
             eta_query=self.predict(X=X),
-            time_train=self.time_train,
-            event_train=self.event_train,
-            eta_train=self.eta_train,
+            time_train=self.train_time,
+            event_train=self.train_event,
+            eta_train=self.train_eta,
         )
         return cumulative_hazard_function

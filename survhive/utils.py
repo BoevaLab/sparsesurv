@@ -57,7 +57,7 @@ def inverse_transform_survival_preconditioning(
 
 
 def transform_survival_preconditioning(
-    time: npt.NDarray[np.float64],
+    time: npt.NDArray[np.float64],
     event: npt.NDArray[np.int64],
     eta_hat: npt.NDArray[np.float64],
 ):
@@ -151,7 +151,7 @@ def _path_predictions(
     path,
     path_params,
     alphas=None,
-    l1_ratio=1,
+    l1_ratio=1.0,
     X_order=None,
     dtype=None,
 ):
@@ -282,6 +282,12 @@ def _path_predictions(
 
     X_train_coefs = safe_sparse_dot(X_train, coefs)
     X_test_coefs = safe_sparse_dot(X_test, coefs)
+    # print(coefs.shape)
+    # raise ValueError
+    if len(coefs.squeeze().shape) == 2:
+        n_sparsity = np.sum(coefs != 0.0, axis=(0, 1))
+    else:
+        n_sparsity = np.sum(coefs != 0.0, axis=(0, 1)) / 2
     # print(X_test_coefs.shape)
     # raise ValueError
     # print(y_train)
@@ -291,6 +297,7 @@ def _path_predictions(
         X_test_coefs,
         transform_survival_preconditioning(time_train, event_train, y_train),
         transform_survival_preconditioning(time_test, event_test, y_test),
+        n_sparsity,
     )
 
 
