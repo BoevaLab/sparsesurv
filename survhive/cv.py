@@ -1,988 +1,287 @@
 import numbers
-from abc import abstractmethod
-from collections.abc import Iterable
 from functools import partial
 from numbers import Real
-from typing import List, Tuple, Union
+from typing import List, Optional, Union
 
+import celer
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
-from celer import ElasticNet as CelerElasticNet
-from sklearn.linear_model._coordinate_descent import LinearModelCV
-from sklearn.model_selection import StratifiedKFold
-from sklearn.model_selection._split import _CVIterableWrapper
+from joblib import effective_n_jobs
+from scipy import sparse
+from sklearn.linear_model._coordinate_descent import (
+    ElasticNet,
+    _alpha_grid,
+    enet_path,
+)
+from sklearn.model_selection import KFold, StratifiedKFold, check_cv
 from sklearn.utils.parallel import Parallel, delayed
-from sklearn.utils.validation import check_consistent_length, check_scalar
+from sklearn.utils.validation import (
+    _check_sample_weight,
+    check_consistent_length,
+    check_scalar,
+    column_or_1d,
+)
+from typeguard import typechecked
 
-from .compat import LOSS_FACTORY
-from .opt import fmin_cgprox
-from .screening import StrongScreener
+from ._base import SurvivalMixin
+from .compat import BASELINE_HAZARD_FACTORY, CVSCORERFACTORY, LOSS_FACTORY
 from .utils import (
-    _soft_threshold,
-    inverse_transform_preconditioning,
-    inverse_transform_survival,
+    _path_predictions,
+    inverse_transform_survival_preconditioning,
 )
 
 
-def _get_alpha_max_l1(gradient: np.array, X: np.array):
-    return np.max(np.abs(np.matmul(gradient.T, X)))
+# @typechecked
+class PCSurvCV(SurvivalMixin, celer.ElasticNetCV):
+    """Parent class to fit preconditioned sparse semiparametric right-censored survival models.
 
-
-def _alpha_grid_l1_preconditioning(
-    gradient: np.array,
-    eps: float = 0.05,
-    n_alphas: int = 100,
-) -> np.array:
-    """Compute the grid of alpha values for model parameter search
     Parameters
+    ----------
+    l1_ratio : float or list of float, default=0.5
+        Float between 0 and 1 passed to ElasticNet (scaling between
+        l1 and l2 penalties). For ``l1_ratio = 0``
+        the penalty is an L2 penalty. For ``l1_ratio = 1`` it is an L1 penalty.
+        For ``0 < l1_ratio < 1``, the penalty is a combination of L1 and L2
+        This parameter can be a list, in which case the different
+        values are tested by cross-validation and the one giving the best
+        prediction score is used. Note that a good choice of list of
+        values for l1_ratio is often to put more values close to 1
+        (i.e. Lasso) and less close to 0 (i.e. Ridge), as in ``[.1, .5, .7,
+        .9, .95, .99, 1]``.
 
-    Args:
-        X (np.array): Array-like object of training data of shape (n_samples, n_features).
-        y (np.array): Array-like object of target values of shape (n_samples,) or (n_samples, n_outputs).
-        gradient ():
-        hessian ():
-        Xy (np.array, optional): Dot product of X and y arrays having shape (n_features,)
-        or (n_features, n_outputs). Defaults to None.
-        eps (float, optional): Length of the path. ``eps=1e-3`` means that
-        ``alpha_min / alpha_max = 1e-3``. Defaults to 1e-1.
-        n_alphas (int, optional): Number of alphas along the regularization path. Defaults to 100.
+    eps : float, default=1e-3
+        Length of the path. ``eps=1e-3`` means that
+        ``alpha_min / alpha_max = 1e-3``.
 
-    Returns:
-        np.array: Regularisation parameters to try for the model.
-    """
-    alpha_max = np.max(np.abs(gradient))
-    if alpha_max <= np.finfo(float).resolution:
-        alphas = np.empty(n_alphas)
-        alphas.fill(np.finfo(float).resolution)
-        return alphas
-    alphas = np.round(
-        np.logspace(
-            np.log10((alpha_max) * eps),
-            np.log10(alpha_max),
-            num=n_alphas,
-        )[::-1],
-        decimals=10,
-    )
-    return alphas
+    n_alphas : int, default=100
+        Number of alphas along the regularization path, used for each l1_ratio.
 
+    max_iter : int, default=1000
+        The maximum number of iterations.
 
-def _alpha_grid_l1(
-    X: np.array,
-    gradient: np.array,
-    hessian: np.array,
-    l1_ratio: float = 1.0,
-    eps: float = 0.05,
-    n_alphas: int = 100,
-) -> np.array:
-    """Compute the grid of alpha values for model parameter search
-    Parameters
+    tol : float, default=1e-4
+        The tolerance for the optimization: if the updates are
+        smaller than ``tol``, the optimization code checks the
+        dual gap for optimality and continues until it is smaller
+        than ``tol``.
 
-    Args:
-        X (np.array): Array-like object of training data of shape (n_samples, n_features).
-        y (np.array): Array-like object of target values of shape (n_samples,) or (n_samples, n_outputs).
-        gradient ():
-        hessian ():
-        Xy (np.array, optional): Dot product of X and y arrays having shape (n_features,)
-        or (n_features, n_outputs). Defaults to None.
-        eps (float, optional): Length of the path. ``eps=1e-3`` means that
-        ``alpha_min / alpha_max = 1e-3``. Defaults to 1e-1.
-        n_alphas (int, optional): Number of alphas along the regularization path. Defaults to 100.
+    cv : int, optional, default=5
+        TODO DW
 
-    Returns:
-        np.array: Regularisation parameters to try for the model.
-    """
-    alpha_max = _get_alpha_max_l1(gradient=gradient, X=X) / l1_ratio
-    if alpha_max <= np.finfo(float).resolution:
-        alphas = np.empty(n_alphas)
-        alphas.fill(np.finfo(float).resolution)
-        return alphas
+    verbose : bool or int, default=0
+        Amount of verbosity.
 
-    alphas = np.round(
-        np.logspace(
-            np.log10((alpha_max) * eps),
-            np.log10(alpha_max),
-            num=n_alphas,
-        )[::-1],
-        decimals=10,
-    ) / (np.sum(hessian))
-    return alphas
+    max_epochs : int, optional (default=50000)
+        Maximum number of coordinate descent epochs when solving a subproblem.
 
+    p0 : int, optional (default=10)
+        Number of features in the first working set.
 
-def regularisation_path_precond(
-    X: np.array,
-    y: np.array,
-    X_test: np.array,
-    model,
-    tau: float,
-    eps: float = 0.05,
-    n_alphas: int = 100,
-    alphas: np.array = None,
-    check_global_kkt: bool = True,
-    max_first: bool = True,
-) -> Tuple:
-    """Compute estimator path with coordinate descent.
+    prune : bool, optional (default=False)
+        Whether to use pruning when growing the working sets.
 
-    Args:
-        X (np.array): Training data of shape (n_samples, n_features).
-        y (np.array): Target values of shape (n_samples,) or (n_samples, n_targets).
-        X_test (np.array): Test data of shape (n_samples, n_features).
-        model (object): The model object pre-initialised to fit the data for each alpha
-            and learn the coefficients.
-        l1_ratio (Union[float, np.array], optional): Scaling between l1 and l2 penalties.
-            ``l1_ratio=1`` corresponds to the Lasso. Defaults to 0.5.
-        eps (float, optional) : Length of the path. Defaults to 1e-3.
-        n_alphas (int, optional): Number of alphas along the regularization path.
-            Defaults to 100.
-        alphas (np.array, optional): List of alphas where to compute the models.
-            Defaults to None. If None alphas are set automatically.
+    n_jobs : int, default=None
+        Number of CPUs to use during the cross validation.
+        ``None`` means 1 unless in a :obj:`joblib.parallel_backend` context.
+        ``-1`` means using all processors. See :term:`Glossary <n_jobs>`
+        for more details.
 
+    stratify_cv : bool, optional, default=True
+        TODO DW
 
-    Returns:
-        Tuple: Tuple of the dot products of train and test samples with the coefficients
-            learned during training.
+    seed : int, optional, default=42
+        TODO DW
+
+    shuffle_cv : bool, optional, default=False
+        TODO DW
+
+    cv_score_method : str, optional, default="linear_predictor"
+        TODO DW
+
+    max_coef: int
+        TODO DW
+
+    Attributes
+    ----------
+    TODO DW
+
+    Notes
+    -----
+    This class is largely adapted from the `ElasticNetCV` implementations
+    in `sklearn` and `celer`.
+
+    See Also
+    --------
+    sklearn.linear_model.ElasticNetCV
+    celer.ElasticNetCV
     """
 
-    n_samples, n_features = X.shape
-    test_samples, _ = X_test.shape
-    time, event, eta_hat = inverse_transform_preconditioning(y)
-    beta_previous = np.zeros(X.shape[1])
-    gradient = model.gradient(
-        coef=beta_previous,
-        time=time,
-        event=event,
-        eta_hat=eta_hat,
-        X=X,
-        tau=tau,
-    )
-    if alphas is None:
-        alphas = _alpha_grid_l1_preconditioning(
-            gradient=gradient,
-            eps=eps,
-            n_alphas=n_alphas,
-        )
-
-    elif len(alphas) > 1:
-        alphas = np.sort(alphas)[::-1]
-    n_alphas = len(alphas)
-
-    strong_screener = StrongScreener(p=X.shape[1], l1_ratio=1.0)
-    eta_previous = np.zeros(X.shape[0])
-    beta_previous = np.zeros(X.shape[1])
-    coefs = np.zeros((n_features, n_alphas), dtype=X.dtype)
-    train_eta = np.empty((n_samples, n_alphas), dtype=X.dtype)
-    test_eta = np.empty((test_samples, n_alphas), dtype=X.dtype)
-    active_variables = np.empty(0, dtype=int)
-    for i, alpha in enumerate(alphas):
-        # If this is a path, we skip the first alpha
-        # since it is always sparse.
-        if i == 0 and max_first:
-            eta_new = eta_previous
-            beta_new = beta_previous
-            alpha_previous = alpha
-            coefs[..., i] = beta_previous
-            train_eta[..., i] = eta_new
-            test_eta[..., i] = np.matmul(
-                X_test[:, active_variables], beta_previous[active_variables]
-            )
-            continue
-        previous_working_set = strong_screener.working_set
-        if i > 0:
-            strong_screener.compute_strong_set(
-                gradient=model.gradient(
-                    time=time,
-                    event=event,
-                    eta_hat=eta_hat,
-                    X=X,
-                    tau=tau,
-                    coef=beta_previous,
-                ),
-                alpha=alpha,
-                alpha_previous=alpha_previous,
-            )
-
-        if i == 0:
-            _ = fmin_cgprox(
-                f=partial(model.loss, time, event, eta_hat, X, tau),
-                f_prime=partial(model.gradient, time, event, eta_hat, X, tau),
-                g_prox=partial(_soft_threshold, alpha),
-                x0=np.zeros(X.shape[1]),
-                rtol=model.rtol,
-                maxiter=model.maxiter,
-                verbose=model.verbose,
-                default_step_size=model.default_step_size,
-            )
-            beta_new = _.x
-            X_working_set = X
-            eta_new = X @ beta_new
-
-        elif strong_screener.working_set.shape[0] == 0:
-            if strong_screener.strong_set.shape[0] == 0:
-                eta_new = eta_previous
-                beta_new = beta_previous
-                alpha_previous = alpha
-                break
-
-            else:
-                warm_start_coef = np.zeros(strong_screener.strong_set.shape[0])
-                X_working_set = X[:, strong_screener.strong_set]
-                _ = fmin_cgprox(
-                    f=partial(
-                        model.loss, time, event, eta_hat, X_working_set, tau
-                    ),
-                    f_prime=partial(
-                        model.gradient,
-                        time,
-                        event,
-                        eta_hat,
-                        X_working_set,
-                        tau,
-                    ),
-                    g_prox=partial(_soft_threshold, alpha),
-                    x0=warm_start_coef,
-                    rtol=model.rtol,
-                    maxiter=model.maxiter,
-                    verbose=model.verbose,
-                    default_step_size=model.default_step_size,
-                )
-                beta_new = np.zeros(X.shape[1])
-                beta_new[strong_screener.strong_set] = _.x
-                strong_screener.expand_working_set(np.where(beta_new != 0)[0])
-
-        else:
-            X_working_set = X[:, strong_screener.working_set]
-            warm_start_coef = beta_previous[strong_screener.working_set]
-            _ = fmin_cgprox(
-                f=partial(
-                    model.loss, time, event, eta_hat, X_working_set, tau
-                ),
-                f_prime=partial(
-                    model.gradient, time, event, eta_hat, X_working_set, tau
-                ),
-                g_prox=partial(_soft_threshold, alpha),
-                x0=warm_start_coef,
-                rtol=model.rtol,
-                maxiter=model.maxiter,
-                verbose=model.verbose,
-                default_step_size=model.default_step_size,
-            )
-
-            beta_new = np.zeros(X.shape[1])
-            beta_new[strong_screener.working_set] = _.x
-
-            while strong_screener.strong_set.shape[0] > 0:
-                active_variables = np.where(beta_new != 0)[0]
-                strong_screener.check_kkt_strong(
-                    gradient=model.gradient(
-                        time=time,
-                        event=event,
-                        eta_hat=eta_hat,
-                        X=X[:, strong_screener.strong_set],
-                        tau=tau,
-                        coef=beta_new[strong_screener.strong_set],
-                    ),
-                    alpha=alpha,
-                )
-                if strong_screener.strong_kkt_violated.shape[0] == 0:
-                    break
-
-                warm_start_coef = np.zeros(X.shape[1])
-                warm_start_coef[strong_screener.working_set] = _.x
-                strong_screener.expand_working_set_with_kkt_violations()
-                warm_start_coef = warm_start_coef[strong_screener.working_set]
-                X_working_set = X[:, strong_screener.working_set]
-                _ = fmin_cgprox(
-                    f=partial(
-                        model.loss, time, event, eta_hat, X_working_set, tau
-                    ),
-                    f_prime=partial(
-                        model.gradient,
-                        time,
-                        event,
-                        eta_hat,
-                        X_working_set,
-                        tau,
-                    ),
-                    g_prox=partial(_soft_threshold, alpha),
-                    x0=warm_start_coef,
-                    rtol=model.rtol,
-                    maxiter=model.maxiter,
-                    verbose=model.verbose,
-                    default_step_size=model.default_step_size,
-                )
-            beta_new = np.zeros(X.shape[1])
-            beta_new[strong_screener.working_set] = _.x
-
-            if check_global_kkt and i > 0:
-                while True:
-                    active_variables = np.where(beta_new != 0)[0]
-                    strong_screener.check_kkt_all(
-                        gradient=model.gradient(
-                            time=time,
-                            event=event,
-                            eta_hat=eta_hat,
-                            X=X,
-                            tau=tau,
-                            coef=beta_new,
-                        ),
-                        alpha=alpha,
-                    )
-                    if strong_screener.any_kkt_violated.shape[0] == 0:
-                        break
-                    warm_start_coef = np.zeros(X.shape[1])
-                    warm_start_coef[strong_screener.working_set] = _.x
-                    strong_screener.expand_working_set_with_overall_violations()
-                    warm_start_coef = warm_start_coef[
-                        strong_screener.working_set
-                    ]
-                    X_working_set = X[:, strong_screener.working_set]
-                    _ = fmin_cgprox(
-                        f=partial(
-                            model.loss,
-                            time,
-                            event,
-                            eta_hat,
-                            X_working_set,
-                            tau,
-                        ),
-                        f_prime=partial(
-                            model.gradient,
-                            time,
-                            event,
-                            eta_hat,
-                            X_working_set,
-                            tau,
-                        ),
-                        g_prox=partial(_soft_threshold, alpha),
-                        x0=warm_start_coef,
-                        rtol=model.rtol,
-                        maxiter=model.maxiter,
-                        verbose=model.verbose,
-                        default_step_size=model.default_step_size,
-                    )
-
-        active_variables = np.where(beta_new != 0)[0]
-        eta_previous = eta_new
-        beta_previous = beta_new
-        strong_screener.working_set = previous_working_set
-        strong_screener.expand_working_set(active_variables)
-        alpha_previous = alpha
-        coefs[..., i] = beta_previous
-        train_eta[..., i] = eta_previous
-        test_eta[..., i] = np.matmul(
-            X_test[:, active_variables], beta_previous[active_variables]
-        )
-    return coefs, train_eta, test_eta
-
-
-def regularisation_path(
-    X: np.array,
-    y: np.array,
-    X_test: np.array,
-    model,
-    l1_ratio: float = 1.0,
-    eps: float = 0.05,
-    n_alphas: int = 100,
-    alphas: np.array = None,
-    max_first: bool = True,
-) -> Tuple:
-    """Compute estimator path with coordinate descent.
-
-    Args:
-        X (np.array): Training data of shape (n_samples, n_features).
-        y (np.array): Target values of shape (n_samples,) or (n_samples, n_targets).
-        X_test (np.array): Test data of shape (n_samples, n_features).
-        model (object): The model object pre-initialised to fit the data for each alpha
-            and learn the coefficients.
-        l1_ratio (Union[float, np.array], optional): Scaling between l1 and l2 penalties.
-            ``l1_ratio=1`` corresponds to the Lasso. Defaults to 0.5.
-        eps (float, optional) : Length of the path. Defaults to 1e-3.
-        n_alphas (int, optional): Number of alphas along the regularization path.
-            Defaults to 100.
-        alphas (np.array, optional): List of alphas where to compute the models.
-            Defaults to None. If None alphas are set automatically.
-
-
-    Returns:
-        Tuple: Tuple of the dot products of train and test samples with the coefficients
-            learned during training.
-    """
-
-    n_samples, n_features = X.shape
-    test_samples, _ = X_test.shape
-    time, event = inverse_transform_survival(y)
-    eta_previous = np.zeros(X.shape[0])
-
-    gradient, hessian = model.gradient(
-        linear_predictor=eta_previous,
-        time=time,
-        event=event,
-    )
-
-    if alphas is None:
-        alphas = _alpha_grid_l1(
-            X=X,
-            gradient=gradient,
-            hessian=hessian,
-            l1_ratio=l1_ratio,
-            eps=eps,
-            n_alphas=n_alphas,
-        )
-    elif len(alphas) > 1:
-        alphas = np.sort(alphas)[::-1]
-    n_alphas = len(alphas)
-    optimiser = CelerElasticNet(
-        l1_ratio=l1_ratio,
-        fit_intercept=False,
-        warm_start=True,
-        verbose=model.verbose,
-        max_iter=model.inner_solver_max_iter,
-        max_epochs=model.inner_solver_max_epochs,
-        p0=model.inner_solver_p0,
-        prune=model.inner_solver_prune,
-    )
-    strong_screener = StrongScreener(p=X.shape[1], l1_ratio=l1_ratio)
-    eta_previous = np.zeros(X.shape[0])
-    beta_previous = np.zeros(X.shape[1])
-    coefs = np.zeros((n_features, n_alphas), dtype=X.dtype)
-    train_eta = np.empty((n_samples, n_alphas), dtype=X.dtype)
-    test_eta = np.empty((test_samples, n_alphas), dtype=X.dtype)
-    eta_previous_alpha = np.zeros(X.shape[0])
-    active_variables = np.empty(0, dtype=int)
-    for i, alpha in enumerate(alphas):
-        # If this is a path, we skip the first alpha
-        # since it is always sparse.
-        if i == 0 and max_first:
-            eta_new = eta_previous
-            beta_new = beta_previous
-            alpha_previous = alpha
-            coefs[..., i] = beta_previous
-            train_eta[..., i] = eta_new
-            test_eta[..., i] = np.matmul(
-                X_test[:, active_variables], beta_previous[active_variables]
-            )
-            continue
-        previous_working_set = strong_screener.working_set
-        optimiser.__setattr__("alpha", alpha)
-        for q in range(model.n_irls_iter):
-            gradient: np.array
-            hessian: np.array
-            gradient, hessian = model.gradient(
-                linear_predictor=eta_previous,
-                time=time,
-                event=event,
-            )
-            hessian_mask = np.logical_and(
-                (hessian > 0).astype(bool), np.logical_not(np.isnan(hessian))
-            )
-            inverse_hessian = np.zeros(gradient.shape[0])
-            inverse_hessian[hessian_mask] = 1 / hessian[hessian_mask]
-            weights = hessian
-            weights_scaled = weights * (
-                hessian_mask.shape[0] / np.sum(weights)
-            )
-            y_irls = eta_previous - inverse_hessian * gradient
-            # Calculate strong set if this is not the first alpha
-            # and the first IRLS iteration for this alpha.
-            if i > 0 and q < 1:
-                strong_screener.compute_strong_set(
-                    gradient=1
-                    / n_samples
-                    * np.abs(
-                        np.matmul(
-                            X.T,
-                            (y_irls - eta_previous_alpha) * weights_scaled,
-                        )
-                    ),
-                    alpha=alpha,
-                    alpha_previous=alpha_previous,
-                )
-
-            # For the first alpha, we calculate our optimiser
-            # without any screening.
-            if i == 0:
-                optimiser.fit(
-                    X=X
-                    * np.sqrt(weights_scaled)
-                    .repeat(X.shape[1])
-                    .reshape((X.shape[0], X.shape[1])),
-                    y=np.sqrt(weights_scaled) * y_irls,
-                )
-                beta_new = optimiser.coef_
-                X_working_set = X
-
-            # For the any alpha after the maximum,
-            # (indicated by a sparse working set), we first
-            # check whether there is a non-sparse strong set.
-            # If not: We break without checking KKT to save time.
-            # If yes: We fit only on the strong set.
-            elif strong_screener.working_set.shape[0] == 0:
-                if strong_screener.strong_set.shape[0] == 0:
-                    eta_new = eta_previous
-                    beta_new = beta_previous
-                    alpha_previous = alpha
-                    break
-
-                else:
-                    warm_start_coef = np.zeros(
-                        strong_screener.strong_set.shape[0]
-                    )
-                    optimiser.coef_ = warm_start_coef
-                    X_working_set = X[:, strong_screener.strong_set]
-                    optimiser.fit(
-                        X=X_working_set
-                        * np.sqrt(weights_scaled)
-                        .repeat(X_working_set.shape[1])
-                        .reshape(
-                            (X_working_set.shape[0], X_working_set.shape[1])
-                        ),
-                        y=np.sqrt(weights_scaled) * y_irls,
-                    )
-                    beta_new = np.zeros(X.shape[1])
-                    beta_new[strong_screener.strong_set] = optimiser.coef_
-                    strong_screener.expand_working_set(
-                        np.where(beta_new != 0)[0]
-                    )
-
-            # For any alpha that is not the first non-sparse alpha,
-            # we first fit only with the working
-            # set and only then check potential strong set violations.
-            else:
-                X_working_set = X[:, strong_screener.working_set]
-                warm_start_coef = beta_previous[strong_screener.working_set]
-                optimiser.coef_ = warm_start_coef
-                optimiser.fit(
-                    X=X_working_set
-                    * np.sqrt(weights_scaled)
-                    .repeat(X_working_set.shape[1])
-                    .reshape((X_working_set.shape[0], X_working_set.shape[1])),
-                    y=np.sqrt(weights_scaled) * y_irls,
-                )
-
-                beta_new = np.zeros(X.shape[1])
-                beta_new[strong_screener.working_set] = optimiser.coef_
-
-                # Check KKT for strong set here.
-                while True:
-                    eta_new = optimiser.predict(X_working_set)
-                    strong_screener.check_kkt_strong(
-                        gradient=1
-                        / n_samples
-                        * np.abs(
-                            np.matmul(
-                                X[:, strong_screener.strong_set].T,
-                                (y_irls - eta_new) * weights_scaled,
-                            )
-                        ),
-                        alpha=alpha,
-                    )
-                    if strong_screener.strong_kkt_violated.shape[0] > 0:
-                        warm_start_coef = np.zeros(X.shape[1])
-                        warm_start_coef[
-                            strong_screener.working_set
-                        ] = optimiser.coef_
-                        strong_screener.expand_working_set_with_kkt_violations()
-                        warm_start_coef = warm_start_coef[
-                            strong_screener.working_set
-                        ]
-                        optimiser.coef_ = warm_start_coef
-                        X_working_set = X[:, strong_screener.working_set]
-                        optimiser.fit(
-                            X=X_working_set
-                            * np.sqrt(weights_scaled)
-                            .repeat(X_working_set.shape[1])
-                            .reshape(
-                                (
-                                    X_working_set.shape[0],
-                                    X_working_set.shape[1],
-                                )
-                            ),
-                            y=np.sqrt(weights_scaled) * y_irls,
-                        )
-                        continue
-                    else:
-                        break
-                beta_new = np.zeros(X.shape[1])
-                beta_new[strong_screener.working_set] = optimiser.coef_
-
-            # We stop running IRLS if:
-            # - The convergence threshold is reached.
-            # - The coefficients are fully sparse.
-            # - The number of maximum of IRLS iterations
-            # has been reached.
-            if (
-                np.max(np.abs(beta_new - beta_previous))
-                < model.tol * np.max(np.abs(beta_new))
-                or np.max(np.abs(beta_new)) == 0.0
-                or (q == (model.n_irls_iter - 1))
-            ):
-                # We check the complete set for KKT violations if all
-                # of the below hold:
-                # - Beta is not fully sparse.
-                # - The user has indicated that they want to check it.
-                if (
-                    np.max(np.abs(beta_new)) > 0.0
-                    and model.check_global_kkt
-                    and i > 0
-                ):
-                    while True:
-                        eta_new: np.array = optimiser.predict(X_working_set)
-                        strong_screener.check_kkt_all(
-                            gradient=1
-                            / n_samples
-                            * np.abs(
-                                np.matmul(
-                                    X.T,
-                                    (y_irls - eta_new) * weights_scaled,
-                                )
-                            ),
-                            alpha=alpha,
-                        )
-                        if strong_screener.any_kkt_violated.shape[0] > 0:
-                            warm_start_coef = np.zeros(X.shape[1])
-                            warm_start_coef[
-                                strong_screener.working_set
-                            ] = optimiser.coef_
-                            strong_screener.expand_working_set_with_overall_violations()
-                            warm_start_coef = warm_start_coef[
-                                strong_screener.working_set
-                            ]
-                            optimiser.coef_ = warm_start_coef
-                            X_working_set = X[:, strong_screener.working_set]
-                            optimiser.fit(
-                                X=X_working_set
-                                * np.sqrt(weights_scaled)
-                                .repeat(X_working_set.shape[1])
-                                .reshape(
-                                    (
-                                        X_working_set.shape[0],
-                                        X_working_set.shape[1],
-                                    )
-                                ),
-                                y=np.sqrt(weights_scaled) * y_irls,
-                            )
-                            continue
-                        else:
-                            break
-                beta_new = np.zeros(X.shape[1])
-                beta_new[strong_screener.working_set] = optimiser.coef_
-                eta_previous = eta_new
-                eta_previous_alpha = eta_previous
-                beta_previous = beta_new
-                active_variables = np.where(beta_new != 0)[0]
-                strong_screener.working_set = previous_working_set
-                strong_screener.expand_working_set(active_variables)
-                alpha_previous = alpha
-                break
-            # If IRLS has not yet converged, we update all relevant
-            # variables and move on to the next IRLS iteration.
-            else:
-                eta_new: np.array = optimiser.predict(X_working_set)
-                eta_previous = eta_new
-                beta_previous = beta_new
-                active_variables = np.where(beta_new != 0)[0]
-                alpha_previous = alpha
-        coefs[..., i] = beta_previous
-        train_eta[..., i] = eta_new
-        test_eta[..., i] = np.matmul(
-            X_test[:, active_variables], beta_previous[active_variables]
-        )
-    return coefs, train_eta, test_eta
-
-
-def alpha_path_eta(
-    X: np.array,
-    y: np.array,
-    model: object,
-    gradient: np.array,
-    hessian: np.array,
-    train: List[int],
-    test: List[int],
-    alphas: np.array = None,
-    n_alphas: int = 100,
-    l1_ratio: float = 1.0,
-    eps: float = 0.05,
-) -> Tuple:
-    """Returns the dot product of samples and coefs for the models computed by 'path'.
-
-    Args:
-        X (np.array): Training data of shape (n_samples, n_features).
-        y (np.array): Target values of shape (n_samples,) or (n_samples, n_targets).
-        model (object): The model object pre-initialised to fit the data for each alpha
-            and learn the coefficients.
-        sample_weight (np.array): Sample weights of shape (n_samples,). Pass None if
-            there are no weights.
-        train (List): The indices of the train set.
-        test (List): The indices of the test set.
-        alphas (np.array, optional): Array of float that is used for cross-validation. If not
-        provided, computed using 'path'. Defaults to None.
-        l1_ratio (Union[float,List], optional): Scaling between
-        l1 and l2 penalties. For ``l1_ratio = 0`` the penalty is an
-        L2 penalty. For ``l1_ratio = 1`` it is an L1 penalty. For ``0
-        < l1_ratio < 1``, the penalty is a combination of L1 and L2. Defaults to 1.
-
-    Returns:
-        Tuple: Tuple of the dot products of train and test samples with the coefficients
-            learned during training, and the associated target values for train and test.
-    """
-    X_train = X[train]
-    y_train = y[train]
-    X_test = X[test]
-    y_test = y[test]
-
-    train_order = np.argsort(np.abs(y_train), kind="stable")
-    X_train = X_train[train_order, :]
-    y_train = y_train[train_order]
-
-    n_samples_train = X_train.shape[0]
-    n_samples_test = X_test.shape[0]
-    for array, array_input in (
-        (X_train, X),
-        (y_train, y),
-        (X_test, X),
-        (y_test, y),
-    ):
-        if array.base is not array_input and not array.flags["WRITEABLE"]:
-            array.setflags(write=True)
-
-    if alphas is None:
-        alphas = _alpha_grid_l1(
-            X=X,
-            gradient=gradient,
-            hessian=hessian,
-            l1_ratio=l1_ratio,
-            eps=eps,
-            n_alphas=n_alphas,
-        )
-    elif len(alphas) > 1:
-        alphas = np.sort(alphas)[::-1]
-
-    train_eta = np.empty((n_samples_train, n_alphas), dtype=X.dtype)
-    test_eta = np.empty((n_samples_test, n_alphas), dtype=X.dtype)
-
-    model.__setattr__("warm_start", True)
-    model.__setattr__("l1_ratio", l1_ratio)
-
-    _, train_eta, test_eta = regularisation_path(
-        X=X_train,
-        y=y_train,
-        X_test=X_test,
-        model=model,
-        l1_ratio=l1_ratio,
-        eps=eps,
-        n_alphas=n_alphas,
-        alphas=alphas,
-        max_first=True,
-    )
-
-    return train_eta, test_eta, y_train, y_test
-
-
-def alpha_path_eta_precond(
-    X: np.array,
-    y: np.array,
-    model: object,
-    gradient: np.array,
-    train: List[int],
-    test: List[int],
-    alphas: np.array = None,
-    n_alphas: int = 100,
-    tau: float = 1.0,
-    eps: float = 0.05,
-) -> Tuple:
-    """Returns the dot product of samples and coefs for the models computed by 'path'.
-
-    Args:
-        X (np.array): Training data of shape (n_samples, n_features).
-        y (np.array): Target values of shape (n_samples,) or (n_samples, n_targets).
-        model (object): The model object pre-initialised to fit the data for each alpha
-            and learn the coefficients.
-        sample_weight (np.array): Sample weights of shape (n_samples,). Pass None if
-            there are no weights.
-        train (List): The indices of the train set.
-        test (List): The indices of the test set.
-        alphas (np.array, optional): Array of float that is used for cross-validation. If not
-        provided, computed using 'path'. Defaults to None.
-        l1_ratio (Union[float,List], optional): Scaling between
-        l1 and l2 penalties. For ``l1_ratio = 0`` the penalty is an
-        L2 penalty. For ``l1_ratio = 1`` it is an L1 penalty. For ``0
-        < l1_ratio < 1``, the penalty is a combination of L1 and L2. Defaults to 1.
-
-    Returns:
-        Tuple: Tuple of the dot products of train and test samples with the coefficients
-            learned during training, and the associated target values for train and test.
-    """
-    X_train = X[train]
-    y_train = y[train]
-    X_test = X[test]
-    y_test = y[test]
-
-    time, _, _ = inverse_transform_preconditioning(y_train)
-
-    train_order = np.argsort(time, kind="stable")
-    X_train = X_train[train_order, :]
-    y_train = y_train[train_order]
-
-    n_samples_train = X_train.shape[0]
-    n_samples_test = X_test.shape[0]
-    for array, array_input in (
-        (X_train, X),
-        (y_train, y),
-        (X_test, X),
-        (y_test, y),
-    ):
-        if array.base is not array_input and not array.flags["WRITEABLE"]:
-            array.setflags(write=True)
-
-    if alphas is None:
-        alphas = _alpha_grid_l1(
-            X=X, gradient=gradient, eps=eps, n_alphas=n_alphas
-        )
-    elif len(alphas) > 1:
-        alphas = np.sort(alphas)[::-1]
-
-    train_eta = np.empty((n_samples_train, n_alphas), dtype=X.dtype)
-    test_eta = np.empty((n_samples_test, n_alphas), dtype=X.dtype)
-
-    model.__setattr__("warm_start", True)
-    model.__setattr__("tau", tau)
-
-    _, train_eta, test_eta = regularisation_path_precond(
-        X=X_train,
-        y=y_train,
-        X_test=X_test,
-        model=model,
-        tau=tau,
-        eps=eps,
-        n_alphas=n_alphas,
-        alphas=alphas,
-        check_global_kkt=model.check_global_kkt,
-        max_first=True,
-    )
-
-    return train_eta, test_eta, y_train, y_test
-
-
-class RegularizedLinearSurvivalModelCV(LinearModelCV):
-    """Cross validation class with custom scoring functions."""
-
-    @abstractmethod
     def __init__(
         self,
-        eps: float = 0.05,
+        l1_ratio: Union[float, List[float]] = 1.0,
+        eps: float = 1e-3,
         n_alphas: int = 100,
-        alphas: np.array = None,
-        l1_ratios: Union[float, np.array] = None,
-        cv: Union[int, object] = None,
-        n_jobs: int = None,
-        random_state: int = None,
-    ) -> None:
-        """Constructor.
-
-        Args:
-            optimiser (str): Optimiser to use for model fitting. See OPTIMISERFACTORY for
-                options.
-            cv_score_method (str): CV scoring method to use for model selection. One of
-                ["linear_predictor","regular","vvh"]. Defaults to "linear_predictor".
-            eps (float, optional): Length of the path. ``eps=1e-3`` means that
-                ``alpha_min / alpha_max = 1e-3``. Defaults to 1e-3.
-            n_alphas (int, optional): Number of alphas along the regularization path.
-                Defaults to 100.
-            alphas (np.array, optional): Array of float that is used for cross-validation. If not
-                provided, computed using 'path'. Defaults to None.
-            l1_ratios (Union[float,np.array], optional): Scaling between
-                l1 and l2 penalties. For ``l1_ratio = 0`` the penalty is an
-                L2 penalty. For ``l1_ratio = 1`` it is an L1 penalty. For ``0
-                < l1_ratio < 1``, the penalty is a combination of L1 and L2. Defaults to None.
-            tol (float, optional): The tolerance for the optimization. Defaults to 1e-4.
-            copy_X (bool, optional): Creates a copy of X if True. Defaults to True.
-            cv (Union[int,object], optional): Cross validation splitting strategy.
-                Defaults to None, which uses the default 5-fold cv. Can also pass cv-generator.
-            n_jobs (int, optional): Number of CPUs to use during the cross validation. Defaults to None.
-            random_state (int, optional): The seed of the pseudo random number generator that selects a random
-                feature to update. Defaults to None.
-        """
-
+        max_iter: int = 100,
+        tol: float = 1e-4,
+        cv: int = 5,
+        verbose: int = 0,
+        max_epochs: int = 50000,
+        p0: int = 10,
+        prune: bool = True,
+        n_jobs: Optional[int] = None,
+        stratify_cv: bool = True,
+        seed: Optional[int] = 42,
+        shuffle_cv: bool = False,
+        cv_score_method: str = "linear_predictor",
+        max_coef=np.inf,
+        alpha_type="min",
+    ):
         super().__init__(
+            l1_ratio=l1_ratio,
             eps=eps,
             n_alphas=n_alphas,
-            alphas=alphas,
+            alphas=None,
             fit_intercept=False,
-            max_iter=None,
-            tol=None,
-            copy_X=None,
+            max_iter=max_iter,
+            tol=tol,
             cv=None,
-            n_jobs=None,
-            random_state=None,
+            verbose=verbose,
+            max_epochs=max_epochs,
+            p0=p0,
+            prune=prune,
+            positive=False,
+            n_jobs=n_jobs,
         )
-
-        self.l1_ratios = l1_ratios
-        if isinstance(self.l1_ratios, float):
-            self.l1_ratios = list(self.l1_ratios)
-
-        cv = 5 if cv is None else cv
-        if isinstance(cv, numbers.Integral):
-            self.cv = StratifiedKFold(
-                cv, shuffle=True, random_state=random_state
-            )
-        elif isinstance(cv, Iterable):
-            self.cv = _CVIterableWrapper(cv)
-        elif hasattr(cv, "split"):
-            self.cv = cv
-        else:
-            raise ValueError(
-                "Expected cv to be an integer, sklearn model selection object or an iterable"
-            )
-
-        self.n_jobs = n_jobs
-        self.random_state = random_state
+        self.cv = cv
+        self.stratify_cv = stratify_cv
+        self.seed = seed
+        self.shuffle_cv = shuffle_cv
+        self.cv_score_method = cv_score_method
+        self.max_coef = max_coef
+        self.alpha_type = alpha_type
 
     def fit(
         self,
-        X: np.array,
-        y: np.array,
-    ) -> object:
-        """Fit linear model.
-        Fit is on grid of alphas and best alpha estimated by cross-validation.
-
-        Args:
-            X (np.array): Training data of shape (n_samples, n_features).
-            y (np.array): Target values of shape (n_samples,) or (n_samples, n_targets).
-            sample_weight (Union[float,np.array]): Sample weights used for fitting and evaluation of the weighted
-                mean squared error of each cv-fold. Has shape (n_samples,) and defaults
-                to None.
-
-        Returns:
-            self(object): Returns an instance of fitted model.
-        """
-        time: np.array
-        event: np.array
-        time, event = inverse_transform_survival(y=y)
-        sorted_indices: np.array = np.argsort(a=time, kind="stable")
-        time_sorted: np.array = time[sorted_indices]
-        event_sorted: np.array = event[sorted_indices]
-        X_sorted: np.array = X[sorted_indices, :]
-        y_sorted: np.array = y[sorted_indices]
+        X: npt.NDArray[np.float64],
+        y: npt.NDArray[np.float64],
+        sample_weight: Optional[npt.NDArray[np.float64]] = None,
+    ):
+        """TODO DW"""
+        # TODO DW: Add additional parameter checks here and clean
+        # up the docs a bit more.
         self._validate_params()
-        check_consistent_length(X_sorted, y_sorted)
+        if self.alpha_type == "1se":
+            if self.cv_score_method == "linear_predictor":
+                raise ValueError(
+                    "`alpha_type` `1se` is not available with `cv_score_method` `linear_predictor`."
+                    + "Please choose another score method."
+                )
+        # This makes sure that there is no duplication in memory.
+        # Dealing right with copy_X is important in the following:
+        # Multiple functions touch X and subsamples of X and can induce a
+        # lot of duplication of memory
+        copy_X = self.copy_X and self.fit_intercept
+
+        check_y_params = dict(
+            copy=False, dtype=[np.float64, np.float32], ensure_2d=False
+        )
+        time, event, y = inverse_transform_survival_preconditioning(y)
+        sorted_ix = np.argsort(time)
+        time = time[sorted_ix]
+        event = event[sorted_ix]
+        y = y[sorted_ix]
+        if isinstance(X, np.ndarray) or sparse.isspmatrix(X):
+            # Keep a reference to X
+            reference_to_old_X = X
+            # Let us not impose fortran ordering so far: it is
+            # not useful for the cross-validation loop and will be done
+            # by the model fitting itself
+
+            # Need to validate separately here.
+            # We can't pass multi_output=True because that would allow y to be
+            # csr. We also want to allow y to be 64 or 32 but check_X_y only
+            # allows to convert for 64.
+            check_X_params = dict(
+                accept_sparse="csc", dtype=[np.float64, np.float32], copy=False
+            )
+            X, y = self._validate_data(
+                X, y, validate_separately=(check_X_params, check_y_params)
+            )
+            if sparse.isspmatrix(X):
+                if hasattr(
+                    reference_to_old_X, "data"
+                ) and not np.may_share_memory(reference_to_old_X.data, X.data):
+                    # X is a sparse matrix and has been copied
+                    copy_X = False
+            elif not np.may_share_memory(reference_to_old_X, X):
+                # X has been copied
+                copy_X = False
+            del reference_to_old_X
+        else:
+            # Need to validate separately here.
+            # We can't pass multi_output=True because that would allow y to be
+            # csr. We also want to allow y to be 64 or 32 but check_X_y only
+            # allows to convert for 64.
+            check_X_params = dict(
+                accept_sparse="csc",
+                dtype=[np.float64, np.float32],
+                order="F",
+                copy=copy_X,
+            )
+            X, y = self._validate_data(
+                X, y, validate_separately=(check_X_params, check_y_params)
+            )
+            copy_X = False
+
+        check_consistent_length(X, y)
+
+        if not self._is_multitask():
+            if y.ndim > 1 and y.shape[1] > 1:
+                raise ValueError(
+                    "For multi-task outputs, use MultiTask%s"
+                    % self.__class__.__name__
+                )
+            y = column_or_1d(y, warn=True)
+        else:
+            if sparse.isspmatrix(X):
+                raise TypeError(
+                    "X should be dense but a sparse matrix waspassed"
+                )
+            elif y.ndim == 1:
+                raise ValueError(
+                    "For mono-task outputs, use %sCV"
+                    % self.__class__.__name__[9:]
+                )
+
+        if isinstance(sample_weight, numbers.Number):
+            sample_weight = None
+        if sample_weight is not None:
+            sample_weight = _check_sample_weight(
+                sample_weight, X, dtype=X.dtype
+            )
 
         model = self._get_estimator()
+
+        # All LinearModelCV parameters except 'cv' are acceptable
         path_params = self.get_params()
+
+        # Pop `intercept` that is not parameter of the path function
         path_params.pop("fit_intercept", None)
 
-        if "l1_ratios" in path_params:
-            l1_ratios = np.atleast_1d(path_params["l1_ratios"])
-
-            path_params["l1_ratios"] = l1_ratios
+        if "l1_ratio" in path_params:
+            l1_ratios = np.atleast_1d(path_params["l1_ratio"])
+            # For the first path, we need to set l1_ratio
+            path_params["l1_ratio"] = l1_ratios[0]
         else:
             l1_ratios = [
-                1.0,
+                1,
             ]
-
         path_params.pop("cv", None)
         path_params.pop("n_jobs", None)
 
         alphas = self.alphas
-        n_l1_ratios = len(l1_ratios)
+        n_l1_ratio = len(l1_ratios)
 
         check_scalar_alpha = partial(
             check_scalar,
@@ -991,100 +290,279 @@ class RegularizedLinearSurvivalModelCV(LinearModelCV):
             include_boundaries="left",
         )
 
-        gradient, hessian = model.gradient(
-            linear_predictor=np.zeros(X_sorted.shape[0]),
-            time=time_sorted,
-            event=event_sorted,
-        )
         if alphas is None:
             alphas = [
-                _alpha_grid_l1(
-                    X=X_sorted,
-                    gradient=gradient,
-                    hessian=hessian,
+                _alpha_grid(
+                    X,
+                    y,
                     l1_ratio=l1_ratio,
+                    fit_intercept=self.fit_intercept,
                     eps=self.eps,
                     n_alphas=self.n_alphas,
+                    copy_X=self.copy_X,
                 )
                 for l1_ratio in l1_ratios
             ]
         else:
+            # Making sure alphas entries are scalars.
             for index, alpha in enumerate(alphas):
                 check_scalar_alpha(alpha, f"alphas[{index}]")
+            # Making sure alphas is properly ordered.
+            alphas = np.tile(np.sort(alphas)[::-1], (n_l1_ratio, 1))
 
-            alphas = np.tile(np.sort(alphas)[::-1], (n_l1_ratios, 1))
-
+        # We want n_alphas to be the number of alphas used for each l1_ratio.
         n_alphas = len(alphas[0])
         path_params.update({"n_alphas": n_alphas})
 
-        folds = list(self.cv.split(X_sorted, (y_sorted > 0).astype(int)))
-        best_pl_score = np.inf
+        path_params["copy_X"] = copy_X
+        # We are not computing in parallel, we can modify X
+        # inplace in the folds
+        if effective_n_jobs(self.n_jobs) > 1:
+            path_params["copy_X"] = False
 
+        # init cross-validation generator
+        # init cross-validation generator
+        cv = check_cv(
+            cv=StratifiedKFold(
+                n_splits=5, shuffle=self.shuffle_cv, random_state=self.seed
+            )
+            if self.stratify_cv
+            else KFold(
+                n_splits=5, shuffle=self.shuffle_cv, random_state=self.seed
+            ),
+            y=event,
+            classifier=self.stratify_cv,
+        )
+        # Compute path for all folds and compute MSE to get the best alpha
+        folds = list(cv.split(X, event))
+        best_pl_score = -np.inf
+
+        # We do a double for loop folded in one, in order to be able to
+        # iterate in parallel on l1_ratio and folds
         jobs = (
-            delayed(alpha_path_eta)(
-                X=X_sorted,
-                y=y_sorted,
-                model=model,
-                gradient=gradient,
-                hessian=hessian,
-                train=train,
-                test=test,
+            delayed(_path_predictions)(
+                X,
+                y,
+                time,
+                event,
+                sample_weight,
+                train,
+                test,
+                self.fit_intercept,
+                self.path,
+                path_params,
                 alphas=this_alphas,
-                n_alphas=self.n_alphas,
                 l1_ratio=this_l1_ratio,
-                eps=self.eps,
+                X_order="F",
+                dtype=X.dtype.type,
             )
             for this_l1_ratio, this_alphas in zip(l1_ratios, alphas)
             for train, test in folds
         )
-        eta_path = Parallel(
+        predictions_paths = Parallel(
             n_jobs=self.n_jobs,
             verbose=self.verbose,
             prefer="threads",
         )(jobs)
-        # TODO DW: Since we're not using train eta now,
-        # we can actually remove this.
-        train_eta_folds, test_eta_folds, _, test_y_folds = zip(*eta_path)
-        n_folds = int(len(train_eta_folds) / len(l1_ratios))
+        (
+            train_eta_folds,
+            test_eta_folds,
+            train_y_folds,
+            test_y_folds,
+            n_sparsity_folds,
+        ) = zip(*predictions_paths)
+        n_folds = int(len(test_eta_folds) / len(l1_ratios))
 
         mean_cv_score_l1 = []
         mean_cv_score = []
+        mean_sd_score_l1 = []
+        mean_sd_score = []
+        mean_sparsity_l1 = []
+        mean_sparsity = []
 
         for i in range(len(l1_ratios)):
-            mean_cv_score_l1 = []
+            train_eta = train_eta_folds[n_folds * i : n_folds * (i + 1)]
             test_eta = test_eta_folds[n_folds * i : n_folds * (i + 1)]
+            train_y = train_y_folds[n_folds * i : n_folds * (i + 1)]
             test_y = test_y_folds[n_folds * i : n_folds * (i + 1)]
-            test_eta_method = np.concatenate(test_eta)
-            test_y_method = np.concatenate(test_y)
-            test_time, test_event = inverse_transform_survival(test_y_method)
-            for j in range(len(alphas[i])):
-                likelihood = model.loss(
-                    test_eta_method[:, j], test_time, test_event
-                )
-                if np.isnan(likelihood):
-                    mean_cv_score_l1.append(np.inf)
-                else:
+            n_sparsity = n_sparsity_folds[n_folds * i : n_folds * (i + 1)]
+            n_sparsity = np.ceil(np.mean(np.stack(n_sparsity), axis=0))
+
+            if self.cv_score_method == "linear_predictor":
+                train_eta_method = np.concatenate(train_eta)
+                test_eta_method = np.concatenate(test_eta)
+                train_y_method = np.concatenate(train_y)
+                test_y_method = np.concatenate(test_y)
+
+                (
+                    train_time,
+                    train_event,
+                    _,
+                ) = inverse_transform_survival_preconditioning(train_y_method)
+                (
+                    test_time,
+                    test_event,
+                    _,
+                ) = inverse_transform_survival_preconditioning(test_y_method)
+                for j in range(len(alphas[i])):
+                    likelihood = CVSCORERFACTORY[self.cv_score_method](
+                        test_linear_predictor=test_eta_method[
+                            :, :, j
+                        ].squeeze(),
+                        test_time=test_time,
+                        test_event=test_event,
+                        score_function=self.loss,
+                    )
+
                     mean_cv_score_l1.append(likelihood)
-            mean_cv_score.append(mean_cv_score_l1)
+                    mean_sd_score_l1.append(np.nan)
+                    mean_sparsity_l1.append(n_sparsity[j])
+
+                mean_cv_score.append(mean_cv_score_l1)
+                mean_sd_score.append(mean_sd_score_l1)
+                mean_sparsity.append(mean_sparsity_l1)
+
+            else:
+                test_fold_likelihoods = []
+
+                for j in range(len(alphas[i])):
+                    for k in range(n_folds):
+                        train_eta_method = train_eta[k]
+                        test_eta_method = test_eta[k]
+                        train_y_method = train_y[k].squeeze()
+                        test_y_method = test_y[k].squeeze()
+
+                        (
+                            train_time,
+                            train_event,
+                            _,
+                        ) = inverse_transform_survival_preconditioning(
+                            train_y_method
+                        )
+                        (
+                            test_time,
+                            test_event,
+                            test_eta_hat,
+                        ) = inverse_transform_survival_preconditioning(
+                            test_y_method
+                        )
+                        fold_likelihood = CVSCORERFACTORY[
+                            self.cv_score_method
+                        ](
+                            test_linear_predictor=test_eta_method[
+                                :, :, j
+                            ].squeeze(),
+                            test_time=test_time,
+                            test_event=test_event,
+                            test_eta_hat=test_eta_hat,
+                            train_linear_predictor=train_eta_method[
+                                :, :, j
+                            ].squeeze(),
+                            train_time=train_time,
+                            train_event=train_event,
+                            score_function=self.loss,
+                        )
+                        test_fold_likelihoods.append(fold_likelihood)
+
+                    mean_cv_score_l1.append(np.mean(test_fold_likelihoods))
+                    mean_sd_score_l1.append(np.std(test_fold_likelihoods))
+                    mean_sparsity_l1.append(n_sparsity[j])
+                mean_cv_score.append(mean_cv_score_l1)
+                mean_sd_score.append(mean_sd_score_l1)
+                mean_sparsity.append(mean_sparsity_l1)
 
         self.pl_path_ = mean_cv_score
-        for l1_ratio, l1_alphas, pl_alphas in zip(
-            l1_ratios, alphas, mean_cv_score
-        ):
-            i_best_alpha = np.argmin(mean_cv_score)
-            this_best_pl = pl_alphas[i_best_alpha]
-            if this_best_pl < best_pl_score:
-                best_alpha = l1_alphas[i_best_alpha]
-                best_l1_ratio = l1_ratio
-                best_pl_score = this_best_pl
+        if self.alpha_type == "min":
+            print("HEYO")
+            for l1_ratio, l1_alphas, pl_alphas, n_coefs in zip(
+                l1_ratios, alphas, mean_cv_score, mean_sparsity
+            ):
+                # print(n_coefs)
+                # raise ValueError
+                # np.array(n_coefs) <= self.max_coef
+                # print(np.array(n_coefs) <= self.max_coef)
+                # print(pl_alphas)
+                # print(n_coefs)
+                i_best_alpha = np.argmax(
+                    np.array(pl_alphas)[
+                        np.where(np.array(n_coefs) <= self.max_coef)[0]
+                    ]
+                )
+                this_best_pl = pl_alphas[i_best_alpha]
+                if this_best_pl > best_pl_score:
+                    best_alpha = l1_alphas[i_best_alpha]
+                    best_l1_ratio = l1_ratio
+                    best_pl_score = this_best_pl
+        elif self.alpha_type == "1se":
+            n_best_coef = np.inf
+            for l1_ratio, l1_alphas, pl_alphas, n_coefs, sd_alphas in zip(
+                l1_ratios, alphas, mean_cv_score, mean_sparsity, mean_sd_score
+            ):
+                i_best_alpha = np.argmax(
+                    np.array(pl_alphas)[
+                        np.where(np.array(n_coefs) <= self.max_coef)[0]
+                    ]
+                )
+                this_best_pl = pl_alphas[i_best_alpha]
+                if this_best_pl < best_pl_score:
+                    best_pl_score = this_best_pl - (sd_alphas[i_best_alpha] / np.sqrt(n_folds))
+            for l1_ratio, l1_alphas, pl_alphas, n_coefs, sd_alphas in zip(
+                l1_ratios, alphas, mean_cv_score, mean_sparsity, mean_sd_score
+            ):
+                i_best_alpha = np.argmin(
+                    np.array(np.array(n_coefs))[
+                        np.where(
+                            np.logical_and(
+                                np.array(n_coefs) <= self.max_coef,
+                                np.array(pl_alphas) >= best_pl_score,
+                            )
+                        )[0]
+                    ]
+                )
+                n_coef = np.array(n_coefs)[i_best_alpha]
+                if n_coef < n_best_coef:
+                    n_best_coef = n_coef
+                    best_alpha = l1_alphas[i_best_alpha]
+                    best_l1_ratio = l1_ratio
+
+        elif self.alpha_type == "pcvl":
+            for l1_ratio, l1_alphas, pl_alphas, n_coefs in zip(
+                l1_ratios, alphas, mean_cv_score, mean_sparsity
+            ):
+                pl_alphas = np.array(pl_alphas)
+                n_coefs = np.array(n_coefs)
+                i_best_alpha = np.argmax(
+                    np.array(pl_alphas)[
+                        np.where(np.array(n_coefs) <= self.max_coef)[0]
+                    ]
+                )
+                sparsity_best_alpha = np.array(n_coefs)[i_best_alpha]
+                pl_best_alpha = pl_alphas[i_best_alpha]
+                pl_alpha_max = pl_alphas[0]
+                transformed_range = np.arange(i_best_alpha)
+                transformed_pl_alphas = pl_alphas[transformed_range] - (
+                    ((pl_best_alpha - pl_alpha_max) / sparsity_best_alpha)
+                    * n_coefs[transformed_range]
+                )
+                transformed_i_best_alpha = np.argmax(transformed_pl_alphas)
+                this_best_pl_transformed = transformed_pl_alphas[
+                    transformed_i_best_alpha
+                ]
+                if this_best_pl_transformed > best_pl_score:
+                    best_alpha = l1_alphas[transformed_i_best_alpha]
+                    best_l1_ratio = l1_ratio
+                    best_pl_score = this_best_pl_transformed
+        else:
+            raise ValueError
 
         self.l1_ratio_ = best_l1_ratio
         self.alpha_ = best_alpha
         if self.alphas is None:
             self.alphas_ = np.asarray(alphas)
-            if n_l1_ratios == 1:
+            if n_l1_ratio == 1:
                 self.alphas_ = self.alphas_[0]
 
+        # Remove duplicate alphas in case alphas is provided.
         else:
             self.alphas_ = np.asarray(alphas[0])
 
@@ -1097,270 +575,303 @@ class RegularizedLinearSurvivalModelCV(LinearModelCV):
         model.set_params(**common_params)
         model.alpha = best_alpha
         model.l1_ratio = best_l1_ratio
-        model.fit(X_sorted, y_sorted)
+        model.copy_X = copy_X
+        precompute = getattr(self, "precompute", None)
+        if isinstance(precompute, str) and precompute == "auto":
+            model.precompute = False
+
+        if sample_weight is None:
+            # MultiTaskElasticNetCV does not (yet) support sample_weight, even
+            # not sample_weight=None.
+            model.fit(X, y)
+        else:
+            model.fit(X, y, sample_weight=sample_weight)
         if not hasattr(self, "l1_ratio"):
             del self.l1_ratio_
-        self.model = model
         self.coef_ = model.coef_
         self.intercept_ = model.intercept_
+        self.dual_gap_ = model.dual_gap_
+        self.n_iter_ = model.n_iter_
 
+        self.train_time_ = time
+        self.train_event_ = event
+        self.train_eta_ = model.predict(X)
         return self
 
-    def predict_survival_function(
-        self, X: np.array, time: np.array
-    ) -> pd.DataFrame:
-        return self.model.predict_survival_function(X, time)
+    def _is_multitask(self):
+        """Return whether the model instance in question is a multitask model."""
+        return False
+
+    def predict(self, X: npt.NDArray[np.float64]):
+        """Calculate linear predictor corresponding to query design matrix X."""
+        return X @ self.coef_
 
 
-class RegularizedPreconditionedLinearSurvivalModelCV(LinearModelCV):
-    """Cross validation class with custom scoring functions."""
+# @typechecked
+class PCPHElasticNetCV(PCSurvCV):
+    """TODO DW"""
 
-    @abstractmethod
     def __init__(
         self,
-        eps: float = 0.05,
+        tie_correction: str = "efron",
+        l1_ratio: Union[float, List[float]] = 1.0,
+        eps: float = 1e-3,
         n_alphas: int = 100,
-        alphas: np.array = None,
-        taus: Union[float, np.array] = None,
-        cv: Union[int, object] = None,
-        n_jobs: int = None,
-        random_state: int = None,
-    ) -> None:
-        """Constructor.
-
-        Args:
-            optimiser (str): Optimiser to use for model fitting. See OPTIMISERFACTORY for
-                options.
-            cv_score_method (str): CV scoring method to use for model selection. One of
-                ["linear_predictor","regular","vvh"]. Defaults to "linear_predictor".
-            eps (float, optional): Length of the path. ``eps=1e-3`` means that
-                ``alpha_min / alpha_max = 1e-3``. Defaults to 1e-3.
-            n_alphas (int, optional): Number of alphas along the regularization path.
-                Defaults to 100.
-            alphas (np.array, optional): Array of float that is used for cross-validation. If not
-                provided, computed using 'path'. Defaults to None.
-            l1_ratios (Union[float,np.array], optional): Scaling between
-                l1 and l2 penalties. For ``l1_ratio = 0`` the penalty is an
-                L2 penalty. For ``l1_ratio = 1`` it is an L1 penalty. For ``0
-                < l1_ratio < 1``, the penalty is a combination of L1 and L2. Defaults to None.
-            tol (float, optional): The tolerance for the optimization. Defaults to 1e-4.
-            copy_X (bool, optional): Creates a copy of X if True. Defaults to True.
-            cv (Union[int,object], optional): Cross validation splitting strategy.
-                Defaults to None, which uses the default 5-fold cv. Can also pass cv-generator.
-            n_jobs (int, optional): Number of CPUs to use during the cross validation. Defaults to None.
-            random_state (int, optional): The seed of the pseudo random number generator that selects a random
-                feature to update. Defaults to None.
-        """
-
+        max_iter: int = 100,
+        tol: float = 1e-4,
+        cv: int = 5,
+        verbose: int = 0,
+        max_epochs: int = 50000,
+        p0: int = 10,
+        prune: bool = True,
+        n_jobs: Optional[int] = None,
+        stratify_cv: bool = True,
+        seed: Optional[int] = 42,
+        shuffle_cv: bool = False,
+        cv_score_method: str = "linear_predictor",
+        max_coef=np.inf,
+        alpha_type="min",
+    ):
         super().__init__(
+            l1_ratio=l1_ratio,
             eps=eps,
             n_alphas=n_alphas,
-            alphas=alphas,
-            fit_intercept=False,
-            max_iter=None,
-            tol=None,
-            copy_X=None,
-            cv=None,
-            n_jobs=None,
-            random_state=None,
+            max_iter=max_iter,
+            tol=tol,
+            cv=cv,
+            verbose=verbose,
+            max_epochs=max_epochs,
+            p0=p0,
+            prune=prune,
+            n_jobs=n_jobs,
+            stratify_cv=stratify_cv,
+            seed=seed,
+            shuffle_cv=shuffle_cv,
+            cv_score_method=cv_score_method,
+            max_coef=max_coef,
+            alpha_type=alpha_type
         )
-
-        self.taus = taus
-        if isinstance(self.taus, float):
-            self.taus = list(self.taus)
-
-        cv = 5 if cv is None else cv
-        if isinstance(cv, numbers.Integral):
-            self.cv = StratifiedKFold(
-                cv, shuffle=True, random_state=random_state
-            )
-        elif isinstance(cv, Iterable):
-            self.cv = _CVIterableWrapper(cv)
-        elif hasattr(cv, "split"):
-            self.cv = cv
-        else:
+        if tie_correction not in ["breslow", "efron"]:
             raise ValueError(
-                "Expected cv to be an integer, sklearn model selection object or an iterable"
+                "Expected `tie_corection` to be in ['breslow', 'efron']."
+                + f"Found {tie_correction} instead."
             )
+        self.tie_correction = tie_correction
+        self.loss = LOSS_FACTORY[tie_correction]
+        self.cumulative_baseline_hazard = BASELINE_HAZARD_FACTORY["breslow"]
 
-        self.n_jobs = n_jobs
-        self.random_state = random_state
-
-    def fit(
-        self,
-        X: np.array,
-        y: np.array,
-    ) -> object:
-        """Fit linear model.
-        Fit is on grid of alphas and best alpha estimated by cross-validation.
-
-        Args:
-            X (np.array): Training data of shape (n_samples, n_features).
-            y (np.array): Target values of shape (n_samples,) or (n_samples, n_targets).
-            sample_weight (Union[float,np.array]): Sample weights used for fitting and evaluation of the weighted
-                mean squared error of each cv-fold. Has shape (n_samples,) and defaults
-                to None.
-
-        Returns:
-            self(object): Returns an instance of fitted model.
-        """
-        time: np.array
-        event: np.array
-        time, event, y_teacher = inverse_transform_preconditioning(y=y)
-        sorted_indices: np.array = np.argsort(a=time, kind="stable")
-        time_sorted: np.array = time[sorted_indices]
-        event_sorted: np.array = event[sorted_indices]
-        y_teacher_sorted = y_teacher[sorted_indices]
-        X_sorted: np.array = X[sorted_indices, :]
-        y_sorted: np.array = y[sorted_indices]
-        self._validate_params()
-        check_consistent_length(X_sorted, y_sorted)
-
-        model = self._get_estimator()
-        path_params = self.get_params()
-        path_params.pop("fit_intercept", None)
-
-        if "taus" in path_params:
-            taus = np.atleast_1d(path_params["taus"])
-
-            path_params["taus"] = taus
-        else:
-            taus = [
-                1.0,
-            ]
-
-        path_params.pop("cv", None)
-        path_params.pop("n_jobs", None)
-
-        alphas = self.alphas
-        n_taus = len(taus)
-
-        check_scalar_alpha = partial(
-            check_scalar,
-            target_type=Real,
-            min_val=0.0,
-            include_boundaries="left",
-        )
-
-        if alphas is None:
-            alphas = [
-                _alpha_grid_l1_preconditioning(
-                    gradient=model.gradient(
-                        coef=np.zeros(X.shape[1]),
-                        time=time_sorted,
-                        event=event_sorted,
-                        eta_hat=y_teacher_sorted,
-                        X=X_sorted,
-                        tau=tau,
-                    ),
-                    eps=self.eps,
-                    n_alphas=self.n_alphas,
-                )
-                for tau in taus
-            ]
-        else:
-            for index, alpha in enumerate(alphas):
-                check_scalar_alpha(alpha, f"alphas[{index}]")
-
-            alphas = np.tile(np.sort(alphas)[::-1], (n_taus, 1))
-
-        n_alphas = len(alphas[0])
-        path_params.update({"n_alphas": n_alphas})
-
-        folds = list(self.cv.split(X_sorted, (event).astype(int)))
-        best_pl_score = np.inf
-
-        jobs = (
-            delayed(alpha_path_eta_precond)(
-                X=X_sorted,
-                y=y_sorted,
-                model=model,
-                gradient=model.gradient(
-                    coef=np.zeros(X.shape[1]),
-                    time=time_sorted,
-                    event=event_sorted,
-                    eta_hat=y_teacher_sorted,
-                    X=X_sorted,
-                    tau=this_tau,
-                ),
-                train=train,
-                test=test,
-                alphas=this_alphas,
-                n_alphas=self.n_alphas,
-                tau=this_tau,
-                eps=self.eps,
-            )
-            for this_tau, this_alphas in zip(taus, alphas)
-            for train, test in folds
-        )
-        eta_path = Parallel(
-            n_jobs=self.n_jobs,
-            verbose=self.verbose,
-            prefer="threads",
-        )(jobs)
-        # TODO DW: Since we're not using train eta now,
-        # we can actually remove this.
-        train_eta_folds, test_eta_folds, _, test_y_folds = zip(*eta_path)
-        n_folds = int(len(train_eta_folds) / n_taus)
-
-        mean_cv_score_tau = []
-        mean_cv_score = []
-
-        for i in range(n_taus):
-            mean_cv_score_tau = []
-            test_eta = test_eta_folds[n_folds * i : n_folds * (i + 1)]
-            test_y = test_y_folds[n_folds * i : n_folds * (i + 1)]
-            test_eta_method = np.concatenate(test_eta)
-            test_y_method = np.concatenate(test_y)
-            test_time, test_event, _ = inverse_transform_preconditioning(
-                test_y_method
-            )
-            for j in range(len(alphas[i])):
-                likelihood = LOSS_FACTORY[model.tie_correction](
-                    test_eta_method[:, j], test_time, test_event
-                )
-                if np.isnan(likelihood):
-                    mean_cv_score_tau.append(np.inf)
-                else:
-                    mean_cv_score_tau.append(likelihood)
-            mean_cv_score.append(mean_cv_score_tau)
-
-        self.pl_path_ = mean_cv_score
-        for tau, tau_alphas, pl_alphas in zip(taus, alphas, mean_cv_score):
-            i_best_alpha = np.argmin(pl_alphas)
-            this_best_pl = pl_alphas[i_best_alpha]
-            if this_best_pl < best_pl_score:
-                best_alpha = tau_alphas[i_best_alpha]
-                best_tau = tau
-                best_pl_score = this_best_pl
-
-        self.tau = best_tau
-        self.alpha_ = best_alpha
-        if self.alphas is None:
-            self.alphas_ = np.asarray(alphas)
-            if n_taus == 1:
-                self.alphas_ = self.alphas_[0]
-
-        else:
-            self.alphas_ = np.asarray(alphas[0])
-
-        # Refit the model with the parameters selected
-        common_params = {
-            name: value
-            for name, value in self.get_params().items()
-            if name in model.get_params()
-        }
-        model.set_params(**common_params)
-        model.alpha = best_alpha
-        model.tau = best_tau
-        model.fit(X_sorted, y_sorted)
-        self.model = model
-        self.coef_ = model.coef_
-        self.intercept_ = model.intercept_
-
-        return self
-
-    def predict_survival_function(
-        self, X: np.array, time: np.array
+    def predict_cumulative_hazard_function(
+        self, X: npt.NDArray[np.float64], time: npt.NDArray[np.float64]
     ) -> pd.DataFrame:
-        return self.model.predict_survival_function(X, time)
+        """TODO DW"""
+        if np.min(time) < 0:
+            raise ValueError(
+                "Times for survival and cumulative hazard prediction must be greater than or equal to zero."
+                + f"Minimum time found was {np.min(time)}."
+                + "Please remove any times strictly less than zero."
+            )
+        cumulative_baseline_hazards_times: np.array
+        cumulative_baseline_hazards: np.array
+        (
+            cumulative_baseline_hazards_times,
+            cumulative_baseline_hazards,
+        ) = self.cumulative_baseline_hazard(
+            time=self.train_time_, event=self.train_event_, eta=self.train_eta_
+        )
+        cumulative_baseline_hazards = np.concatenate(
+            [np.array([0.0]), cumulative_baseline_hazards]
+        )
+        cumulative_baseline_hazards_times: np.array = np.concatenate(
+            [np.array([0.0]), cumulative_baseline_hazards_times]
+        )
+        cumulative_baseline_hazards: np.array = np.tile(
+            A=cumulative_baseline_hazards[
+                np.digitize(
+                    x=time, bins=cumulative_baseline_hazards_times, right=False
+                )
+                - 1
+            ],
+            reps=X.shape[0],
+        ).reshape((X.shape[0], time.shape[0]))
+        log_hazards: np.array = (
+            np.tile(
+                A=self.predict(X),
+                reps=time.shape[0],
+            )
+            .reshape((time.shape[0], X.shape[0]))
+            .T
+        )
+        cumulative_hazard_function: pd.DataFrame = pd.DataFrame(
+            cumulative_baseline_hazards * np.exp(log_hazards),
+            columns=time,
+        )
+        return cumulative_hazard_function
+
+
+# @typechecked
+class PCAFTElasticNetCV(PCSurvCV):
+    """TODO DW"""
+
+    def __init__(
+        self,
+        bandwidth: Optional[float] = None,
+        l1_ratio: Union[float, List[float]] = 1.0,
+        eps: float = 1e-3,
+        n_alphas: int = 100,
+        max_iter: int = 100,
+        tol: float = 1e-4,
+        cv: int = 5,
+        verbose: int = 0,
+        max_epochs: int = 50000,
+        p0: int = 10,
+        prune: bool = True,
+        n_jobs: Optional[int] = None,
+        stratify_cv: bool = True,
+        seed: Optional[int] = 42,
+        shuffle_cv: bool = False,
+        cv_score_method: str = "linear_predictor",
+        max_coef=np.inf,
+        alpha_type="min",
+    ):
+        super().__init__(
+            l1_ratio=l1_ratio,
+            eps=eps,
+            n_alphas=n_alphas,
+            max_iter=max_iter,
+            tol=tol,
+            cv=cv,
+            verbose=verbose,
+            max_epochs=max_epochs,
+            p0=p0,
+            prune=prune,
+            n_jobs=n_jobs,
+            stratify_cv=stratify_cv,
+            seed=seed,
+            shuffle_cv=shuffle_cv,
+            cv_score_method=cv_score_method,
+            max_coef=max_coef,
+            alpha_type=alpha_type
+        )
+        self.bandwidth = bandwidth
+        self.loss = LOSS_FACTORY["aft"]
+        self.cumulative_baseline_hazard = BASELINE_HAZARD_FACTORY["aft"]
+
+    def predict_cumulative_hazard_function(
+        self, X: npt.NDArray[np.float64], time: npt.NDArray[np.float64]
+    ) -> pd.DataFrame:
+        """TODO DW"""
+        if np.min(time) < 0:
+            raise ValueError(
+                "Times for survival and cumulative hazard prediction must be greater than or equal to zero."
+                + f"Minimum time found was {np.min(time)}."
+                + "Please remove any times strictly less than zero."
+            )
+        return self.cumulative_baseline_hazard(
+            time_query=time,
+            eta_query=self.predict(X=X),
+            time_train=self.train_time_,
+            event_train=self.train_event_,
+            eta_train=self.train_eta_,
+        )
+
+
+class PCEHMultiTaskLassoCV(PCSurvCV):
+    """TODO DW"""
+
+    def __init__(
+        self,
+        bandwidth: Optional[float] = None,
+        eps: float = 1e-3,
+        n_alphas: int = 100,
+        max_iter: int = 100,
+        tol: float = 1e-4,
+        cv: int = 5,
+        verbose: int = 0,
+        max_epochs: int = 50000,
+        p0: int = 10,
+        prune: bool = True,
+        n_jobs: Optional[int] = None,
+        stratify_cv: bool = True,
+        seed: Optional[int] = 42,
+        shuffle_cv: bool = False,
+        cv_score_method: str = "linear_predictor",
+        max_coef=np.inf,
+        alpha_type="min",
+    ):
+        super().__init__(
+            l1_ratio=1.0,
+            eps=eps,
+            n_alphas=n_alphas,
+            max_iter=max_iter,
+            tol=tol,
+            cv=cv,
+            verbose=verbose,
+            max_epochs=max_epochs,
+            p0=p0,
+            prune=prune,
+            n_jobs=n_jobs,
+            stratify_cv=stratify_cv,
+            seed=seed,
+            shuffle_cv=shuffle_cv,
+            cv_score_method=cv_score_method,
+            max_coef=max_coef,
+            alpha_type=alpha_type
+        )
+        self.bandwidth = bandwidth
+        self.loss = LOSS_FACTORY["eh"]
+        self.cumulative_baseline_hazard = BASELINE_HAZARD_FACTORY["eh"]
+
+    def path(self, X, y, alphas, coef_init=None, **kwargs):
+        """Compute Lasso path with Celer.
+
+        Function taken as-is from celer for compatibility with parent class.
+
+        See Also
+        --------
+        celer.homotopy.mtl_path
+        celer.dropin_sklearn.MultiTaskLassoCV
+        """
+
+        alphas, coefs, dual_gaps = celer.homotopy.mtl_path(
+            X,
+            y,
+            alphas=alphas,
+            coef_init=coef_init,
+            max_iter=self.max_iter,
+            max_epochs=self.max_epochs,
+            p0=self.p0,
+            verbose=self.verbose,
+            tol=self.tol,
+            prune=self.prune,
+        )
+
+        return alphas, coefs, dual_gaps
+
+    def predict(self, X: npt.NDArray[np.float64]):
+        """Calculate linear predictor corresponding to query design matrix X."""
+        return X @ self.coef_.T
+
+    def _is_multitask(self):
+        """Return whether the model instance in question is a multitask model."""
+        return True
+
+    def _get_estimator(self):
+        return celer.MultiTaskLasso()
+
+    def predict_cumulative_hazard_function(
+        self, X: npt.NDArray[np.float64], time: npt.NDArray[np.float64]
+    ) -> pd.DataFrame:
+        """TODO DW"""
+        if np.min(time) < 0:
+            raise ValueError(
+                "Times for survival and cumulative hazard prediction must be greater than or equal to zero."
+                + f"Minimum time found was {np.min(time)}."
+                + "Please remove any times strictly less than zero."
+            )
+        return self.cumulative_baseline_hazard(
+            time_query=time,
+            eta_query=self.predict(X=X),
+            time_train=self.train_time_,
+            event_train=self.train_event_,
+            eta_train=self.train_eta_,
+        )

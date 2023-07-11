@@ -1,0 +1,25 @@
+{
+    "random_state": 42,
+    "datasets": [
+        "BLCA",
+        "BRCA",
+        "HNSC",
+        "KIRC",
+        "LGG",
+        "LIHC",
+        "LUAD",
+        "LUSC",
+        "OV",
+        "STAD"
+    ],
+    "n_outer_splits": 5,
+    "n_outer_repetitions": 5,
+    "pc_n_components": 16,
+    "l1_ratio": 0.9,
+    "eps": 0.01,
+    "n_alphas": 100,
+    "n_inner_cv": 5,
+    "stratify_cv": true,
+    "seed": 42,
+    "shuffle_cv": true
+}

@@ -1,377 +1,434 @@
-from typing import Tuple
+from typing import Optional
 
 import numpy as np
+import numpy.typing as npt
 from numba import jit
+from typeguard import typechecked
 
-from .constants import EPS
-
-
-@jit(nopython=True, cache=True, fastmath=True)
-def update_risk_sets_breslow(
-    risk_set_sum: float,
-    death_set_count: int,
-    local_risk_set: float,
-    local_risk_set_hessian: float,
-) -> Tuple[float, float]:
-    """_summary_
-
-    Args:
-        risk_set_sum (float): _description_
-        death_set_count (int): _description_
-        local_risk_set (float): _description_
-        local_risk_set_hessian (float): _description_
-
-    Returns:
-        Tuple[float, float]: _description_
-    """
-    local_risk_set += 1 / (risk_set_sum / death_set_count)
-    local_risk_set_hessian += 1 / ((risk_set_sum**2) / death_set_count)
-    return local_risk_set, local_risk_set_hessian
+from .constants import CDF_ZERO, PDF_PREFACTOR
+from .utils import difference_kernels
 
 
 @jit(nopython=True, cache=True, fastmath=True)
-def calculate_sample_grad_hess(
-    sample_partial_hazard: float,
-    sample_event: int,
-    local_risk_set: float,
-    local_risk_set_hessian: float,
-) -> Tuple[float, float]:
-    """_summary_
+def aft_gradient(
+    linear_predictor: npt.NDArray[np.float64],
+    time: npt.NDArray[np.float64],
+    event: npt.NDArray[np.int64],
+    bandwidth: Optional[float] = None,
+):
+    """Calculates the negative gradient of the AFT model wrt eta.
 
-    Args:
-        sample_partial_hazard (float): _description_
-        sample_event (int): _description_
-        local_risk_set (float): _description_
-        local_risk_set_hessian (float): _description_
+    Parameters
+    ----------
+    linear_predictor: npt.NDArray[np.float64]
+        Linear predictor of the training data. Of dimension n.
+    time: npt.NDArray[np.float64]
+        Time of the training data. Of dimension n. Assumed to be sorted
+        (does not matter here, but regardless).
+    event: npt.NDArray[np.int64]
+        Event indicator of the training data. Of dimension n.
+    bandwidth: Optional[float]
+        Bandwidth to kernel-smooth the profile likelihood. Will
+        be estimated if not specified.
 
-    Returns:
-        Tuple[float, float]: _description_
+    Returns
+    -------
+    gradient: npt.NDArray[np.float64]
+        Negative gradient of the AFT model wrt eta. Of dimensionality n.
     """
-    return (
-        sample_partial_hazard * local_risk_set
-    ) - sample_event, sample_partial_hazard * local_risk_set - local_risk_set_hessian * (
-        sample_partial_hazard**2
+    linear_predictor: npt.NDArray[np.float64] = np.exp(linear_predictor)
+    linear_predictor = np.log(time * linear_predictor)
+    n_samples: int = time.shape[0]
+
+    # Estimate bandwidth using an estimate proportional to the
+    # the optimal bandwidth.
+    if bandwidth is None:
+        bandwidth = 1.30 * pow(n_samples, -0.2)
+    gradient: np.array = np.empty(n_samples)
+    event_mask: np.array = event.astype(np.bool_)
+    inverse_sample_size: float = 1 / n_samples
+    inverse_bandwidth: float = 1 / bandwidth
+    inverse_sample_size_bandwidth: float = (
+        inverse_sample_size * inverse_bandwidth
     )
 
+    zero_kernel: float = PDF_PREFACTOR
+    event_count: int = 0
 
-@jit(nopython=True, cache=True, fastmath=True)
-def breslow_numba_stable(
-    linear_predictor: np.array,
-    time: np.array,
-    event: np.array,
-) -> Tuple[np.array, np.array]:
-    """Gradient of the Breslow approximated version of CoxPH in numba-compatible form.
+    # Cache various calculated quantities to reuse during later
+    # calculation of the gradient.
+    (
+        difference_outer_product,
+        kernel_matrix,
+        integrated_kernel_matrix,
+    ) = difference_kernels(
+        a=linear_predictor, b=linear_predictor[event_mask], bandwidth=bandwidth
+    )
 
-    Args:
-        linear_predictor (np.array): Linear predictor of risk: `X @ coef`. Shape = (n_samples,).
-        time (np.array): Array containing event/censoring times of shape = (n_samples,).
-        event (np.array): Array containing binary event indicators of shape = (n_samples,).
+    kernel_numerator_full: np.array = (
+        kernel_matrix * difference_outer_product * inverse_bandwidth
+    )
 
-    Returns:
-        Tuple[np.array, np.array]: Tuple containing the negative gradients and the hessian
-            of with the linear predictor.
-    """
-    partial_hazard = np.exp(linear_predictor - np.max(linear_predictor))
-    partial_hazard[partial_hazard < EPS] = EPS
-    samples = time.shape[0]
-    risk_set_sum = 0
-    for i in range(samples):
-        risk_set_sum += partial_hazard[i]
+    kernel_denominator: np.array = kernel_matrix[event_mask, :].sum(axis=0)
 
-    grad = np.empty(samples)
-    hess = np.empty(samples)
-    previous_time = time[0]
-    local_risk_set = 0
-    local_risk_set_hessian = 0
-    death_set_count = 0
-    censoring_set_count = 0
-    accumulated_sum = 0
+    integrated_kernel_denominator: np.array = integrated_kernel_matrix.sum(
+        axis=0
+    )
 
-    for i in range(samples):
-        sample_time = time[i]
-        sample_event = event[i]
-        sample_partial_hazard = partial_hazard[i]
-        if previous_time < sample_time:
-            if death_set_count:
-                (
-                    local_risk_set,
-                    local_risk_set_hessian,
-                ) = update_risk_sets_breslow(
-                    risk_set_sum,
-                    death_set_count,
-                    local_risk_set,
-                    local_risk_set_hessian,
-                )
-            for death in range(death_set_count + censoring_set_count):
-                death_ix = i - 1 - death
-                (grad[death_ix], hess[death_ix],) = calculate_sample_grad_hess(
-                    partial_hazard[death_ix],
-                    event[death_ix],
-                    local_risk_set,
-                    local_risk_set_hessian,
-                )
+    for _ in range(n_samples):
 
-            risk_set_sum -= accumulated_sum
-            accumulated_sum = 0
-            death_set_count = 0
-            censoring_set_count = 0
+        sample_event: int = event[_]
+        gradient_three = -(
+            inverse_sample_size
+            * (
+                kernel_matrix[_, :]
+                * inverse_bandwidth
+                / integrated_kernel_denominator
+            ).sum()
+        )
 
         if sample_event:
-            death_set_count += 1
+            gradient_correction_factor = (
+                inverse_sample_size_bandwidth
+                * zero_kernel
+                / integrated_kernel_denominator[event_count]
+            )
+
+            gradient_one = -(
+                inverse_sample_size
+                * (
+                    kernel_numerator_full[
+                        _,
+                    ]
+                    / kernel_denominator
+                ).sum()
+            )
+
+            prefactor: float = kernel_numerator_full[
+                event_mask, event_count
+            ].sum() / (kernel_denominator[event_count])
+
+            gradient_two = inverse_sample_size * prefactor
+
+            prefactor = (
+                (kernel_matrix[:, event_count].sum() - zero_kernel)
+                * inverse_bandwidth
+                / integrated_kernel_matrix[:, event_count].sum()
+            )
+            gradient_four = inverse_sample_size * prefactor
+
+            gradient[_] = (
+                gradient_one
+                + gradient_two
+                + gradient_three
+                + gradient_four
+                + gradient_correction_factor
+            )
+
+            event_count += 1
+
         else:
-            censoring_set_count += 1
+            gradient[_] = gradient_three
 
-        accumulated_sum += sample_partial_hazard
-        previous_time = sample_time
+    # Flip the gradient sign since we are performing minimization.
+    gradient = np.negative(gradient)
+    return gradient
 
-    i += 1
-    if death_set_count:
-        local_risk_set, local_risk_set_hessian = update_risk_sets_breslow(
-            risk_set_sum,
-            death_set_count,
-            local_risk_set,
-            local_risk_set_hessian,
-        )
-    for death in range(death_set_count + censoring_set_count):
-        death_ix = i - 1 - death
-        (grad[death_ix], hess[death_ix],) = calculate_sample_grad_hess(
-            partial_hazard[death_ix],
-            event[death_ix],
-            local_risk_set,
-            local_risk_set_hessian,
-        )
-    return grad / samples, hess / samples
+
+#@typechecked
+def aft_gradient_beta(
+    beta: npt.NDArray[np.float64],
+    X: npt.NDArray[np.float64],
+    time: npt.NDArray[np.float64],
+    event: npt.NDArray[np.int64],
+    bandwidth: Optional[float] = None,
+):
+    """Calculates the negative gradient of the AFT model wrt beta.
+
+    Utility function to be used with off-the-shelf optimisers (e.g., scipy).
+    Since the main gradient function calculates the gradient wrt eta
+    (see `aft_gradient`), we recover the gradient wrt beta through a
+    matrix multiplication.
+
+    Parameters
+    ----------
+    beta: npt.NDArray[np.float64]
+        Coefficient vector. Length p.
+    X: npt.NDarray[np.float64]
+        Design matrix of the training data. N rows and p columns.
+    time: npt.NDArray[np.float64]
+        Time of the training data. Length n. Assumed to be sorted
+        (does not matter here, but regardless).
+    event: npt.NDArray[np.int64]
+        Event indicator of the training data. Length n.
+    bandwidth: Optional[float]
+        Bandwidth to kernel-smooth the profile likelihood. Will
+        be estimated empirically if not specified.
+
+    Returns
+    -------
+    beta_gradient: npt.NDArray[np.float64]
+        Negative gradient of the AFT model wrt beta. Length p.
+    """
+    # if not np.array_equal(np.sort(time), time):
+    #     raise ValueError(
+    #         "`time` is expected to be sorted (ascending). Unsorted `time` found instead."
+    #     )
+    eta_gradient: npt.NDArray[np.float64] = aft_gradient(
+        linear_predictor=np.matmul(X, beta),
+        time=time,
+        event=event,
+        bandwidth=bandwidth,
+    )
+    beta_gradient: npt.NDArray[np.float64] = np.matmul(X.T, eta_gradient)
+    return beta_gradient
 
 
 @jit(nopython=True, cache=True, fastmath=True)
-def calculate_sample_grad_hess_efron(
-    sample_partial_hazard: float,
-    sample_event: int,
-    local_risk_set: float,
-    local_risk_set_hessian: float,
-    local_risk_set_death: float,
-    local_risk_set_hessian_death: float,
-) -> Tuple[float, float]:
-    """_summary_
+def eh_gradient(
+    linear_predictor: npt.NDArray[np.float64],
+    time: npt.NDArray[np.float64],
+    event: npt.NDArray[np.int64],
+    bandwidth: Optional[float] = None,
+) -> np.array:
+    """Calculates the negative gradient of the EH model wrt eta.
 
-    Args:
-        sample_partial_hazard (float): _description_
-        sample_event (int): _description_
-        local_risk_set (float): _description_
-        local_risk_set_hessian (float): _description_
-        local_risk_set_death (float): _description_
-        local_risk_set_hessian_death (float): _description_
+    Parameters
+    ----------
+    linear_predictor: npt.NDArray[np.float64]
+        Linear predictor of the training data. N rows and 2 columns.
+    time: npt.NDArray[np.float64]
+        Time of the training data. Of dimension n. Assumed to be sorted
+        (does not matter here, but regardless).
+    event: npt.NDArray[np.int64]
+        Event indicator of the training data. Of dimension n.
+    bandwidth: Optional[float]
+        Bandwidth to kernel-smooth the profile likelihood. Will
+        be estimated if not specified.
 
-    Returns:
-        Tuple[float, float]: _description_
+    Returns
+    -------
+    gradient: npt.NDArray[np.float64]
+        Negative gradient of the EH model wrt eta. Of dimensionality 2n.
     """
-    if sample_event:
-        return ((sample_partial_hazard) * (local_risk_set_death)) - (
-            sample_event
-        ), (sample_partial_hazard) * (local_risk_set_death) - (
-            (local_risk_set_hessian_death)
-        ) * (
-            (sample_partial_hazard) ** 2
-        )
-    else:
-        return ((sample_partial_hazard) * local_risk_set), (
-            sample_partial_hazard
-        ) * local_risk_set - local_risk_set_hessian * (
-            (sample_partial_hazard) ** 2
-        )
+    n_samples: int = time.shape[0]
+    n_events: int = np.sum(event)
 
+    # Estimate bandwidth using an estimate proportional to the
+    # the optimal bandwidth.
+    if bandwidth is None:
+        bandwidth = 1.30 * pow(n_samples, -0.2)
 
-@jit(nopython=True, cache=True, fastmath=True)
-def update_risk_sets_efron_pre(
-    risk_set_sum: float,
-    death_set_count: int,
-    local_risk_set: float,
-    local_risk_set_hessian: float,
-    death_set_risk: float,
-) -> Tuple[float, float, float, float]:
-    """_summary_
+    # Cache various calculated quantities to reuse during later
+    # calculation of the gradient.
+    theta = np.exp(linear_predictor)
 
-    Args:
-        risk_set_sum (float): _description_
-        death_set_count (int): _description_
-        local_risk_set (float): _description_
-        local_risk_set_hessian (float): _description_
-        death_set_risk (float): _description_
+    linear_predictor_misc = np.log(time * theta[:, 0])
 
-    Returns:
-        Tuple[float, float, float, float]: _description_
-    """
-    local_risk_set_death: float = local_risk_set
-    local_risk_set_hessian_death: float = local_risk_set_hessian
+    linear_predictor_vanilla: np.array = theta[:, 1] / theta[:, 0]
 
-    for ell in range(death_set_count):
-        contribution: float = ell / death_set_count
-        local_risk_set += 1 / (risk_set_sum - (contribution) * death_set_risk)
-        local_risk_set_death += (1 - (ell / death_set_count)) / (
-            risk_set_sum - (contribution) * death_set_risk
-        )
-        local_risk_set_hessian += (
-            1 / ((risk_set_sum - (contribution) * death_set_risk))
-        ) ** 2
+    # Calling these cox and aft respectively, since setting
+    # the respectively other coefficient to zero recovers
+    # the (kernel-smoothed PL) model of the other one (e.g.,
+    # setting Cox to zero recovers AFT and vice-versa).
+    gradient_eta_cox: np.array = np.empty(n_samples)
+    gradient_eta_aft: np.array = np.empty(n_samples)
+    event_mask: np.array = event.astype(np.bool_)
+    inverse_sample_size: float = 1 / n_samples
+    inverse_bandwidth: float = 1 / bandwidth
+    zero_kernel: float = PDF_PREFACTOR
+    zero_integrated_kernel: float = CDF_ZERO
+    event_count: int = 0
 
-        local_risk_set_hessian_death += ((1 - contribution) ** 2) / (
-            ((risk_set_sum - (contribution) * death_set_risk)) ** 2
-        )
-
-    return (
-        local_risk_set,
-        local_risk_set_hessian,
-        local_risk_set_death,
-        local_risk_set_hessian_death,
+    (
+        difference_outer_product,
+        kernel_matrix,
+        integrated_kernel_matrix,
+    ) = difference_kernels(
+        a=linear_predictor_misc,
+        b=linear_predictor_misc[event_mask],
+        bandwidth=bandwidth,
     )
 
+    sample_repeated_linear_predictor: np.array = (
+        linear_predictor_vanilla.repeat(n_events).reshape(
+            (n_samples, n_events)
+        )
+    )
 
-@jit(nopython=True, cache=True, fastmath=True)
-def l2_stable(linear_predictor: np.array, y: np.array):
-    return np.negative((y - linear_predictor) / y.shape[0])
+    kernel_numerator_full: np.array = (
+        kernel_matrix * difference_outer_product * inverse_bandwidth
+    )
 
+    kernel_denominator: np.array = kernel_matrix[event_mask, :].sum(axis=0)
 
-@jit(nopython=True, cache=True, fastmath=True)
-def efron_numba_stable(
-    linear_predictor: np.array,
-    time: np.array,
-    event: np.array,
-) -> Tuple[np.array, np.array]:
-    """Gradient of the Efron approximated version of CoxPH in numba-compatible form.
+    integrated_kernel_denominator: np.array = (
+        integrated_kernel_matrix * sample_repeated_linear_predictor
+    ).sum(axis=0)
 
-    Args:
-        linear_predictor (np.array): Linear predictor of risk: `X @ coef`. Shape = (n_samples,).
-        time (np.array): Array containing event/censoring times of shape = (n_samples,).
-        event (np.array): Array containing binary event indicators of shape = (n_samples,).
-
-    Returns:
-        Tuple[np.array, np.array]: Tuple containing the negative gradients and the hessian
-            of with the linear predictor.
-    """
-    partial_hazard = np.exp(linear_predictor - np.max(linear_predictor))
-    partial_hazard[partial_hazard < EPS] = EPS
-    samples = time.shape[0]
-    risk_set_sum = 0
-    grad = np.empty(samples)
-    hess = np.empty(samples)
-    previous_time: float = time[0]
-    local_risk_set: int = 0
-    local_risk_set_hessian: int = 0
-    death_set_count: int = 0
-    censoring_set_count: int = 0
-    accumulated_sum: int = 0
-    death_set_risk: float = 0.0
-    local_risk_set_death: float = 0.0
-    local_risk_set_hessian_death: float = 0.0
-
-    for i in range(samples):
-        risk_set_sum += partial_hazard[i]
-
-    for i in range(samples):
-        sample_time: float = time[i]
-        sample_event: int = event[i]
-        sample_partial_hazard: float = partial_hazard[i]
-
-        if previous_time < sample_time:
-            if death_set_count:
+    for _ in range(n_samples):
+        sample_event: int = event[_]
+        gradient_three = -(
+            inverse_sample_size
+            * (
                 (
-                    local_risk_set,
-                    local_risk_set_hessian,
-                    local_risk_set_death,
-                    local_risk_set_hessian_death,
-                ) = update_risk_sets_efron_pre(
-                    risk_set_sum,
-                    death_set_count,
-                    local_risk_set,
-                    local_risk_set_hessian,
-                    death_set_risk,
+                    -linear_predictor_vanilla[_]
+                    * integrated_kernel_matrix[_, :]
+                    + linear_predictor_vanilla[_]
+                    * kernel_matrix[_, :]
+                    * inverse_bandwidth
                 )
-            for death in range(death_set_count + censoring_set_count):
-                death_ix = i - 1 - death
-                (
-                    grad[death_ix],
-                    hess[death_ix],
-                ) = calculate_sample_grad_hess_efron(
-                    partial_hazard[death_ix],
-                    event[death_ix],
-                    local_risk_set,
-                    local_risk_set_hessian,
-                    local_risk_set_death,
-                    local_risk_set_hessian_death,
-                )
-            risk_set_sum -= accumulated_sum
-            accumulated_sum = 0
-            death_set_count = 0
-            censoring_set_count = 0
-            death_set_risk = 0
-            local_risk_set_death = 0
-            local_risk_set_hessian_death = 0
+                / integrated_kernel_denominator
+            ).sum()
+        )
+
+        gradient_five = -(
+            inverse_sample_size
+            * (
+                (linear_predictor_vanilla[_] * integrated_kernel_matrix[_, :])
+                / integrated_kernel_denominator
+            ).sum()
+        )
 
         if sample_event:
-            death_set_count += 1
-            death_set_risk += sample_partial_hazard
+            gradient_correction_factor = inverse_sample_size * (
+                (
+                    linear_predictor_vanilla[_] * zero_integrated_kernel
+                    + linear_predictor_vanilla[_]
+                    * zero_kernel
+                    * inverse_bandwidth
+                )
+                / integrated_kernel_denominator[event_count]
+            )
+
+            gradient_one = -(
+                inverse_sample_size
+                * (
+                    kernel_numerator_full[
+                        _,
+                    ]
+                    / kernel_denominator
+                ).sum()
+            )
+
+            prefactor: float = kernel_numerator_full[
+                event_mask, event_count
+            ].sum() / (kernel_denominator[event_count])
+
+            gradient_two = inverse_sample_size * prefactor
+
+            prefactor = (
+                (
+                    (
+                        linear_predictor_vanilla
+                        * kernel_matrix[:, event_count]
+                    ).sum()
+                    - linear_predictor_vanilla[_] * zero_kernel
+                )
+                * inverse_bandwidth
+                - (linear_predictor_vanilla[_] * zero_integrated_kernel)
+            ) / integrated_kernel_denominator[event_count]
+
+            gradient_four = inverse_sample_size * prefactor
+
+            gradient_eta_cox[_] = (
+                gradient_one
+                + gradient_two
+                + gradient_three
+                + gradient_four
+                + gradient_correction_factor
+            ) - inverse_sample_size
+
+            gradient_eta_aft[_] = gradient_five + inverse_sample_size
+
+            event_count += 1
+
         else:
-            censoring_set_count += 1
+            gradient_eta_cox[_] = gradient_three
+            gradient_eta_aft[_] = gradient_five
+    # Flip the gradient sign since we are performing minimization and
+    # concatenate the two gradients since we stack both coefficients
+    # into a vector.
+    gradient_eta_eh = np.negative(
+        np.concatenate((gradient_eta_cox, gradient_eta_aft))
+    )
+    return gradient_eta_eh
 
-        accumulated_sum += sample_partial_hazard
-        previous_time = sample_time
 
-    i += 1
-    if death_set_count:
-        (
-            local_risk_set,
-            local_risk_set_hessian,
-            local_risk_set_death,
-            local_risk_set_hessian_death,
-        ) = update_risk_sets_efron_pre(
-            risk_set_sum,
-            death_set_count,
-            local_risk_set,
-            local_risk_set_hessian,
-            death_set_risk,
+#@typechecked
+def eh_gradient_beta(
+    beta: npt.NDArray[np.float64],
+    X: npt.NDArray[np.float64],
+    time: npt.NDArray[np.float64],
+    event: npt.NDArray[np.int64],
+    bandwidth: Optional[float] = None,
+):
+    """Calculates the negative gradient of the EH model wrt beta.
+
+    Utility function to be used with off-the-shelf optimisers (e.g., scipy).
+    Since the main gradient function calculates the gradient wrt eta
+    (see `eh_gradient`), we recover the gradient wrt beta through a
+    matrix multiplication.
+
+    Parameters
+    ----------
+    beta: npt.NDArray[np.float64]
+        Coefficient vector. Length 2p to account for the two
+        coefficients that were stacked into one vector (see
+        `pcsurv.eh.EH` for details).
+    X: npt.NDarray[np.float64]
+        Design matrix of the training data. N rows and 2p columns.
+    time: npt.NDArray[np.float64]
+        Time of the training data. Length n. Assumed to be sorted
+        (does not matter here, but regardless).
+    event: npt.NDArray[np.int64]
+        Event indicator of the training data. Length n.
+    bandwidth: Optional[float]
+        Bandwidth to kernel-smooth the profile likelihood. Will
+        be estimated empirically if not specified.
+
+    Returns
+    -------
+    beta_eh_gradient: npt.NDArray[np.float64]
+        Negative gradient of the AFT model wrt beta. Length 2p.
+    """
+    if not np.array_equal(np.sort(time), time):
+        raise ValueError(
+            "`time` is expected to be sorted (ascending). Unsorted `time` found instead."
         )
-    for death in range(death_set_count + censoring_set_count):
-        death_ix = i - 1 - death
-        (grad[death_ix], hess[death_ix],) = calculate_sample_grad_hess_efron(
-            partial_hazard[death_ix],
-            event[death_ix],
-            local_risk_set,
-            local_risk_set_hessian,
-            local_risk_set_death,
-            local_risk_set_hessian_death,
-        )
-    return grad / samples, hess / samples
-
-
-def breslow_preconditioning(time, event, eta_hat, X, tau, coef):
-    eta = X @ coef
-    return X.T @ (
-        tau
-        * breslow_numba_stable(
-            linear_predictor=eta,
+    # Calculate original feature size (i.e., get rid of coefficient
+    # stacking).
+    p: int = int(X.shape[1] / 2)
+    n: int = int(X.shape[0])
+    beta_cox_gradient: npt.NDArray[np.float64] = np.matmul(
+        X[:, :p].T,
+        eh_gradient(
+            linear_predictor=np.stack(
+                (
+                    np.matmul(X[:, :p], beta[:p]),
+                    np.matmul(X[:, p:], beta[p:]),
+                )
+            ).T,
             time=time,
             event=event,
-        )[0]
-        + (1 - tau)
-        * l2_stable(
-            linear_predictor=eta,
-            y=eta_hat,
-        )
+            bandwidth=bandwidth,
+        )[:n],
     )
-
-
-def efron_preconditioning(time, event, eta_hat, X, tau, coef):
-    eta = X @ coef
-    return X.T @ (
-        tau
-        * efron_numba_stable(
-            linear_predictor=eta,
+    beta_aft_gradient: npt.NDArray[np.float64] = np.matmul(
+        X[:, p:].T,
+        eh_gradient(
+            linear_predictor=np.stack(
+                (
+                    np.matmul(X[:, :p], beta[:p]),
+                    np.matmul(X[:, p:], beta[p:]),
+                )
+            ).T,
             time=time,
             event=event,
-        )[0]
-        + (1 - tau)
-        * l2_stable(
-            linear_predictor=eta,
-            y=eta_hat,
-        )
+            bandwidth=bandwidth,
+        )[n:],
     )
+    beta_eh_gradient: npt.NDArray[np.float64] = np.concatenate(
+        (beta_cox_gradient, beta_aft_gradient)
+    )
+    return beta_eh_gradient
