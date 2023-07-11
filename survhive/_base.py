@@ -56,29 +56,3 @@ class PCSurvCV:
     def predict_survival_function(self, X, time):
         return self.model_pipe.predict_survival_function(X=X, time=time)
 
-
-class PCSurv:
-    def __init__(self, pc_pipe, model_pipe) -> None:
-        self.pc_pipe = pc_pipe
-        self.model_pipe = model_pipe
-
-    def fit(self, X, y):
-        time, event = inverse_transform_survival(y=y)
-        time_ix = np.argsort(time)
-
-        X = X[time_ix, :]
-        time = time[time_ix]
-        event = event[time_ix]
-        self.pc_pipe.fit(X=X, y=transform_survival(time=time, event=event))
-        self.model_pipe.fit(
-            X=X,
-            y=transform_survival_preconditioning(
-                time=time, event=event, eta_hat=self.pc_pipe.predict(X=X)
-            ),
-        )
-
-    def predict(self, X):
-        return self.model_pipe.predict(X=X)
-
-    def predict_survival_function(self, X, time):
-        return self.model_pipe.predict_survival_function(X=X, time=time)
