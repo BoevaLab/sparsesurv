@@ -32,12 +32,13 @@ def numpy_test_data():
 def test_breslow_loss(numpy_test_data):
         linear_predictor, time, event = numpy_test_data
         breslow_loss = breslow_negative_likelihood(linear_predictor, time, event)
-        assert np.allclose(breslow_loss,1.0799702318875224)
+        #*10 due sample size divison
+        assert np.allclose(breslow_loss*10,10.799702318875216)
 
 def test_efron_loss(numpy_test_data):
         linear_predictor, time, event = numpy_test_data
         efron_loss = efron_negative_likelihood(linear_predictor, time, event)
-        assert np.allclose(efron_loss, 1.068313440644938)
+        assert np.allclose(efron_loss*10, 10.683134406156332)
 
 def test_aft_loss(numpy_test_data):
         linear_predictor, time, event = numpy_test_data

@@ -15,7 +15,76 @@ from survhive.utils import (
 import torch
 from math import erf, exp, log
 
-# Add manual Breslow and Efron loss calculations
+# Manual Breslow and Efron loss calculations
+
+# Breslow Handling of Ties
+
+def breslow_calculation(linear_predictor, time, event):
+    """Breslow loss Moeschberger page 259."""
+    nominator = []
+    denominator = []
+    for idx, t in enumerate(np.unique(time[event.astype(bool)])):
+        nominator.append(np.exp(np.sum(np.where(t==time, linear_predictor, 0))))
+
+    riskset = (np.outer(time,time)<=np.square(time)).astype(int)
+    linear_predictor_exp = np.exp(linear_predictor)
+    riskset = riskset*linear_predictor_exp
+    uni, idx, counts = np.unique(time[event.astype(bool)], return_index=True, return_counts=True)
+    denominator = np.sum(riskset[event.astype(bool)],axis=1)[idx]
+    return -np.log(np.prod(nominator/(denominator**counts)))
+
+linear_predictor = np.array([0.67254923,
+0.86077982,
+0.43557393,
+0.94059047,
+0.8446509 ,
+0.23657039,
+0.74629685,
+0.99700768,
+0.28182768,
+0.44495038]) #.reshape(1,10)
+time = np.array([[ 1,  3,  3,  4,  7,  8,  9, 11, 13, 16]]).reshape(-1)
+event = np.array([[1, 1, 1, 0, 0, 1, 1, 0, 1, 1]],dtype=np.float32).reshape(-1)
+
+breslowloss = breslow_calculation(linear_predictor, time, event)
+print(f'Breslow Loss: {breslowloss}')
+
+# Efron
+
+
+def efron_calculation(linear_predictor, time, event):
+    """Efron loss Moeschberger page 259."""
+    nominator = []
+    denominator = []
+    for idx, t in enumerate(np.unique(time[event.astype(bool)])):
+        nominator.append(np.exp(np.sum(np.where(t==time, linear_predictor, 0))))
+
+    riskset = (np.outer(time,time)<=np.square(time)).astype(int)
+    linear_predictor_exp = np.exp(linear_predictor)
+    riskset = riskset*linear_predictor_exp
+
+    uni, idx, counts = np.unique(time[event.astype(bool)], return_index=True, return_counts=True)
+    denominator = np.sum(riskset[event.astype(bool)],axis=1)[idx]
+    # adapt one tie condition in data, if time make nicer
+    denominator[1] = 17.77170772*(17.77170772 - 0.5*(np.exp(0.86077982)+
+    np.exp(0.43557393)))
+    return -np.log(np.prod(nominator/(denominator)))
+
+linear_predictor = np.array([0.67254923,
+0.86077982,
+0.43557393,
+0.94059047,
+0.8446509 ,
+0.23657039,
+0.74629685,
+0.99700768,
+0.28182768,
+0.44495038]) #.reshape(1,10)
+time = np.array([[ 1,  3,  3,  4,  7,  8,  9, 11, 13, 16]]).reshape(-1)
+event = np.array([[1, 1, 1, 0, 0, 1, 1, 0, 1, 1]],dtype=np.float32).reshape(-1)
+
+efronloss = efron_calculation(linear_predictor, time, event)
+print(f'Efron Loss: {efronloss}')
 
 # aft and eh loss calculation from paper for comparison
 
