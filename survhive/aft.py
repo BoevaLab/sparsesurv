@@ -1,20 +1,19 @@
-from typing import Dict, Optional, Union, Any
+import warnings
+from typing import Any, Dict, Optional, Union
 
 import numpy as np
 import numpy.typing as npt
 from scipy.optimize import minimize
 from scipy.optimize._hessian_update_strategy import BFGS
-from typeguard import typechecked
+from sklearn.exceptions import ConvergenceWarning
 
 from ._base import SurvivalMixin
 from .baseline_hazard_estimation import get_cumulative_hazard_function_aft
-from .exceptions import ConvergenceException
 from .gradients import aft_gradient_beta
 from .loss import aft_negative_likelihood_beta
 from .utils import inverse_transform_survival
 
 
-#@typechecked
 class AFT(SurvivalMixin):
     """Linear Accelerated Failure Time (AFT) model based on kernel-smoothed PL [1].
 
@@ -120,10 +119,10 @@ class AFT(SurvivalMixin):
         if res.success:
             self.coef_: npt.NDArray[np.float64] = res.x
         else:
+            warnings.warn(
+                "Convergence of the AFT model failed.", ConvergenceWarning
+            )
             self.coef_: npt.NDArray[np.float64] = res.x
-            # raise ConvergenceException(
-            #     msg="Convergence of the AFT model failed.", code=1
-            # )
         # Cache training eta, time and event for calculating
         # the cumulative hazard (or, rather, survival) function later.
         self.train_eta: npt.NDArray[np.float64] = X @ self.coef_

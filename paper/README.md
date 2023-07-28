@@ -11,10 +11,10 @@ Since installing via conda and R in bash scripts can be finicky and anyway requi
 Please run the following in a terminal and give user input as appropriate (e.g., confirming that you want to create a new conda env).
 
 ```sh
-conda create -n noise_resistance python==3.10.0
-conda activate noise_resistance
+conda create -n sparsesurv_paper python==3.10.0
+conda activate sparsesurv_paper
 pip install -r requirements.txt
-pip install -e .
+pip install -e ..
 ```
 
 #### R
