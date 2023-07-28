@@ -5,6 +5,13 @@ library(cowplot)
 library(ggpubfigs)
 library(ggsignif)
 
+
+config <- rjson::fromJSON(
+  file = here::here(
+    "config.json"
+  )
+)
+
 metrics <- vroom::vroom(here::here("/", "Volumes", "Backup", "cr",  "sparsesurv", "results", "metrics", "metrics_overall.csv"))
 #metrics_old <- vroom::vroom(here::here("~", "Downloads", "sparsesurv_final", "plots", "metrics_overall.csv"))
 

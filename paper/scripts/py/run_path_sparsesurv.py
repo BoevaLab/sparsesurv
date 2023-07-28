@@ -82,12 +82,12 @@ for cancer in config["datasets"]:
                 model_pipe.transform(X_test), np.unique(y_test["time"])
             )
             surv.to_csv(
-                f"./results/pc/efron/{cancer}/path/survival_function_{z+1}_alpha_{split+1}.csv",
+                f"./results/kd/efron/{cancer}/path/survival_function_{z+1}_alpha_{split+1}.csv",
                 index=False,
             )
 
     pd.DataFrame(sparsity).to_csv(
-        f"./results/pc/efron/{cancer}/path/sparsity.csv",
+        f"./results/kd/efron/{cancer}/path/sparsity.csv",
         index=False,
     )
 
