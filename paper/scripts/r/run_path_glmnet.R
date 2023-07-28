@@ -94,6 +94,7 @@ for (cancer in config$dataset) {
               )
             )
           }
+          else {
           current_coef <- path_coefs[, z]
           current_coef <- current_coef[current_coef != 0.0]
           if (length(current_coef) == 0) {
@@ -126,6 +127,8 @@ for (cancer in config$dataset) {
               )
             )
           }
+          }
+
         }
       },
       error = function(cond) {
