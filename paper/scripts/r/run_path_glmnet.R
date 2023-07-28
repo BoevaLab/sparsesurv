@@ -7,6 +7,12 @@ library(readr)
 library(vroom)
 library(dplyr)
 
+
+glmnet::glmnet.control(
+    fdev = 0,
+    devmax = 1.0
+)
+
 config <- rjson::fromJSON(
   file = here::here(
     "config.json"
