@@ -1,20 +1,19 @@
+import warnings
 from typing import Any, Dict, Optional, Union
 
 import numpy as np
 import numpy.typing as npt
 from scipy.optimize import minimize
 from scipy.optimize._hessian_update_strategy import BFGS
-from typeguard import typechecked
+from sklearn.exceptions import ConvergenceWarning
 
 from ._base import SurvivalMixin
 from .baseline_hazard_estimation import get_cumulative_hazard_function_eh
-from .exceptions import ConvergenceException
 from .gradients import eh_gradient_beta
 from .loss import eh_negative_likelihood_beta
 from .utils import inverse_transform_survival
 
 
-#@typechecked
 class EH(SurvivalMixin):
     """Linear Extended Hazards (EH) model based on kernel-smoothed PL [1].
 
@@ -131,9 +130,8 @@ class EH(SurvivalMixin):
         if res.success:
             self.coef_: npt.NDArray[np.float64] = res.x
         else:
-            raise ConvergenceException(
-                msg="Convergence of the EH model failed.", code=1
-            )
+            warnings.warn("Convergence of the EH model failed.", ConvergenceWarning)
+            self.coef_: npt.NDArray[np.float64] = res.x
 
         # Cache training eta, time and event for calculating
         # the cumulative hazard (or, rather, survival) function later.

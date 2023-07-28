@@ -3,7 +3,6 @@ from typing import Optional
 import numpy as np
 import numpy.typing as npt
 from numba import jit
-from typeguard import typechecked
 
 from .constants import CDF_ZERO, PDF_PREFACTOR
 from .utils import difference_kernels
@@ -135,7 +134,6 @@ def aft_gradient(
     return gradient
 
 
-#@typechecked
 def aft_gradient_beta(
     beta: npt.NDArray[np.float64],
     X: npt.NDArray[np.float64],
@@ -355,7 +353,6 @@ def eh_gradient(
     return gradient_eta_eh
 
 
-#@typechecked
 def eh_gradient_beta(
     beta: npt.NDArray[np.float64],
     X: npt.NDArray[np.float64],
@@ -392,10 +389,10 @@ def eh_gradient_beta(
     beta_eh_gradient: npt.NDArray[np.float64]
         Negative gradient of the AFT model wrt beta. Length 2p.
     """
-    if not np.array_equal(np.sort(time), time):
-        raise ValueError(
-            "`time` is expected to be sorted (ascending). Unsorted `time` found instead."
-        )
+    # if not np.array_equal(np.sort(time), time):
+    #     raise ValueError(
+    #         "`time` is expected to be sorted (ascending). Unsorted `time` found instead."
+    #     )
     # Calculate original feature size (i.e., get rid of coefficient
     # stacking).
     p: int = int(X.shape[1] / 2)

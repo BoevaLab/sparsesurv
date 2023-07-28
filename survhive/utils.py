@@ -45,7 +45,6 @@ def inverse_transform_survival_preconditioning(
     time = y["time"].astype(np.float_)
     event = y["event"].astype(np.int_)
     if len(y[0]) > 3:
-        n = time.shape[0]
         n_eta = len(y[0]) - 2
         eta_hat = []
         for eta in range(1, n_eta + 1):

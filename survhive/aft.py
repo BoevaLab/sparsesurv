@@ -120,9 +120,10 @@ class AFT(SurvivalMixin):
         if res.success:
             self.coef_: npt.NDArray[np.float64] = res.x
         else:
-            raise ConvergenceException(
-                msg="Convergence of the AFT model failed.", code=1
-            )
+            self.coef_: npt.NDArray[np.float64] = res.x
+            # raise ConvergenceException(
+            #     msg="Convergence of the AFT model failed.", code=1
+            # )
         # Cache training eta, time and event for calculating
         # the cumulative hazard (or, rather, survival) function later.
         self.train_eta: npt.NDArray[np.float64] = X @ self.coef_

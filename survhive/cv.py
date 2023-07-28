@@ -10,9 +10,7 @@ import pandas as pd
 from joblib import effective_n_jobs
 from scipy import sparse
 from sklearn.linear_model._coordinate_descent import (
-    ElasticNet,
     _alpha_grid,
-    enet_path,
 )
 from sklearn.model_selection import KFold, StratifiedKFold, check_cv
 from sklearn.utils.parallel import Parallel, delayed
@@ -22,7 +20,6 @@ from sklearn.utils.validation import (
     check_scalar,
     column_or_1d,
 )
-from typeguard import typechecked
 
 from ._base import SurvivalMixin
 from .compat import BASELINE_HAZARD_FACTORY, CVSCORERFACTORY, LOSS_FACTORY
@@ -32,7 +29,6 @@ from .utils import (
 )
 
 
-# @typechecked
 class PCSurvCV(SurvivalMixin, celer.ElasticNetCV):
     """Parent class to fit preconditioned sparse semiparametric right-censored survival models.
 
@@ -318,6 +314,7 @@ class PCSurvCV(SurvivalMixin, celer.ElasticNetCV):
         # We are not computing in parallel, we can modify X
         # inplace in the folds
         if effective_n_jobs(self.n_jobs) > 1:
+            raise ValueError
             path_params["copy_X"] = False
 
         # init cross-validation generator
@@ -473,7 +470,6 @@ class PCSurvCV(SurvivalMixin, celer.ElasticNetCV):
 
         self.pl_path_ = mean_cv_score
         if self.alpha_type == "min":
-            print("HEYO")
             for l1_ratio, l1_alphas, pl_alphas, n_coefs in zip(
                 l1_ratios, alphas, mean_cv_score, mean_sparsity
             ):
@@ -607,7 +603,6 @@ class PCSurvCV(SurvivalMixin, celer.ElasticNetCV):
         return X @ self.coef_
 
 
-# @typechecked
 class PCPHElasticNetCV(PCSurvCV):
     """TODO DW"""
 
@@ -708,7 +703,6 @@ class PCPHElasticNetCV(PCSurvCV):
         return cumulative_hazard_function
 
 
-# @typechecked
 class PCAFTElasticNetCV(PCSurvCV):
     """TODO DW"""
 

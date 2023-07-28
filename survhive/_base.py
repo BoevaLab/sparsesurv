@@ -55,4 +55,3 @@ class PCSurvCV:
 
     def predict_survival_function(self, X, time):
         return self.model_pipe.predict_survival_function(X=X, time=time)
-
