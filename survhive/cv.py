@@ -314,10 +314,8 @@ class PCSurvCV(SurvivalMixin, celer.ElasticNetCV):
         # We are not computing in parallel, we can modify X
         # inplace in the folds
         if effective_n_jobs(self.n_jobs) > 1:
-            raise ValueError
             path_params["copy_X"] = False
 
-        # init cross-validation generator
         # init cross-validation generator
         cv = check_cv(
             cv=StratifiedKFold(
