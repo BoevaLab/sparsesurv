@@ -33,12 +33,12 @@ makePaddedDataFrame <- function(l, ...) {
 }
 
 for (score in c("vvh")) {
-  for (cv_score in c("lambda.pcvl")) {
+  for (cv_score in c("lambda.min")) {
     n_failures <- 0
     failures <- list()
     sparsity <- list()
 
-    for (cancer in config$dataset) {
+    for (cancer in config$datasets) {
       result_sparsity <- c()
       lp_df <- list()
       data <- data.frame(vroom::vroom(
