@@ -36,7 +36,7 @@ makePaddedDataFrame <- function(l, ...) {
 
 failures <- list()
 
-for (cancer in config$dataset) {
+for (cancer in config$datasets) {
   n_failures <- 0
   result_sparsity <- list()
   data <- data.frame(vroom::vroom(
