@@ -15,6 +15,8 @@ from .utils import (
 def breslow_negative_likelihood(
     linear_predictor: np.array, time: np.array, event: np.array
 ) -> np.array:
+    if np.sum(event)==0:
+        raise RuntimeError('No events detected!')
     samples = time.shape[0]
     previous_time = time[0]
     likelihood = 0
@@ -53,6 +55,8 @@ def breslow_negative_likelihood_beta(beta, X, time, event):
 def efron_negative_likelihood(
     linear_predictor: np.array, time: np.array, event: np.array
 ) -> np.array:
+    if np.sum(event)==0:
+        raise RuntimeError('No events detected!')
     time_ix = np.argsort(time)
     linear_predictor = linear_predictor[time_ix]
     time = time[time_ix]
@@ -121,6 +125,8 @@ def aft_negative_likelihood(
     bandwidth=None,
 ) -> np.array:
 
+    if np.sum(event)==0:
+        raise RuntimeError('No events detected!')
     n_samples: int = time.shape[0]
     if bandwidth is None:
         bandwidth = 1.30 * pow(n_samples, -0.2)
@@ -178,6 +184,8 @@ def eh_negative_likelihood(
     event,
     bandwidth=None,
 ) -> np.array:
+    if np.sum(event)==0:
+        raise RuntimeError('No events detected!')
     theta = np.exp(linear_predictor)
     n_samples: int = time.shape[0]
     if bandwidth is None:
