@@ -151,7 +151,6 @@ for scenario in scenarios:
     eh_loss_torch = eaftloss(linear_predictor, time.reshape(-1), event.reshape(-1))
     eh_loss_torch.backward()
     eh_gradient_torch = linear_predictor.grad
-    print(eh_gradient_torch)
     eh_gradients[scenario] = eh_gradient_torch.numpy().flatten().tolist()
 df_eh = pd.DataFrame(eh_gradients)
 df_eh.to_csv('test_data/eh_gradients.csv', index=False)
