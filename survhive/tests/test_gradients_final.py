@@ -3,10 +3,10 @@ import pandas as pd
 from scipy.optimize import check_grad
 import sys
 import os
-#sys.path.append('/Users/JUSC/Documents/survhive/survhive')
+
 from survhive.loss import (aft_negative_likelihood, eh_negative_likelihood,
                            breslow_negative_likelihood, efron_negative_likelihood)
-#from loss_functions_test import eh_gradient_test, eh_negative_likelihood_test, eh_negative_likelihood_torch
+
 from test_data_gen_final import (numpy_test_data_1d,
                                  numpy_test_data_2d)
 import pytest
