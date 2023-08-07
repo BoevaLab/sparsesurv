@@ -14,23 +14,43 @@ from survhive.loss import (
     # eh_negative_likelihood,
 )
 
-def breslow_calculation(linear_predictor, time, event):
-    """Breslow loss Moeschberger page 259."""
-    numerator = []
-    denominator = []
-    n_samples = len(linear_predictor)
 
-    for idx, t in enumerate(np.unique(time[event.astype(bool)])):
-        numerator.append(np.exp(np.sum(np.where(t==time, linear_predictor, 0))))
-    riskset = (np.outer(time,time)<=np.square(time)).astype(int)
-    linear_predictor_exp = np.exp(linear_predictor)
-    riskset = riskset*linear_predictor_exp
-    uni, idx, counts = np.unique(time[event.astype(bool)], return_index=True, return_counts=True)
-    denominator = np.sum(riskset[event.astype(bool)], axis=1)[idx]
-    return -np.log(np.prod(numerator/(denominator**counts)))/n_samples
+def breslow_calculation(linear_predictor, time, event):
+    if np.sum(event) == 0:
+        raise RuntimeError("No events detected!")
+    sorted_ix = np.argsort(time)
+    linear_predictor_sorted = linear_predictor[sorted_ix]
+    linear_predictor_sorted_exp = np.exp(linear_predictor_sorted)
+    time_sorted = time[sorted_ix]
+    event_sorted = event[sorted_ix].astype(int)
+    ll = np.sum(linear_predictor_sorted[event_sorted.astype(bool)])
+    previous_time = 0.0
+    risk_set = np.sum(linear_predictor_sorted_exp)
+    breslow_sum = 0.0
+    breslow_count = 0.0
+
+    for i in range(sorted_ix.shape[0]):
+
+        current_linear_predictor = linear_predictor_sorted_exp[i]
+        current_time = time_sorted[i]
+        current_event = event_sorted[i]
+        if current_time == previous_time:
+            breslow_count += current_event
+            breslow_sum += current_linear_predictor
+        else:
+            ll -= breslow_count * log(risk_set)
+            risk_set -= breslow_sum
+            breslow_count = current_event
+            breslow_sum = current_linear_predictor
+        previous_time = current_time
+
+    if breslow_count:
+        ll -= breslow_count * log(risk_set)
+
+    return -ll / sorted_ix.shape[0]
+
 
 class TestBreslowLoss:
-
     def test_default(self):
         linear_predictor, time, event = numpy_test_data_1d("default")
         
