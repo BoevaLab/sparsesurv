@@ -12,21 +12,41 @@ from math import log
 
 
 def efron_calculation(linear_predictor, time, event):
-    """TODO:Efron loss Moeschberger page 259."""
-    numerator = []
-    denominator = []
-    n_samples = len(linear_predictor)
+    if np.sum(event) <= 0:
+        raise RuntimeError("No events detected!")
+    sorted_ix = np.argsort(time)
+    linear_predictor_sorted = linear_predictor[sorted_ix]
+    linear_predictor_sorted_exp = np.exp(linear_predictor_sorted)
+    time_sorted = time[sorted_ix]
+    event_sorted = event[sorted_ix]
+    ll = np.sum(linear_predictor_sorted[event_sorted.astype(bool)])
+    previous_time = 0.0
+    efron_counter = 0
+    risk_set = np.sum(linear_predictor_sorted_exp)
+    efron_death_sum = 0.0
+    efron_censor_sum = 0.0
+    for i in range(sorted_ix.shape[0]):
+        current_linear_predictor = linear_predictor_sorted_exp[i]
+        current_time = time_sorted[i]
+        current_event = event_sorted[i]
 
-    for idx, t in enumerate(np.unique(time[event.astype(bool)])):
-        numerator.append(np.exp(np.sum(np.where(t==time, linear_predictor, 0))))
-    
-    riskset = (np.outer(time,time)<=np.square(time)).astype(int)
+        if current_time == previous_time and current_event:
+            efron_counter += 1
+            efron_death_sum += current_linear_predictor
+        elif current_time == previous_time:
+            efron_censor_sum += current_linear_predictor
+        else:
+            for ell in range(efron_counter):
+                ll -= log(risk_set - ell / efron_counter * efron_death_sum)
+            risk_set -= efron_death_sum + efron_censor_sum
+            efron_counter = int(current_event)
+            efron_death_sum = current_event * current_linear_predictor
+            efron_censor_sum = (1 - current_event) * current_linear_predictor
+        previous_time = current_time
+    for ell in range(efron_counter):
+        ll -= log(risk_set - ell / efron_counter * efron_death_sum)
+    return -ll / sorted_ix.shape[0]
 
-    linear_predictor_exp = np.exp(linear_predictor)
-    riskset = riskset*linear_predictor_exp
-    uni, idx, counts = np.unique(time[event.astype(bool)], return_index=True, return_counts=True)
-    denominator = np.sum(riskset[event.astype(bool)], axis=1)[idx]
-    return -np.log(np.prod(numerator/(denominator**counts)))/n_samples
 
 class TestEfronLoss:
 
