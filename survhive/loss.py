@@ -15,8 +15,8 @@ from .utils import (
 def breslow_negative_likelihood(
     linear_predictor: np.array, time: np.array, event: np.array
 ) -> np.array:
-    if np.sum(event)==0:
-        raise RuntimeError('No events detected!')
+    if np.sum(event) == 0:
+        raise RuntimeError("No events detected!")
     samples = time.shape[0]
     previous_time = time[0]
     likelihood = 0
@@ -28,9 +28,7 @@ def breslow_negative_likelihood(
         current_time = time[k]
         if current_time > previous_time:
             likelihood -= set_count * log_risk_set_sum
-            log_risk_set_sum = logsubstractexp(
-                log_risk_set_sum, accumulated_sum
-            )
+            log_risk_set_sum = logsubstractexp(log_risk_set_sum, accumulated_sum)
             set_count = 0
             accumulated_sum = -np.inf
 
@@ -55,8 +53,8 @@ def breslow_negative_likelihood_beta(beta, X, time, event):
 def efron_negative_likelihood(
     linear_predictor: np.array, time: np.array, event: np.array
 ) -> np.array:
-    if np.sum(event)==0:
-        raise RuntimeError('No events detected!')
+    if np.sum(event) == 0:
+        raise RuntimeError("No events detected!")
     time_ix = np.argsort(time)
     linear_predictor = linear_predictor[time_ix]
     time = time[time_ix]
@@ -84,9 +82,7 @@ def efron_negative_likelihood(
                 else:
                     likelihood -= log_risk_set_sum
 
-            log_risk_set_sum = logsubstractexp(
-                log_risk_set_sum, accumulated_sum
-            )
+            log_risk_set_sum = logsubstractexp(log_risk_set_sum, accumulated_sum)
             accumulated_sum = -np.inf
             death_set_count = 0
             log_death_set_risk = -np.inf
@@ -112,9 +108,7 @@ def efron_negative_likelihood(
 
 
 def efron_negative_likelihood_beta(beta, X, time, event):
-    return efron_negative_likelihood(
-        linear_predictor=X @ beta, time=time, event=event
-    )
+    return efron_negative_likelihood(linear_predictor=X @ beta, time=time, event=event)
 
 
 @jit(nopython=True, cache=True, fastmath=True)
@@ -124,9 +118,8 @@ def aft_negative_likelihood(
     event,
     bandwidth=None,
 ) -> np.array:
-
-    if np.sum(event)==0:
-        raise RuntimeError('No events detected!')
+    if np.sum(event) == 0:
+        raise RuntimeError("No events detected!")
     n_samples: int = time.shape[0]
     if bandwidth is None:
         bandwidth = 1.30 * pow(n_samples, -0.2)
@@ -139,7 +132,11 @@ def aft_negative_likelihood(
     kernel_matrix: np.array
     integrated_kernel_matrix: np.array
 
-    (_, kernel_matrix, integrated_kernel_matrix,) = difference_kernels(
+    (
+        _,
+        kernel_matrix,
+        integrated_kernel_matrix,
+    ) = difference_kernels(
         a=R_linear_predictor,
         b=R_linear_predictor[event_mask],
         bandwidth=bandwidth,
@@ -184,8 +181,8 @@ def eh_negative_likelihood(
     event,
     bandwidth=None,
 ) -> np.array:
-    if np.sum(event)==0:
-        raise RuntimeError('No events detected!')
+    if np.sum(event) == 0:
+        raise RuntimeError("No events detected!")
     theta = np.exp(linear_predictor)
     n_samples: int = time.shape[0]
     if bandwidth is None:
@@ -198,7 +195,11 @@ def eh_negative_likelihood(
     kernel_matrix: np.array
     integrated_kernel_matrix: np.array
 
-    (_, kernel_matrix, integrated_kernel_matrix,) = difference_kernels(
+    (
+        _,
+        kernel_matrix,
+        integrated_kernel_matrix,
+    ) = difference_kernels(
         a=R_linear_predictor,
         b=R_linear_predictor[event_mask],
         bandwidth=bandwidth,
@@ -209,12 +210,11 @@ def eh_negative_likelihood(
     inverse_sample_size: float = 1 / n_samples
 
     kernel_sum: np.array = kernel_matrix.sum(axis=0)
-
     integrated_kernel_sum: np.array = (
         integrated_kernel_matrix
         * (theta[:, 1] / theta[:, 0])
-        .repeat(np.sum(event))
-        .reshape(-1, np.sum(event))
+        .repeat(int(np.sum(event)))
+        .reshape(-1, int(np.sum(event)))
     ).sum(axis=0)
     likelihood: np.array = inverse_sample_size * (
         linear_predictor[:, 1][event_mask].sum()
@@ -232,7 +232,6 @@ def eh_negative_likelihood_beta(
     event,
     bandwidth=None,
 ) -> np.array:
-
     hm = int(X.shape[1] / 2)
     return eh_negative_likelihood(
         linear_predictor=np.stack(
