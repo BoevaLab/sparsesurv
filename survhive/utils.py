@@ -3,6 +3,7 @@ from typing import Callable
 
 import numpy as np
 import numpy.typing as npt
+import torch
 from numba import jit
 from scipy import sparse
 from sklearn.linear_model._base import _pre_fit
@@ -11,6 +12,10 @@ from sklearn.utils.extmath import safe_sparse_dot
 
 from .constants import PDF_PREFACTOR, SQRT_TWO
 
+
+def normal_density(x):  
+    density = 0.3989423*torch.exp(-0.5*torch.pow(x,2.0))
+    return density
 
 def inverse_transform_survival(
     y: np.array,
