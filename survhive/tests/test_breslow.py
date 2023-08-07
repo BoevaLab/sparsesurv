@@ -5,15 +5,10 @@ from math import log
 import numpy as np
 import pandas as pd
 import pytest
-from scipy.optimize import check_grad
-from test_data_gen_final import numpy_test_data_1d, numpy_test_data_2d
 
-from survhive.loss import (
-    # aft_negative_likelihood,
-    breslow_negative_likelihood,
-    # efron_negative_likelihood,
-    # eh_negative_likelihood,
-)
+from test_data_gen_final import numpy_test_data_1d
+
+from survhive.loss import breslow_negative_likelihood
 
 
 def breslow_calculation(linear_predictor, time, event):
@@ -31,7 +26,6 @@ def breslow_calculation(linear_predictor, time, event):
     breslow_count = 0.0
 
     for i in range(sorted_ix.shape[0]):
-
         current_linear_predictor = linear_predictor_sorted_exp[i]
         current_time = time_sorted[i]
         current_event = event_sorted[i]
@@ -54,62 +48,69 @@ def breslow_calculation(linear_predictor, time, event):
 class TestBreslowLoss:
     def test_default(self):
         linear_predictor, time, event = numpy_test_data_1d("default")
-        
+
         breslow_formula_computation = breslow_calculation(linear_predictor, time, event)
         breslow_loss = breslow_negative_likelihood(linear_predictor, time, event)
-        
-        assert np.allclose(breslow_loss,breslow_formula_computation, atol=1e-2), f"Computed Breslow loss is {breslow_loss} but formula yields {breslow_formula_computation} for default data."
 
+        assert np.allclose(
+            breslow_loss, breslow_formula_computation, atol=1e-2
+        ), f"Computed Breslow loss is {breslow_loss} but formula yields {breslow_formula_computation} for default data."
 
     def test_first_five_zero(self):
-        
         linear_predictor, time, event = numpy_test_data_1d("first_five_zero")
-        
+
         breslow_formula_computation = breslow_calculation(linear_predictor, time, event)
         breslow_loss = breslow_negative_likelihood(linear_predictor, time, event)
-        
-        assert np.allclose(breslow_loss,breslow_formula_computation, atol=1e-2), f"Computed Breslow loss is {breslow_loss} but formula yields {breslow_formula_computation} for edge case: first five zero events."
+
+        assert np.allclose(
+            breslow_loss, breslow_formula_computation, atol=1e-2
+        ), f"Computed Breslow loss is {breslow_loss} but formula yields {breslow_formula_computation} for edge case: first five zero events."
 
     def test_last_five_zero(self):
-
         linear_predictor, time, event = numpy_test_data_1d("last_five_zero")
-        
+
         breslow_formula_computation = breslow_calculation(linear_predictor, time, event)
         breslow_loss = breslow_negative_likelihood(linear_predictor, time, event)
-        
-        assert np.allclose(breslow_loss,breslow_formula_computation, atol=1e-2), f"Computed Breslow loss is {breslow_loss} but formula yields {breslow_formula_computation} for edge case: last five zero events."
+
+        assert np.allclose(
+            breslow_loss, breslow_formula_computation, atol=1e-2
+        ), f"Computed Breslow loss is {breslow_loss} but formula yields {breslow_formula_computation} for edge case: last five zero events."
 
     def test_high_event_ratio(self):
-
         linear_predictor, time, event = numpy_test_data_1d("high_event_ratio")
-        
+
         breslow_formula_computation = breslow_calculation(linear_predictor, time, event)
         breslow_loss = breslow_negative_likelihood(linear_predictor, time, event)
-        
-        assert np.allclose(breslow_loss,breslow_formula_computation, atol=1e-2), f"Computed Breslow loss is {breslow_loss} but formula yields {breslow_formula_computation} for edge case: high event ratio."
+
+        assert np.allclose(
+            breslow_loss, breslow_formula_computation, atol=1e-2
+        ), f"Computed Breslow loss is {breslow_loss} but formula yields {breslow_formula_computation} for edge case: high event ratio."
 
     def test_low_event_ratio(self):
-
         linear_predictor, time, event = numpy_test_data_1d("low_event_ratio")
-        
+
         breslow_formula_computation = breslow_calculation(linear_predictor, time, event)
         breslow_loss = breslow_negative_likelihood(linear_predictor, time, event)
-        
-        assert np.allclose(breslow_loss,breslow_formula_computation, atol=1e-2), f"Computed Breslow loss is {breslow_loss} but formula yields {breslow_formula_computation} for edge case: low event ratio."
+
+        assert np.allclose(
+            breslow_loss, breslow_formula_computation, atol=1e-2
+        ), f"Computed Breslow loss is {breslow_loss} but formula yields {breslow_formula_computation} for edge case: low event ratio."
 
     def test_all_events(self):
-
         linear_predictor, time, event = numpy_test_data_1d("all_events")
-        
+
         breslow_formula_computation = breslow_calculation(linear_predictor, time, event)
         breslow_loss = breslow_negative_likelihood(linear_predictor, time, event)
-        
-        assert np.allclose(breslow_loss,breslow_formula_computation, atol=1e-2), f"Computed Breslow loss is {breslow_loss} but formula yields {breslow_formula_computation} for edge case: all(100%) events."
+
+        assert np.allclose(
+            breslow_loss, breslow_formula_computation, atol=1e-2
+        ), f"Computed Breslow loss is {breslow_loss} but formula yields {breslow_formula_computation} for edge case: all(100%) events."
 
     def test_no_events(self):
-
         linear_predictor, time, event = numpy_test_data_1d("no_events")
-        
+
         with pytest.raises(RuntimeError) as excinfo:
             breslow_negative_likelihood(linear_predictor, time, event)
-        assert "No events detected!" in str(excinfo.value), f"Events detected in data. Check data or the function <breslow_negative_likelihood> to make sure data is processed correctly."
+        assert "No events detected!" in str(
+            excinfo.value
+        ), "Events detected in data. Check data or the function <breslow_negative_likelihood> to make sure data is processed correctly."
