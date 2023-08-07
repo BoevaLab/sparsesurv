@@ -8,6 +8,8 @@ from scipy.optimize import check_grad
 from test_data_gen_final import numpy_test_data_1d, numpy_test_data_2d
 
 from survhive.loss import efron_negative_likelihood
+from math import log
+
 
 def efron_calculation(linear_predictor, time, event):
     """TODO:Efron loss Moeschberger page 259."""
