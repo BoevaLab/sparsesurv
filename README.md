@@ -1,4 +1,4 @@
-# survhive
+# sparsesurv
 A toolbox for high-dimensional survival analysis.
 
 ## Installation
@@ -12,7 +12,7 @@ conda env create -f conda.yml
 Activate the environment:
 
 ```console
-conda activate survhive
+conda activate sparsesurv
 ```
 
 Install:
