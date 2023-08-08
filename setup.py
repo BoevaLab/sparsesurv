@@ -42,7 +42,7 @@ except FileNotFoundError:
 setup(
     name="sparsesurv",
     version=read_version("survhive/__init__.py"),  # single place for version
-    description="Installable survhive package. Modify as needed.",
+    description="Installable sparsesurv package. Modify as needed.",
     long_description=open("README.md").read(),
     url="https://github.com/BoevaLab/survhive",
     author="David Wissel, Nikita Janakarajan",
