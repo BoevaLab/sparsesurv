@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 import torch
-from get_data_arrays import get_2d_array
+from .get_data_arrays import get_2d_array
 
 from sparsesurv.gradients import eh_gradient
 

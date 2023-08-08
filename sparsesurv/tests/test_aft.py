@@ -3,7 +3,7 @@ import math
 import numpy as np
 import pytest
 import torch
-from get_data_arrays import get_1d_array
+from .get_data_arrays import get_1d_array
 
 from sparsesurv.loss import aft_negative_likelihood
 from sparsesurv.utils import normal_density

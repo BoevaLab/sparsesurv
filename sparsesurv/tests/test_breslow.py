@@ -3,7 +3,7 @@ from math import log
 import numpy as np
 
 import pytest
-from get_data_arrays import get_1d_array
+from .get_data_arrays import get_1d_array
 
 from sparsesurv.loss import breslow_negative_likelihood
 
