@@ -8,7 +8,7 @@ import pytest
 import torch
 
 
-from test_data_gen_final import numpy_test_data_2d
+from get_data_arrays import get_2d_array
 
 from survhive.loss import eh_negative_likelihood
 from survhive.utils import normal_density
@@ -76,7 +76,7 @@ def eh_calculation(linear_predictor, time, event):
 
 class TestEHLoss:
     def test_default(self):
-        linear_predictor, time, event = numpy_test_data_2d("default")
+        linear_predictor, time, event = get_2d_array("default")
 
         # convert to torch tensor for external testing
         linear_predictor_tensor, time_tensor, event_tensor = (
@@ -95,7 +95,7 @@ class TestEHLoss:
         ), f"Computed EH loss is {eh_loss} but formula yields {eh_formula_computation} for default data."
 
     def test_first_five_zero(self):
-        linear_predictor, time, event = numpy_test_data_2d("first_five_zero")
+        linear_predictor, time, event = get_2d_array("first_five_zero")
 
         # convert to torch tensor for external testing
         linear_predictor_tensor, time_tensor, event_tensor = (
@@ -114,7 +114,7 @@ class TestEHLoss:
         ), f"Computed EH loss is {eh_loss} but formula yields {eh_formula_computation} for edge case: first five zero events."
 
     def test_last_five_zero(self):
-        linear_predictor, time, event = numpy_test_data_2d("last_five_zero")
+        linear_predictor, time, event = get_2d_array("last_five_zero")
 
         # convert to torch tensor for external testing
         linear_predictor_tensor, time_tensor, event_tensor = (
@@ -133,7 +133,7 @@ class TestEHLoss:
         ), f"Computed EH loss is {eh_loss} but formula yields {eh_formula_computation} for edge case: last five zero events."
 
     def test_high_event_ratio(self):
-        linear_predictor, time, event = numpy_test_data_2d("high_event_ratio")
+        linear_predictor, time, event = get_2d_array("high_event_ratio")
 
         # convert to torch tensor for external testing
         linear_predictor_tensor, time_tensor, event_tensor = (
@@ -152,7 +152,7 @@ class TestEHLoss:
         ), f"Computed EH loss is {eh_loss} but formula yields {eh_formula_computation} for edge case: high event ratio."
 
     def test_low_event_ratio(self):
-        linear_predictor, time, event = numpy_test_data_2d("low_event_ratio")
+        linear_predictor, time, event = get_2d_array("low_event_ratio")
 
         # convert to torch tensor for external testing
         linear_predictor_tensor, time_tensor, event_tensor = (
@@ -171,7 +171,7 @@ class TestEHLoss:
         ), f"Computed EH loss is {eh_loss} but formula yields {eh_formula_computation} for edge case: low event ratio."
 
     def test_all_events(self):
-        linear_predictor, time, event = numpy_test_data_2d("all_events")
+        linear_predictor, time, event = get_2d_array("all_events")
 
         # convert to torch tensor for external testing
         linear_predictor_tensor, time_tensor, event_tensor = (
@@ -190,7 +190,7 @@ class TestEHLoss:
         ), f"Computed EH loss is {eh_loss} but formula yields {eh_formula_computation} for edge case: all(100%) events."
 
     def test_no_events(self):
-        linear_predictor, time, event = numpy_test_data_2d("no_events")
+        linear_predictor, time, event = get_2d_array("no_events")
 
         with pytest.raises(RuntimeError) as excinfo:
             eh_negative_likelihood(linear_predictor, time, event)
