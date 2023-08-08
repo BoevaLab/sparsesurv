@@ -47,9 +47,7 @@ def aft_gradient(
     event_mask: np.array = event.astype(np.bool_)
     inverse_sample_size: float = 1 / n_samples
     inverse_bandwidth: float = 1 / bandwidth
-    inverse_sample_size_bandwidth: float = (
-        inverse_sample_size * inverse_bandwidth
-    )
+    inverse_sample_size_bandwidth: float = inverse_sample_size * inverse_bandwidth
 
     zero_kernel: float = PDF_PREFACTOR
     event_count: int = 0
@@ -70,19 +68,14 @@ def aft_gradient(
 
     kernel_denominator: np.array = kernel_matrix[event_mask, :].sum(axis=0)
 
-    integrated_kernel_denominator: np.array = integrated_kernel_matrix.sum(
-        axis=0
-    )
+    integrated_kernel_denominator: np.array = integrated_kernel_matrix.sum(axis=0)
 
     for _ in range(n_samples):
-
         sample_event: int = event[_]
         gradient_three = -(
             inverse_sample_size
             * (
-                kernel_matrix[_, :]
-                * inverse_bandwidth
-                / integrated_kernel_denominator
+                kernel_matrix[_, :] * inverse_bandwidth / integrated_kernel_denominator
             ).sum()
         )
 
@@ -95,17 +88,12 @@ def aft_gradient(
 
             gradient_one = -(
                 inverse_sample_size
-                * (
-                    kernel_numerator_full[
-                        _,
-                    ]
-                    / kernel_denominator
-                ).sum()
+                * (kernel_numerator_full[_,] / kernel_denominator).sum()
             )
 
-            prefactor: float = kernel_numerator_full[
-                event_mask, event_count
-            ].sum() / (kernel_denominator[event_count])
+            prefactor: float = kernel_numerator_full[event_mask, event_count].sum() / (
+                kernel_denominator[event_count]
+            )
 
             gradient_two = inverse_sample_size * prefactor
 
@@ -209,8 +197,8 @@ def eh_gradient(
     gradient: npt.NDArray[np.float64]
         Negative gradient of the EH model wrt eta. Of dimensionality 2n.
     """
-    n_samples: int = time.shape[0]
-    n_events: int = np.sum(event)
+    n_samples: int = int(time.shape[0])
+    n_events: int = int(np.sum(event))
 
     # Estimate bandwidth using an estimate proportional to the
     # the optimal bandwidth.
@@ -248,11 +236,9 @@ def eh_gradient(
         bandwidth=bandwidth,
     )
 
-    sample_repeated_linear_predictor: np.array = (
-        linear_predictor_vanilla.repeat(n_events).reshape(
-            (n_samples, n_events)
-        )
-    )
+    sample_repeated_linear_predictor: np.array = linear_predictor_vanilla.repeat(
+        n_events
+    ).reshape((n_samples, n_events))
 
     kernel_numerator_full: np.array = (
         kernel_matrix * difference_outer_product * inverse_bandwidth
@@ -270,8 +256,7 @@ def eh_gradient(
             inverse_sample_size
             * (
                 (
-                    -linear_predictor_vanilla[_]
-                    * integrated_kernel_matrix[_, :]
+                    -linear_predictor_vanilla[_] * integrated_kernel_matrix[_, :]
                     + linear_predictor_vanilla[_]
                     * kernel_matrix[_, :]
                     * inverse_bandwidth
@@ -292,35 +277,25 @@ def eh_gradient(
             gradient_correction_factor = inverse_sample_size * (
                 (
                     linear_predictor_vanilla[_] * zero_integrated_kernel
-                    + linear_predictor_vanilla[_]
-                    * zero_kernel
-                    * inverse_bandwidth
+                    + linear_predictor_vanilla[_] * zero_kernel * inverse_bandwidth
                 )
                 / integrated_kernel_denominator[event_count]
             )
 
             gradient_one = -(
                 inverse_sample_size
-                * (
-                    kernel_numerator_full[
-                        _,
-                    ]
-                    / kernel_denominator
-                ).sum()
+                * (kernel_numerator_full[_,] / kernel_denominator).sum()
             )
 
-            prefactor: float = kernel_numerator_full[
-                event_mask, event_count
-            ].sum() / (kernel_denominator[event_count])
+            prefactor: float = kernel_numerator_full[event_mask, event_count].sum() / (
+                kernel_denominator[event_count]
+            )
 
             gradient_two = inverse_sample_size * prefactor
 
             prefactor = (
                 (
-                    (
-                        linear_predictor_vanilla
-                        * kernel_matrix[:, event_count]
-                    ).sum()
+                    (linear_predictor_vanilla * kernel_matrix[:, event_count]).sum()
                     - linear_predictor_vanilla[_] * zero_kernel
                 )
                 * inverse_bandwidth
@@ -347,9 +322,7 @@ def eh_gradient(
     # Flip the gradient sign since we are performing minimization and
     # concatenate the two gradients since we stack both coefficients
     # into a vector.
-    gradient_eta_eh = np.negative(
-        np.concatenate((gradient_eta_cox, gradient_eta_aft))
-    )
+    gradient_eta_eh = np.negative(np.concatenate((gradient_eta_cox, gradient_eta_aft)))
     return gradient_eta_eh
 
 
