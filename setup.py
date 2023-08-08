@@ -41,10 +41,10 @@ except FileNotFoundError:
 # TODO: Update these values according to the name of the module.
 setup(
     name="sparsesurv",
-    version=read_version("survhive/__init__.py"),  # single place for version
+    version=read_version("sparsesurv/__init__.py"),  # single place for version
     description="Installable sparsesurv package. Modify as needed.",
     long_description=open("README.md").read(),
-    url="https://github.com/BoevaLab/survhive",
+    url="https://github.com/BoevaLab/sparsesurv",
     author="David Wissel, Nikita Janakarajan",
     author_email="dwissel@inf.ethz.ch, jnikita@inf.ethz.ch",
     # the following exclusion is to prevent shipping of tests.
