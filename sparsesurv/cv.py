@@ -1,7 +1,7 @@
 import numbers
 from functools import partial
 from numbers import Real
-from typing import List, Optional, Union
+from typing import List, Optional, Union, TypeVar
 
 import celer
 import numpy as np
@@ -28,89 +28,19 @@ from .utils import (
     inverse_transform_survival_preconditioning,
 )
 
+Self = TypeVar("Self")
+
 
 class PCSurvCV(SurvivalMixin, celer.ElasticNetCV):
     """Parent class to fit preconditioned sparse semiparametric right-censored survival models.
 
-    Parameters
-    ----------
-    l1_ratio : float or list of float, default=0.5
-        Float between 0 and 1 passed to ElasticNet (scaling between
-        l1 and l2 penalties). For ``l1_ratio = 0``
-        the penalty is an L2 penalty. For ``l1_ratio = 1`` it is an L1 penalty.
-        For ``0 < l1_ratio < 1``, the penalty is a combination of L1 and L2
-        This parameter can be a list, in which case the different
-        values are tested by cross-validation and the one giving the best
-        prediction score is used. Note that a good choice of list of
-        values for l1_ratio is often to put more values close to 1
-        (i.e. Lasso) and less close to 0 (i.e. Ridge), as in ``[.1, .5, .7,
-        .9, .95, .99, 1]``.
+    Notes:
+        This class is largely adapted from the `ElasticNetCV` implementations
+        in `sklearn` and `celer`.
 
-    eps : float, default=1e-3
-        Length of the path. ``eps=1e-3`` means that
-        ``alpha_min / alpha_max = 1e-3``.
-
-    n_alphas : int, default=100
-        Number of alphas along the regularization path, used for each l1_ratio.
-
-    max_iter : int, default=1000
-        The maximum number of iterations.
-
-    tol : float, default=1e-4
-        The tolerance for the optimization: if the updates are
-        smaller than ``tol``, the optimization code checks the
-        dual gap for optimality and continues until it is smaller
-        than ``tol``.
-
-    cv : int, optional, default=5
-        TODO DW
-
-    verbose : bool or int, default=0
-        Amount of verbosity.
-
-    max_epochs : int, optional (default=50000)
-        Maximum number of coordinate descent epochs when solving a subproblem.
-
-    p0 : int, optional (default=10)
-        Number of features in the first working set.
-
-    prune : bool, optional (default=False)
-        Whether to use pruning when growing the working sets.
-
-    n_jobs : int, default=None
-        Number of CPUs to use during the cross validation.
-        ``None`` means 1 unless in a :obj:`joblib.parallel_backend` context.
-        ``-1`` means using all processors. See :term:`Glossary <n_jobs>`
-        for more details.
-
-    stratify_cv : bool, optional, default=True
-        TODO DW
-
-    seed : int, optional, default=42
-        TODO DW
-
-    shuffle_cv : bool, optional, default=False
-        TODO DW
-
-    cv_score_method : str, optional, default="linear_predictor"
-        TODO DW
-
-    max_coef: int
-        TODO DW
-
-    Attributes
-    ----------
-    TODO DW
-
-    Notes
-    -----
-    This class is largely adapted from the `ElasticNetCV` implementations
-    in `sklearn` and `celer`.
-
-    See Also
-    --------
-    sklearn.linear_model.ElasticNetCV
-    celer.ElasticNetCV
+    See Also:
+        sklearn.linear_model.ElasticNetCV
+        celer.ElasticNetCV
     """
 
     def __init__(
@@ -132,7 +62,45 @@ class PCSurvCV(SurvivalMixin, celer.ElasticNetCV):
         cv_score_method: str = "linear_predictor",
         max_coef=np.inf,
         alpha_type="min",
-    ):
+    ) -> None:
+        """_summary_
+
+        Args:
+            l1_ratio (Union[float, List[float]], optional): Float between 0 and 1 passed
+                to ElasticNet (scaling between l1 and l2 penalties). For ``l1_ratio = 0``
+                the penalty is an L2 penalty. For ``l1_ratio = 1`` it is an L1 penalty.
+                For ``0 < l1_ratio < 1``, the penalty is a combination of L1 and L2.
+                This parameter can be a list, in which case the different values are tested
+                by cross-validation and the one giving the best prediction score is used.
+                Note that a good choice of list of values for l1_ratio is often to put more
+                values close to 1 (i.e. Lasso) and less close to 0 (i.e. Ridge),
+                as in ``[.1, .5, .7, .9, .95, .99, 1]``. Defaults to 1.0.
+            eps (float, optional): Length of the path. ``eps=1e-3`` means that
+                ``alpha_min / alpha_max = 1e-3``. Defaults to 1e-3.
+            n_alphas (int, optional): Number of alphas along the regularization path,
+                used for each l1_ratio. Defaults to 100.
+            max_iter (int, optional): The maximum number of iterations. Defaults to 100.
+            tol (float, optional): The tolerance for the optimization: if the updates are
+                smaller than ``tol``, the optimization code checks the dual gap for optimality
+                and continues until it is smaller than ``tol``. Defaults to 1e-4.
+            cv (int, optional): _description_. Defaults to 5.
+            verbose (int, optional): Degree of verbosity. Defaults to 0.
+            max_epochs (int, optional): Maximum number of coordinate descent epochs when
+                solving a subproblem. Defaults to 50000.
+            p0 (int, optional): Number of features in the first working set. Defaults to 10.
+            prune (bool, optional): Whether to use pruning when growing the working sets.
+                Defaults to True.
+            n_jobs (Optional[int], optional): Number of CPUs to use during the cross validation.
+                ``None`` means 1 unless in a :obj:`joblib.parallel_backend` context.
+                ``-1`` means using all processors. See :term:`Glossary <n_jobs>`
+                for more details.. Defaults to None.
+            stratify_cv (bool, optional): _description_. Defaults to True.
+            seed (Optional[int], optional): _description_. Defaults to 42.
+            shuffle_cv (bool, optional): _description_. Defaults to False.
+            cv_score_method (str, optional): _description_. Defaults to "linear_predictor".
+            max_coef (_type_, optional): _description_. Defaults to np.inf.
+            alpha_type (str, optional): _description_. Defaults to "min".
+        """
         super().__init__(
             l1_ratio=l1_ratio,
             eps=eps,
@@ -162,8 +130,25 @@ class PCSurvCV(SurvivalMixin, celer.ElasticNetCV):
         X: npt.NDArray[np.float64],
         y: npt.NDArray[np.float64],
         sample_weight: Optional[npt.NDArray[np.float64]] = None,
-    ):
-        """TODO DW"""
+    ) -> Self:
+        """_summary_
+
+        Args:
+            X (npt.NDArray[np.float64]): _description_
+            y (npt.NDArray[np.float64]): _description_
+            sample_weight (Optional[npt.NDArray[np.float64]], optional): _description_. Defaults to None.
+
+        Raises:
+            ValueError: _description_
+            ValueError: _description_
+            TypeError: _description_
+            ValueError: _description_
+            ValueError: _description_
+
+        Returns:
+            Self: _description_
+        """
+
         # TODO DW: Add additional parameter checks here and clean
         # up the docs a bit more.
         self._validate_params()
@@ -205,9 +190,9 @@ class PCSurvCV(SurvivalMixin, celer.ElasticNetCV):
                 X, y, validate_separately=(check_X_params, check_y_params)
             )
             if sparse.isspmatrix(X):
-                if hasattr(
-                    reference_to_old_X, "data"
-                ) and not np.may_share_memory(reference_to_old_X.data, X.data):
+                if hasattr(reference_to_old_X, "data") and not np.may_share_memory(
+                    reference_to_old_X.data, X.data
+                ):
                     # X is a sparse matrix and has been copied
                     copy_X = False
             elif not np.may_share_memory(reference_to_old_X, X):
@@ -235,27 +220,21 @@ class PCSurvCV(SurvivalMixin, celer.ElasticNetCV):
         if not self._is_multitask():
             if y.ndim > 1 and y.shape[1] > 1:
                 raise ValueError(
-                    "For multi-task outputs, use MultiTask%s"
-                    % self.__class__.__name__
+                    "For multi-task outputs, use MultiTask%s" % self.__class__.__name__
                 )
             y = column_or_1d(y, warn=True)
         else:
             if sparse.isspmatrix(X):
-                raise TypeError(
-                    "X should be dense but a sparse matrix waspassed"
-                )
+                raise TypeError("X should be dense but a sparse matrix waspassed")
             elif y.ndim == 1:
                 raise ValueError(
-                    "For mono-task outputs, use %sCV"
-                    % self.__class__.__name__[9:]
+                    "For mono-task outputs, use %sCV" % self.__class__.__name__[9:]
                 )
 
         if isinstance(sample_weight, numbers.Number):
             sample_weight = None
         if sample_weight is not None:
-            sample_weight = _check_sample_weight(
-                sample_weight, X, dtype=X.dtype
-            )
+            sample_weight = _check_sample_weight(sample_weight, X, dtype=X.dtype)
 
         model = self._get_estimator()
 
@@ -322,9 +301,7 @@ class PCSurvCV(SurvivalMixin, celer.ElasticNetCV):
                 n_splits=5, shuffle=self.shuffle_cv, random_state=self.seed
             )
             if self.stratify_cv
-            else KFold(
-                n_splits=5, shuffle=self.shuffle_cv, random_state=self.seed
-            ),
+            else KFold(n_splits=5, shuffle=self.shuffle_cv, random_state=self.seed),
             y=event,
             classifier=self.stratify_cv,
         )
@@ -401,9 +378,7 @@ class PCSurvCV(SurvivalMixin, celer.ElasticNetCV):
                 ) = inverse_transform_survival_preconditioning(test_y_method)
                 for j in range(len(alphas[i])):
                     likelihood = CVSCORERFACTORY[self.cv_score_method](
-                        test_linear_predictor=test_eta_method[
-                            :, :, j
-                        ].squeeze(),
+                        test_linear_predictor=test_eta_method[:, :, j].squeeze(),
                         test_time=test_time,
                         test_event=test_event,
                         score_function=self.loss,
@@ -431,28 +406,18 @@ class PCSurvCV(SurvivalMixin, celer.ElasticNetCV):
                             train_time,
                             train_event,
                             _,
-                        ) = inverse_transform_survival_preconditioning(
-                            train_y_method
-                        )
+                        ) = inverse_transform_survival_preconditioning(train_y_method)
                         (
                             test_time,
                             test_event,
                             test_eta_hat,
-                        ) = inverse_transform_survival_preconditioning(
-                            test_y_method
-                        )
-                        fold_likelihood = CVSCORERFACTORY[
-                            self.cv_score_method
-                        ](
-                            test_linear_predictor=test_eta_method[
-                                :, :, j
-                            ].squeeze(),
+                        ) = inverse_transform_survival_preconditioning(test_y_method)
+                        fold_likelihood = CVSCORERFACTORY[self.cv_score_method](
+                            test_linear_predictor=test_eta_method[:, :, j].squeeze(),
                             test_time=test_time,
                             test_event=test_event,
                             test_eta_hat=test_eta_hat,
-                            train_linear_predictor=train_eta_method[
-                                :, :, j
-                            ].squeeze(),
+                            train_linear_predictor=train_eta_method[:, :, j].squeeze(),
                             train_time=train_time,
                             train_event=train_event,
                             score_function=self.loss,
@@ -478,9 +443,7 @@ class PCSurvCV(SurvivalMixin, celer.ElasticNetCV):
                 # print(pl_alphas)
                 # print(n_coefs)
                 i_best_alpha = np.argmax(
-                    np.array(pl_alphas)[
-                        np.where(np.array(n_coefs) <= self.max_coef)[0]
-                    ]
+                    np.array(pl_alphas)[np.where(np.array(n_coefs) <= self.max_coef)[0]]
                 )
                 this_best_pl = pl_alphas[i_best_alpha]
                 if this_best_pl > best_pl_score:
@@ -493,13 +456,13 @@ class PCSurvCV(SurvivalMixin, celer.ElasticNetCV):
                 l1_ratios, alphas, mean_cv_score, mean_sparsity, mean_sd_score
             ):
                 i_best_alpha = np.argmax(
-                    np.array(pl_alphas)[
-                        np.where(np.array(n_coefs) <= self.max_coef)[0]
-                    ]
+                    np.array(pl_alphas)[np.where(np.array(n_coefs) <= self.max_coef)[0]]
                 )
                 this_best_pl = pl_alphas[i_best_alpha]
                 if this_best_pl < best_pl_score:
-                    best_pl_score = this_best_pl - (sd_alphas[i_best_alpha] / np.sqrt(n_folds))
+                    best_pl_score = this_best_pl - (
+                        sd_alphas[i_best_alpha] / np.sqrt(n_folds)
+                    )
             for l1_ratio, l1_alphas, pl_alphas, n_coefs, sd_alphas in zip(
                 l1_ratios, alphas, mean_cv_score, mean_sparsity, mean_sd_score
             ):
@@ -526,9 +489,7 @@ class PCSurvCV(SurvivalMixin, celer.ElasticNetCV):
                 pl_alphas = np.array(pl_alphas)
                 n_coefs = np.array(n_coefs)
                 i_best_alpha = np.argmax(
-                    np.array(pl_alphas)[
-                        np.where(np.array(n_coefs) <= self.max_coef)[0]
-                    ]
+                    np.array(pl_alphas)[np.where(np.array(n_coefs) <= self.max_coef)[0]]
                 )
                 sparsity_best_alpha = np.array(n_coefs)[i_best_alpha]
                 pl_best_alpha = pl_alphas[i_best_alpha]
@@ -596,8 +557,16 @@ class PCSurvCV(SurvivalMixin, celer.ElasticNetCV):
         """Return whether the model instance in question is a multitask model."""
         return False
 
-    def predict(self, X: npt.NDArray[np.float64]):
-        """Calculate linear predictor corresponding to query design matrix X."""
+    def predict(self, X: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
+        """Calculate linear predictor corresponding to query design matrix X.
+
+        Args:
+            X (npt.NDArray[np.float64]): Query design matrix.
+
+        Returns:
+            npt.NDArray[np.float64]: Linear predictor of the samples.
+        """
+
         return X @ self.coef_
 
 
@@ -624,7 +593,32 @@ class PCPHElasticNetCV(PCSurvCV):
         cv_score_method: str = "linear_predictor",
         max_coef=np.inf,
         alpha_type="min",
-    ):
+    ) -> None:
+        """_summary_
+
+        Args:
+            tie_correction (str, optional): _description_. Defaults to "efron".
+            l1_ratio (Union[float, List[float]], optional): _description_. Defaults to 1.0.
+            eps (float, optional): _description_. Defaults to 1e-3.
+            n_alphas (int, optional): _description_. Defaults to 100.
+            max_iter (int, optional): _description_. Defaults to 100.
+            tol (float, optional): _description_. Defaults to 1e-4.
+            cv (int, optional): _description_. Defaults to 5.
+            verbose (int, optional): _description_. Defaults to 0.
+            max_epochs (int, optional): _description_. Defaults to 50000.
+            p0 (int, optional): _description_. Defaults to 10.
+            prune (bool, optional): _description_. Defaults to True.
+            n_jobs (Optional[int], optional): _description_. Defaults to None.
+            stratify_cv (bool, optional): _description_. Defaults to True.
+            seed (Optional[int], optional): _description_. Defaults to 42.
+            shuffle_cv (bool, optional): _description_. Defaults to False.
+            cv_score_method (str, optional): _description_. Defaults to "linear_predictor".
+            max_coef (_type_, optional): _description_. Defaults to np.inf.
+            alpha_type (str, optional): _description_. Defaults to "min".
+
+        Raises:
+            ValueError: _description_
+        """
         super().__init__(
             l1_ratio=l1_ratio,
             eps=eps,
@@ -642,7 +636,7 @@ class PCPHElasticNetCV(PCSurvCV):
             shuffle_cv=shuffle_cv,
             cv_score_method=cv_score_method,
             max_coef=max_coef,
-            alpha_type=alpha_type
+            alpha_type=alpha_type,
         )
         if tie_correction not in ["breslow", "efron"]:
             raise ValueError(
@@ -656,7 +650,18 @@ class PCPHElasticNetCV(PCSurvCV):
     def predict_cumulative_hazard_function(
         self, X: npt.NDArray[np.float64], time: npt.NDArray[np.float64]
     ) -> pd.DataFrame:
-        """TODO DW"""
+        """_summary_
+
+        Args:
+            X (npt.NDArray[np.float64]): _description_
+            time (npt.NDArray[np.float64]): _description_
+
+        Raises:
+            ValueError: _description_
+
+        Returns:
+            pd.DataFrame: _description_
+        """
         if np.min(time) < 0:
             raise ValueError(
                 "Times for survival and cumulative hazard prediction must be greater than or equal to zero."
@@ -679,9 +684,7 @@ class PCPHElasticNetCV(PCSurvCV):
         )
         cumulative_baseline_hazards: np.array = np.tile(
             A=cumulative_baseline_hazards[
-                np.digitize(
-                    x=time, bins=cumulative_baseline_hazards_times, right=False
-                )
+                np.digitize(x=time, bins=cumulative_baseline_hazards_times, right=False)
                 - 1
             ],
             reps=X.shape[0],
@@ -724,7 +727,29 @@ class PCAFTElasticNetCV(PCSurvCV):
         cv_score_method: str = "linear_predictor",
         max_coef=np.inf,
         alpha_type="min",
-    ):
+    ) -> None:
+        """_summary_
+
+        Args:
+            bandwidth (Optional[float], optional): _description_. Defaults to None.
+            l1_ratio (Union[float, List[float]], optional): _description_. Defaults to 1.0.
+            eps (float, optional): _description_. Defaults to 1e-3.
+            n_alphas (int, optional): _description_. Defaults to 100.
+            max_iter (int, optional): _description_. Defaults to 100.
+            tol (float, optional): _description_. Defaults to 1e-4.
+            cv (int, optional): _description_. Defaults to 5.
+            verbose (int, optional): _description_. Defaults to 0.
+            max_epochs (int, optional): _description_. Defaults to 50000.
+            p0 (int, optional): _description_. Defaults to 10.
+            prune (bool, optional): _description_. Defaults to True.
+            n_jobs (Optional[int], optional): _description_. Defaults to None.
+            stratify_cv (bool, optional): _description_. Defaults to True.
+            seed (Optional[int], optional): _description_. Defaults to 42.
+            shuffle_cv (bool, optional): _description_. Defaults to False.
+            cv_score_method (str, optional): _description_. Defaults to "linear_predictor".
+            max_coef (_type_, optional): _description_. Defaults to np.inf.
+            alpha_type (str, optional): _description_. Defaults to "min".
+        """
         super().__init__(
             l1_ratio=l1_ratio,
             eps=eps,
@@ -742,7 +767,7 @@ class PCAFTElasticNetCV(PCSurvCV):
             shuffle_cv=shuffle_cv,
             cv_score_method=cv_score_method,
             max_coef=max_coef,
-            alpha_type=alpha_type
+            alpha_type=alpha_type,
         )
         self.bandwidth = bandwidth
         self.loss = LOSS_FACTORY["aft"]
@@ -789,7 +814,28 @@ class PCEHMultiTaskLassoCV(PCSurvCV):
         cv_score_method: str = "linear_predictor",
         max_coef=np.inf,
         alpha_type="min",
-    ):
+    ) -> None:
+        """_summary_
+
+        Args:
+            bandwidth (Optional[float], optional): _description_. Defaults to None.
+            eps (float, optional): _description_. Defaults to 1e-3.
+            n_alphas (int, optional): _description_. Defaults to 100.
+            max_iter (int, optional): _description_. Defaults to 100.
+            tol (float, optional): _description_. Defaults to 1e-4.
+            cv (int, optional): _description_. Defaults to 5.
+            verbose (int, optional): _description_. Defaults to 0.
+            max_epochs (int, optional): _description_. Defaults to 50000.
+            p0 (int, optional): _description_. Defaults to 10.
+            prune (bool, optional): _description_. Defaults to True.
+            n_jobs (Optional[int], optional): _description_. Defaults to None.
+            stratify_cv (bool, optional): _description_. Defaults to True.
+            seed (Optional[int], optional): _description_. Defaults to 42.
+            shuffle_cv (bool, optional): _description_. Defaults to False.
+            cv_score_method (str, optional): _description_. Defaults to "linear_predictor".
+            max_coef (_type_, optional): _description_. Defaults to np.inf.
+            alpha_type (str, optional): _description_. Defaults to "min".
+        """
         super().__init__(
             l1_ratio=1.0,
             eps=eps,
@@ -807,21 +853,28 @@ class PCEHMultiTaskLassoCV(PCSurvCV):
             shuffle_cv=shuffle_cv,
             cv_score_method=cv_score_method,
             max_coef=max_coef,
-            alpha_type=alpha_type
+            alpha_type=alpha_type,
         )
         self.bandwidth = bandwidth
         self.loss = LOSS_FACTORY["eh"]
         self.cumulative_baseline_hazard = BASELINE_HAZARD_FACTORY["eh"]
 
-    def path(self, X, y, alphas, coef_init=None, **kwargs):
-        """Compute Lasso path with Celer.
+    def path(self, X, y, alphas, coef_init=None, **kwargs) -> Tuple:
+        """Compute Lasso path with Celer. Function taken as-is from celer for compatibility
+            with parent class.
 
-        Function taken as-is from celer for compatibility with parent class.
+        Args:
+            X (_type_): _description_
+            y (_type_): _description_
+            alphas (_type_): _description_
+            coef_init (_type_, optional): _description_. Defaults to None.
 
-        See Also
-        --------
-        celer.homotopy.mtl_path
-        celer.dropin_sklearn.MultiTaskLassoCV
+        Returns:
+            Tuple: _description_
+
+        See Also:
+            celer.homotopy.mtl_path
+            celer.dropin_sklearn.MultiTaskLassoCV
         """
 
         alphas, coefs, dual_gaps = celer.homotopy.mtl_path(
@@ -839,21 +892,48 @@ class PCEHMultiTaskLassoCV(PCSurvCV):
 
         return alphas, coefs, dual_gaps
 
-    def predict(self, X: npt.NDArray[np.float64]):
-        """Calculate linear predictor corresponding to query design matrix X."""
+    def predict(self, X: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
+        """Calculate linear predictor corresponding to query design matrix X.
+
+        Args:
+            X (npt.NDArray[np.float64]): Query design matrix.
+
+        Returns:
+            npt.NDArray[np.float64]: Linear predictor of the samples.
+        """
         return X @ self.coef_.T
 
-    def _is_multitask(self):
-        """Return whether the model instance in question is a multitask model."""
+    def _is_multitask(self) -> bool:
+        """Return whether the model instance in question is a multitask model.
+
+        Returns:
+            bool: _description_
+        """
         return True
 
     def _get_estimator(self):
+        """_summary_
+
+        Returns:
+            _type_: _description_
+        """
         return celer.MultiTaskLasso()
 
     def predict_cumulative_hazard_function(
         self, X: npt.NDArray[np.float64], time: npt.NDArray[np.float64]
     ) -> pd.DataFrame:
-        """TODO DW"""
+        """_summary_
+
+        Args:
+            X (npt.NDArray[np.float64]): _description_
+            time (npt.NDArray[np.float64]): _description_
+
+        Raises:
+            ValueError: _description_
+
+        Returns:
+            pd.DataFrame: _description_
+        """
         if np.min(time) < 0:
             raise ValueError(
                 "Times for survival and cumulative hazard prediction must be greater than or equal to zero."

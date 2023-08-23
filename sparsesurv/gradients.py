@@ -14,27 +14,20 @@ def aft_gradient(
     time: npt.NDArray[np.float64],
     event: npt.NDArray[np.int64],
     bandwidth: Optional[float] = None,
-):
+) -> npt.NDArray[np.float64]:
     """Calculates the negative gradient of the AFT model wrt eta.
 
-    Parameters
-    ----------
-    linear_predictor: npt.NDArray[np.float64]
-        Linear predictor of the training data. Of dimension n.
-    time: npt.NDArray[np.float64]
-        Time of the training data. Of dimension n. Assumed to be sorted
-        (does not matter here, but regardless).
-    event: npt.NDArray[np.int64]
-        Event indicator of the training data. Of dimension n.
-    bandwidth: Optional[float]
-        Bandwidth to kernel-smooth the profile likelihood. Will
-        be estimated if not specified.
+    Args:
+        linear_predictor (npt.NDArray[np.float64]): Linear predictor of the training data of dimension n.
+        time (npt.NDArray[np.float64]): Time of the training data of dimension n. Assumed to be sorted.
+        event (npt.NDArray[np.int64]): Event indicator of the training data of dimension n.
+        bandwidth (Optional[float], optional): Bandwidth to kernel-smooth the profile likelihood.
+            Will be estimated if not specified. Defaults to None.
 
-    Returns
-    -------
-    gradient: npt.NDArray[np.float64]
-        Negative gradient of the AFT model wrt eta. Of dimensionality n.
+    Returns:
+        npt.NDArray[np.float64]: Negative gradient of the AFT model wrt eta. Of dimensionality n.
     """
+
     linear_predictor: npt.NDArray[np.float64] = np.exp(linear_predictor)
     linear_predictor = np.log(time * linear_predictor)
     n_samples: int = time.shape[0]
@@ -128,33 +121,24 @@ def aft_gradient_beta(
     time: npt.NDArray[np.float64],
     event: npt.NDArray[np.int64],
     bandwidth: Optional[float] = None,
-):
+) -> npt.NDArray[np.float64]:
     """Calculates the negative gradient of the AFT model wrt beta.
 
-    Utility function to be used with off-the-shelf optimisers (e.g., scipy).
-    Since the main gradient function calculates the gradient wrt eta
-    (see `aft_gradient`), we recover the gradient wrt beta through a
-    matrix multiplication.
+    Note:
+        Utility function to be used with off-the-shelf optimisers (e.g., scipy).
+        Since the main gradient function calculates the gradient wrt eta (see `aft_gradient`),
+        we recover the gradient wrt beta through a matrix multiplication.
 
-    Parameters
-    ----------
-    beta: npt.NDArray[np.float64]
-        Coefficient vector. Length p.
-    X: npt.NDarray[np.float64]
-        Design matrix of the training data. N rows and p columns.
-    time: npt.NDArray[np.float64]
-        Time of the training data. Length n. Assumed to be sorted
-        (does not matter here, but regardless).
-    event: npt.NDArray[np.int64]
-        Event indicator of the training data. Length n.
-    bandwidth: Optional[float]
-        Bandwidth to kernel-smooth the profile likelihood. Will
-        be estimated empirically if not specified.
+    Args:
+        beta (npt.NDArray[np.float64]): Coefficient vector of length p.
+        X (npt.NDArray[np.float64]): Design matrix of the training data. N rows and p columns.
+        time (npt.NDArray[np.float64]): Time of the training data of length n. Assumed to be sorted.
+        event (npt.NDArray[np.int64]): Event indicator of the training data of length n.
+        bandwidth (Optional[float], optional): Bandwidth to kernel-smooth the profile likelihood.
+            Will be estimated empirically if not specified. Defaults to None.
 
-    Returns
-    -------
-    beta_gradient: npt.NDArray[np.float64]
-        Negative gradient of the AFT model wrt beta. Length p.
+    Returns:
+        npt.NDArray[np.float64]:  Negative gradient of the AFT model wrt beta of length p.
     """
     # if not np.array_equal(np.sort(time), time):
     #     raise ValueError(
@@ -179,24 +163,17 @@ def eh_gradient(
 ) -> np.array:
     """Calculates the negative gradient of the EH model wrt eta.
 
-    Parameters
-    ----------
-    linear_predictor: npt.NDArray[np.float64]
-        Linear predictor of the training data. N rows and 2 columns.
-    time: npt.NDArray[np.float64]
-        Time of the training data. Of dimension n. Assumed to be sorted
-        (does not matter here, but regardless).
-    event: npt.NDArray[np.int64]
-        Event indicator of the training data. Of dimension n.
-    bandwidth: Optional[float]
-        Bandwidth to kernel-smooth the profile likelihood. Will
-        be estimated if not specified.
+    Args:
+        linear_predictor (npt.NDArray[np.float64]): Linear predictor of the training data. N rows and 2 columns.
+        time (npt.NDArray[np.float64]): Time of the training data of length n. Assumed to be sorted.
+        event (npt.NDArray[np.int64]): Event indicator of the training data of length n.
+        bandwidth (Optional[float], optional): Bandwidth to kernel-smooth the profile likelihood.
+            Will be estimated if not specified. Defaults to None.
 
-    Returns
-    -------
-    gradient: npt.NDArray[np.float64]
-        Negative gradient of the EH model wrt eta. Of dimensionality 2n.
+    Returns:
+        np.array: Negative gradient of the EH model wrt eta of length 2n.
     """
+
     n_samples: int = int(time.shape[0])
     n_events: int = int(np.sum(event))
 
@@ -332,36 +309,28 @@ def eh_gradient_beta(
     time: npt.NDArray[np.float64],
     event: npt.NDArray[np.int64],
     bandwidth: Optional[float] = None,
-):
+) -> npt.NDArray[np.float64]:
     """Calculates the negative gradient of the EH model wrt beta.
 
-    Utility function to be used with off-the-shelf optimisers (e.g., scipy).
-    Since the main gradient function calculates the gradient wrt eta
-    (see `eh_gradient`), we recover the gradient wrt beta through a
-    matrix multiplication.
+    Note:
+        Utility function to be used with off-the-shelf optimisers (e.g., scipy).
+        Since the main gradient function calculates the gradient wrt eta
+        (see `eh_gradient`), we recover the gradient wrt beta through a
+        matrix multiplication.
 
-    Parameters
-    ----------
-    beta: npt.NDArray[np.float64]
-        Coefficient vector. Length 2p to account for the two
-        coefficients that were stacked into one vector (see
-        `pcsurv.eh.EH` for details).
-    X: npt.NDarray[np.float64]
-        Design matrix of the training data. N rows and 2p columns.
-    time: npt.NDArray[np.float64]
-        Time of the training data. Length n. Assumed to be sorted
-        (does not matter here, but regardless).
-    event: npt.NDArray[np.int64]
-        Event indicator of the training data. Length n.
-    bandwidth: Optional[float]
-        Bandwidth to kernel-smooth the profile likelihood. Will
-        be estimated empirically if not specified.
+    Args:
+        beta (npt.NDArray[np.float64]): Coefficient vector. Length 2p to account for the two
+            coefficients that were stacked into one vector (see `pcsurv.eh.EH` for details).
+        X (npt.NDArray[np.float64]): Design matrix of the training data. N rows and 2p columns.
+        time (npt.NDArray[np.float64]): Time of the training data of length n. Assumed to be sorted.
+        event (npt.NDArray[np.int64]): Event indicator of the training data of length n.
+        bandwidth (Optional[float], optional): Bandwidth to kernel-smooth the profile likelihood.
+            Will be estimated if not specified. Defaults to None. Defaults to None.
 
-    Returns
-    -------
-    beta_eh_gradient: npt.NDArray[np.float64]
-        Negative gradient of the AFT model wrt beta. Length 2p.
+    Returns:
+        npt.NDArray[np.float64]: Negative gradient of the AFT model wrt beta of length 2p.
     """
+
     # if not np.array_equal(np.sort(time), time):
     #     raise ValueError(
     #         "`time` is expected to be sorted (ascending). Unsorted `time` found instead."

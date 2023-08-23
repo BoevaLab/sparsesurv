@@ -1,6 +1,7 @@
 from math import log
 
 import numpy as np
+import numpy.typing as npt
 from numba import jit
 
 from .utils import (
@@ -15,6 +16,20 @@ from .utils import (
 def breslow_negative_likelihood(
     linear_predictor: np.array, time: np.array, event: np.array
 ) -> np.array:
+    """Negative log-likelihood function with Breslow tie-correction.
+
+    Args:
+        linear_predictor (np.array): Linear predictor of the training data.
+        time (np.array): Time of the training data of length n. Assumed to be sorted.
+        event (np.array): Event indicator of the training data of length n.
+
+    Raises:
+        RuntimeError: Raises runtime error when there are no deaths/events in the given
+            batch of samples.
+
+    Returns:
+        np.array: Average negative log likelihood.
+    """
     if np.sum(event) == 0:
         raise RuntimeError("No events detected!")
     samples = time.shape[0]
@@ -53,6 +68,20 @@ def breslow_negative_likelihood_beta(beta, X, time, event):
 def efron_negative_likelihood(
     linear_predictor: np.array, time: np.array, event: np.array
 ) -> np.array:
+    """Negative log-likelihood function with Efron tie-correction.
+
+    Args:
+        linear_predictor (np.array): Linear predictor of the training data.
+        time (np.array): Time of the training data of length n. Assumed to be sorted.
+        event (np.array): Event indicator of the training data of length n.
+
+    Raises:
+        RuntimeError: Raises runtime error when there are no deaths/events in the given
+            batch of samples.
+
+    Returns:
+        np.array: Average negative log likelihood.
+    """
     if np.sum(event) == 0:
         raise RuntimeError("No events detected!")
     time_ix = np.argsort(time)
@@ -107,17 +136,50 @@ def efron_negative_likelihood(
     return -likelihood / samples
 
 
-def efron_negative_likelihood_beta(beta, X, time, event):
+def efron_negative_likelihood_beta(
+    beta: npt.NDArray[np.float64],
+    X: npt.NDArray[np.float64],
+    time: np.array,
+    event: np.array,
+) -> np.array:
+    """Negative log-likelihood function with Efron tie-correction when the design matrix
+        and the coefficients beta are provided instead of the linear predictor directly.
+
+    Args:
+        beta (npt.NDArray[np.float64]): Coefficient vector of length p.
+        X (npt.NDArray[np.float64]): Design matrix of the training data. N rows and p columns.
+        time (np.array): Time of the training data of length n. Assumed to be sorted.
+        event (np.array): Event indicator of the training data of length n.
+
+    Returns:
+        np.array: Average negative log likelihood.
+    """
     return efron_negative_likelihood(linear_predictor=X @ beta, time=time, event=event)
 
 
 @jit(nopython=True, cache=True, fastmath=True)
 def aft_negative_likelihood(
     linear_predictor: np.array,
-    time,
-    event,
-    bandwidth=None,
+    time: np.array,
+    event: np.array,
+    bandwidth: float = None,
 ) -> np.array:
+    """Negative log-likelihood function for accelerated failure time model.
+
+    Args:
+        linear_predictor (np.array): Linear predictor of the training data.
+        time (np.array): Time of the training data of length n. Assumed to be sorted.
+        event (np.array): Event indicator of the training data of length n.
+        bandwidth (float, optional): Bandwidth to kernel-smooth the profile likelihood.
+            Will be estimated empirically if not specified. Defaults to None.
+
+    Raises:
+        RuntimeError: Raises runtime error when there are no deaths/events in the given
+            batch of samples.
+
+    Returns:
+        np.array: Average negative log-likelihood.
+    """
     if np.sum(event) == 0:
         raise RuntimeError("No events detected!")
     n_samples: int = time.shape[0]
@@ -158,12 +220,27 @@ def aft_negative_likelihood(
 
 
 def aft_negative_likelihood_beta(
-    beta,
-    X,
-    time,
-    event,
-    bandwidth=None,
+    beta: npt.NDArray[np.float64],
+    X: npt.NDArray[np.float64],
+    time: np.array,
+    event: np.array,
+    bandwidth: float = None,
 ) -> np.array:
+    """Negative log-likelihood function for accelerated failure time model when the design matrix
+        and the coefficients beta are provided instead of the linear predictor directly.
+
+    Args:
+        beta (npt.NDArray[np.float64]): Coefficient vector of length p.
+        X (npt.NDArray[np.float64]): Design matrix of the training data. N rows and p columns.
+        time (np.array): Time of the training data of length n. Assumed to be sorted.
+        event (np.array): Event indicator of the training data of length n.
+        bandwidth (float, optional): Bandwidth to kernel-smooth the profile likelihood.
+            Will be estimated empirically if not specified. Defaults to None.
+
+
+    Returns:
+        np.array: Average negative log-likelihood.
+    """
     return float(
         aft_negative_likelihood(
             linear_predictor=np.matmul(X, beta),
@@ -176,11 +253,27 @@ def aft_negative_likelihood_beta(
 
 @jit(nopython=True, cache=True, fastmath=True)
 def eh_negative_likelihood(
-    linear_predictor,
-    time,
-    event,
-    bandwidth=None,
+    linear_predictor: np.array,
+    time: np.array,
+    event: np.array,
+    bandwidth: float = None,
 ) -> np.array:
+    """Negative log-likelihood function for extended hazards model.
+
+    Args:
+        linear_predictor (np.array): Linear predictor of the training data.
+        time (np.array): Time of the training data of length n. Assumed to be sorted.
+        event (np.array): Event indicator of the training data of length n.
+        bandwidth (float, optional): Bandwidth to kernel-smooth the profile likelihood.
+            Will be estimated empirically if not specified. Defaults to None.
+
+    Raises:
+        RuntimeError: Raises runtime error when there are no deaths/events in the given
+            batch of samples.
+
+    Returns:
+        np.array: Average negative log-likelihood.
+    """
     if np.sum(event) == 0:
         raise RuntimeError("No events detected!")
     theta = np.exp(linear_predictor)
@@ -226,12 +319,26 @@ def eh_negative_likelihood(
 
 
 def eh_negative_likelihood_beta(
-    beta,
-    X,
-    time,
-    event,
-    bandwidth=None,
+    beta: npt.NDArray[np.float64],
+    X: npt.NDArray[np.float64],
+    time: np.array,
+    event: np.array,
+    bandwidth: float = None,
 ) -> np.array:
+    """Negative log-likelihood function for extended hazards model when the design matrix
+        and the coefficients beta are provided instead of the linear predictor directly.
+
+    Args:
+        beta (npt.NDArray[np.float64]): Coefficient vector of length p.
+        X (npt.NDArray[np.float64]): Design matrix of the training data. N rows and p columns.
+        time (np.array): Time of the training data of length n. Assumed to be sorted.
+        event (np.array): Event indicator of the training data of length n.
+        bandwidth (float, optional): Bandwidth to kernel-smooth the profile likelihood.
+            Will be estimated empirically if not specified. Defaults to None.
+
+    Returns:
+        np.array: Average negative log-likelihood.
+    """
     hm = int(X.shape[1] / 2)
     return eh_negative_likelihood(
         linear_predictor=np.stack(

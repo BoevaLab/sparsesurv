@@ -1,5 +1,5 @@
 from math import erf, exp, log
-from typing import Callable
+from typing import Callable, Tuple
 
 import numpy as np
 import numpy.typing as npt
@@ -13,7 +13,15 @@ from sklearn.utils.extmath import safe_sparse_dot
 from .constants import PDF_PREFACTOR, SQRT_TWO
 
 
-def normal_density(x):
+def normal_density(x: torch.Tensor) -> torch.Tensor:
+    """_summary_
+
+    Args:
+        x (torch.Tensor): _description_
+
+    Returns:
+        torch.Tensor: _description_
+    """
     # PDF_PREFACTOR = 0.3989423 (old version - rounded up)
     density = PDF_PREFACTOR * torch.exp(-0.5 * torch.pow(x, 2.0))
     return density
@@ -22,12 +30,29 @@ def normal_density(x):
 def inverse_transform_survival(
     y: np.array,
 ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.int64]]:
+    """_summary_
+
+    Args:
+        y (np.array): _description_
+
+    Returns:
+        tuple[npt.NDArray[np.float64], npt.NDArray[np.int64]]: _description_
+    """
     return y["time"].astype(np.float_), y["event"].astype(np.int_)
 
 
 def transform_survival(
     time: npt.NDArray[np.float64], event: npt.NDArray[np.int64]
 ) -> np.array:
+    """_summary_
+
+    Args:
+        time (npt.NDArray[np.float64]): _description_
+        event (npt.NDArray[np.int64]): _description_
+
+    Returns:
+        np.array: _description_
+    """
     y = np.array(
         [
             (event_, time_)
@@ -44,6 +69,14 @@ def transform_survival(
 def inverse_transform_survival_preconditioning(
     y: np.array,
 ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.int64], npt.NDArray[np.float64]]:
+    """_summary_
+
+    Args:
+        y (np.array): _description_
+
+    Returns:
+        tuple[npt.NDArray[np.float64], npt.NDArray[np.int64], npt.NDArray[np.float64]]: _description_
+    """
     time = y["time"].astype(np.float_)
     event = y["event"].astype(np.int_)
     if len(y[0]) > 3:
@@ -61,7 +94,20 @@ def transform_survival_preconditioning(
     time: npt.NDArray[np.float64],
     event: npt.NDArray[np.int64],
     eta_hat: npt.NDArray[np.float64],
-):
+) -> np.array:
+    """_summary_
+
+    Args:
+        time (npt.NDArray[np.float64]): _description_
+        event (npt.NDArray[np.int64]): _description_
+        eta_hat (npt.NDArray[np.float64]): _description_
+
+    Raises:
+        NotImplementedError: _description_
+
+    Returns:
+        np.array: _description_
+    """
     eta_hat = eta_hat.squeeze()
     # TODO DW: This whole thing should be somewhat simplified long-term.
     if eta_hat.shape[0] > time.shape[0]:
@@ -124,18 +170,44 @@ def transform_survival_preconditioning(
 
 @jit(nopython=True, cache=True)
 def logsubstractexp(a: float, b: float) -> float:
+    """_summary_
+
+    Args:
+        a (float): _description_
+        b (float): _description_
+
+    Returns:
+        float: _description_
+    """
     max_value = max(a, b)
     return max_value + np.log(np.exp(a - max_value) - np.exp(b - max_value))
 
 
 @jit(nopython=True, cache=True)
 def logaddexp(a: float, b: float) -> float:
+    """_summary_
+
+    Args:
+        a (float): _description_
+        b (float): _description_
+
+    Returns:
+        float: _description_
+    """
     max_value = max(a, b)
     return max_value + np.log(np.exp(a - max_value) + np.exp(b - max_value))
 
 
 @jit(nopython=True, fastmath=True)
 def numba_logsumexp_stable(a: npt.NDArray[np.float64]) -> float:
+    """_summary_
+
+    Args:
+        a (npt.NDArray[np.float64]): _description_
+
+    Returns:
+        float: _description_
+    """
     max_ = np.max(a)
     return max_ + log(np.sum(np.exp(a - max_)))
 
@@ -302,16 +374,43 @@ def _path_predictions(
 
 @jit(nopython=True, cache=True, fastmath=True)
 def gaussian_integrated_kernel(x):
+    """_summary_
+
+    Args:
+        x (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
     return 0.5 * (1 + erf(x / SQRT_TWO))
 
 
 @jit(nopython=True, cache=True, fastmath=True)
 def gaussian_kernel(x):
+    """_summary_
+
+    Args:
+        x (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
     return PDF_PREFACTOR * exp(-0.5 * (x**2))
 
 
 @jit(nopython=True, cache=True, fastmath=True)
-def kernel(a, b, bandwidth):
+def kernel(a, b, bandwidth) -> np.array:
+    """_summary_
+
+    Args:
+        a (_type_): _description_
+        b (_type_): _description_
+        bandwidth (_type_): _description_
+
+    Returns:
+        np.array: _description_
+    """
+
     kernel_matrix: np.array = np.empty(shape=(a.shape[0], b.shape[0]))
     for ix in range(a.shape[0]):
         for qx in range(b.shape[0]):
@@ -320,7 +419,17 @@ def kernel(a, b, bandwidth):
 
 
 @jit(nopython=True, cache=True, fastmath=True)
-def integrated_kernel(a, b, bandwidth):
+def integrated_kernel(a, b, bandwidth) -> np.array:
+    """_summary_
+
+    Args:
+        a (_type_): _description_
+        b (_type_): _description_
+        bandwidth (_type_): _description_
+
+    Returns:
+        np.array: _description_
+    """
     integrated_kernel_matrix: np.array = np.empty(shape=(a.shape[0], b.shape[0]))
     for ix in range(a.shape[0]):
         for qx in range(b.shape[0]):
@@ -331,7 +440,17 @@ def integrated_kernel(a, b, bandwidth):
 
 
 @jit(nopython=True, cache=True, fastmath=True)
-def difference_kernels(a, b, bandwidth):
+def difference_kernels(a, b, bandwidth) -> Tuple:
+    """_summary_
+
+    Args:
+        a (_type_): _description_
+        b (_type_): _description_
+        bandwidth (_type_): _description_
+
+    Returns:
+        Tuple: _description_
+    """
     difference: np.array = np.empty(shape=(a.shape[0], b.shape[0]))
     kernel_matrix: np.array = np.empty(shape=(a.shape[0], b.shape[0]))
     integrated_kernel_matrix: np.array = np.empty(shape=(a.shape[0], b.shape[0]))

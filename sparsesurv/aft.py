@@ -23,32 +23,7 @@ class AFT(SurvivalMixin):
     quasi-Newton strategy. Gradients are JIT-compiled using numba
     and implemented in an efficient manner (see `pcsurv.gradients`).
 
-    Parameters
-    ----------
-    bandwidth: Optional[float]
-        Bandwidth to be used for kernel smoothing the profile likelihood.
-        If left unspecified (i.e., `None`), optimal bandwidth will be
-        estimted empirically, similar to previous work [3, 4].
-    tol: Optional[float]
-        Tolerance for terminating the `trust-ncg` algorithm in scipy.
-    options: Optional[Dict[str, Union[bool, int, float]]]
-        Solver-specific configuration options of the `trust-ncg`
-        solver in scipy.
-
-    Attributes
-    ----------
-    bandwidth: Optional[float]
-        Bandwidth to be used for kernel smoothing the profile likelihood.
-        If left unspecified (i.e., `None`), optimal bandwidth will be
-        estimted empirically, similar to previous work [3, 4].
-    tol: Optional[float]
-        Tolerance for terminating the `trust-ncg` algorithm in scipy.
-    options: Optional[Dict[str, Union[bool, int, float]]]
-        Solver-specific configuration options of the `trust-ncg`
-        solver in scipy.
-
-    References
-    ----------
+    References:
     [1] Zeng, Donglin, and D. Y. Lin. "Efficient estimation for the accelerated failure time model." Journal of the American Statistical Association 102.480 (2007): 1387-1396.
     [2] Fletcher, Roger. Practical methods of optimization. John Wiley & Sons, 2000.
     [3] Sheather, Simon J., and Michael C. Jones. "A reliable data‐based bandwidth selection method for kernel density estimation." Journal of the Royal Statistical Society: Series B (Methodological) 53.3 (1991): 683-690.
@@ -61,42 +36,49 @@ class AFT(SurvivalMixin):
         tol: Optional[float] = None,
         options: Optional[Dict[str, Union[bool, int, float]]] = None,
     ) -> None:
+        """_summary_
+
+        Args:
+            bandwidth (Optional[float], optional): Bandwidth to be used for kernel
+                smoothing the profile likelihood. If left unspecified (i.e., `None`),
+                optimal bandwidth will be estimted empirically, similar to previous work [3, 4].
+                Defaults to None.
+            tol (Optional[float], optional): Tolerance for terminating the `trust-ncg`
+                algorithm in scipy. Defaults to None.
+            options (Optional[Dict[str, Union[bool, int, float]]], optional): Solver-specific
+                configuration options of the `trust-ncg` solver in scipy. Defaults to None.
+        """
         self.bandwidth: Optional[float] = bandwidth
         self.tol: Optional[float] = tol
         self.options: Optional[Dict[str, Union[bool, int, float]]] = options
 
-    def init_coefs(self, X) -> npt.NDArray[np.float64]:
+    def init_coefs(self, X: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
         """Initializes the coefficients of the AFT model at all zeros.
 
-        Parameters
-        ----------
-        X: npt.NDArray[np.float64]
-            Training design matrix with n rows and p columns.
+        Args:
+            X (npt.NDArray[np.float64]): Training design matrix with n rows and p columns.
 
-        Returns
-        -------
-        npt.NDArray[np.float64]
-            Initialized coefficients with p rows and 2 columns.
+        Returns:
+            npt.NDArray[np.float64]: Initialized coefficients with p rows and 2 columns.
         """
         return np.zeros(X.shape[1])
 
-    def fit(self, X, y, sample_weight=None):
+    def fit(
+        self,
+        X: np.NDArray[np.float64],
+        y: np.array,
+        sample_weight: np.NDarray[np.float64] = None,
+    ) -> None:
         """Fits the linear AFT model using quasi-Newton methods.
 
-        Parameters
-        ----------
-        X: np.NDArray[np.float64]
-            Design matrix.
-        y: np.array
-            Structured array containing right-censored survival information.
-        sample_weight: Optional[np.NDarray[np.float64]]
-            Sample weight used during model fitting. Currently unused
-            and kept for sklearn compatibility.
 
-        Returns
-        -------
-        None
+        Args:
+            X (np.NDArray[np.float64]): Design matrix.
+            y (np.array): Structured array containing right-censored survival information.
+            sample_weight (np.NDarray[np.float64], optional): Sample weight used during model fitting.
+                Currently unused and kept for sklearn compatibility. Defaults to None.
         """
+
         # TODO DW: Add some additional arg checks here.
         time: npt.NDArray[np.float64]
         event: npt.NDArray[np.int64]
@@ -119,9 +101,7 @@ class AFT(SurvivalMixin):
         if res.success:
             self.coef_: npt.NDArray[np.float64] = res.x
         else:
-            warnings.warn(
-                "Convergence of the AFT model failed.", ConvergenceWarning
-            )
+            warnings.warn("Convergence of the AFT model failed.", ConvergenceWarning)
             self.coef_: npt.NDArray[np.float64] = res.x
         # Cache training eta, time and event for calculating
         # the cumulative hazard (or, rather, survival) function later.
@@ -132,22 +112,21 @@ class AFT(SurvivalMixin):
 
     def predict_cumulative_hazard_function(
         self, X: npt.NDArray[np.float64], time: npt.NDArray[np.float64]
-    ):
-        """Calculate cumulative hazard function for the AFT model.
+    ) -> npt.NDArray[np.float64]:
+        """_summary_
 
-        Parameters
-        ----------
-        X: npt.NDArray[np.float64]
-            Query design matrix with u rows and p columns.
-        time: npt.NDArray[np.float64]
-            Query times of dimension k. Assumed to be unique and ordered.
+        Args:
+            X (npt.NDArray[np.float64]): Query design matrix with u rows and p columns.
+            time (npt.NDArray[np.float64]): Query times of dimension k. Assumed to be unique and ordered.
 
-        Returns
-        -------
-        cumulative_hazard_function: npt.NDArray[np.float64]
-            Query cumulative hazard function for samples 1, ..., u
-            and times 1, ..., k. Thus, has u rows and k columns.
+        Raises:
+            ValueError: Raises ValueError when the event times are not unique and sorted in ascending order.
+
+        Returns:
+            npt.NDArray[np.float64]: Query cumulative hazard function for samples 1, ..., u
+                and times 1, ..., k. Thus, has u rows and k columns.
         """
+
         if not np.array_equal(time, np.unique(time)):
             raise ValueError("Times passed to ")
         cumulative_hazard_function: npt.NDArray[

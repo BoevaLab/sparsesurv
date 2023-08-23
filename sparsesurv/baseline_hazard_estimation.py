@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 from numba import jit
 from scipy.integrate import quadrature
-
+from typing import Tuple
 from .constants import EPS
 from .utils import gaussian_integrated_kernel, gaussian_kernel
 
@@ -14,7 +14,18 @@ def breslow_estimator_breslow(
     time: np.array,
     event: np.array,
     eta: np.array,
-):
+) -> Tuple:
+    """Breslow approximation of the hazard function with breslow tie-correction.
+
+    Args:
+        time (np.array): Event times.
+        event (np.array): Event states.
+        eta (np.array): Linear predictor of the samples.
+
+    Returns:
+        Tuple: Tuple of unique and sorted time points, and the corresponding cumulative
+            hazard at that point as arrays.
+    """
     exp_eta: np.array = np.exp(eta)
     local_risk_set: float = np.sum(exp_eta)
     event_mask: np.array = event.astype(np.bool_)
@@ -60,7 +71,18 @@ def breslow_estimator_efron(
     time: np.array,
     event: np.array,
     eta: np.array,
-):
+) -> Tuple:
+    """Breslow approximation of the hazard function with efron tie-correction.
+
+    Args:
+        time (np.array): Event times.
+        event (np.array): Event states.
+        eta (np.array): Linear predictor of the samples.
+
+    Returns:
+        Tuple: Tuple of unique and sorted time points, and the corresponding cumulative
+            hazard at that point as arrays.
+    """
     exp_eta: np.array = np.exp(eta)
     local_risk_set: float = np.sum(exp_eta)
     event_mask: np.array = event.astype(np.bool_)
@@ -80,8 +102,7 @@ def breslow_estimator_efron(
         if sample_time > previous_time and local_death_set:
             for ell in range(local_death_set):
                 cumulative_baseline_hazards[n_events_counted] += 1 / (
-                    local_risk_set
-                    - (ell / local_death_set) * local_death_set_risk
+                    local_risk_set - (ell / local_death_set) * local_death_set_risk
                 )
 
             local_risk_set -= accumulated_risk_set
@@ -110,11 +131,22 @@ def breslow_estimator_efron(
 
 @jit(nopython=True, cache=True, fastmath=True)
 def aft_baseline_hazard_estimator(
-    time,
-    time_train,
-    event_train,
-    eta_train,
-):
+    time: np.array,
+    time_train: np.array,
+    event_train: np.array,
+    eta_train: np.array,
+) -> float:
+    """Accelerated Failure Time baseline hazard estimator function.
+
+    Args:
+        time (np.array): Event times.
+        time_train (np.array): Event times of training samples.
+        event_train (np.array): Event states of training samples.
+        eta_train (np.array): Linear predictor of training samples.
+
+    Returns:
+        float: Baseline hazard value.
+    """
     n_samples: int = time_train.shape[0]
     bandwidth = 1.30 * pow(n_samples, -0.2)
     inverse_bandwidth: float = 1 / bandwidth
@@ -150,6 +182,18 @@ def get_cumulative_hazard_function_aft(
     event_train,
     eta_train,
 ) -> pd.DataFrame:
+    """_summary_
+
+    Args:
+        time_query (_type_): _description_
+        eta_query (_type_): _description_
+        time_train (_type_): _description_
+        event_train (_type_): _description_
+        eta_train (_type_): _description_
+
+    Returns:
+        pd.DataFrame: _description_
+    """
     time: np.array = np.unique(time_query)
     theta: np.array = np.exp(eta_query)
     n_samples: int = eta_query.shape[0]
@@ -192,8 +236,7 @@ def get_cumulative_hazard_function_aft(
         )
     for _ in range(n_samples):
         cumulative_hazard[_] = integration_values[
-            np.digitize(x=time * theta[_], bins=integration_times, right=False)
-            - 1
+            np.digitize(x=time * theta[_], bins=integration_times, right=False) - 1
         ]
     if zero_flag:
         cumulative_hazard = cumulative_hazard[:, 1:]
@@ -207,7 +250,18 @@ def baseline_hazard_estimator_eh(
     time_train: np.array,
     event_train: np.array,
     eta_train: np.array,
-):
+) -> float:
+    """_summary_
+
+    Args:
+        time (np.array): _description_
+        time_train (np.array): _description_
+        event_train (np.array): _description_
+        eta_train (np.array): _description_
+
+    Returns:
+        float: _description_
+    """
     n_samples: int = time_train.shape[0]
     bandwidth = 1.30 * pow(n_samples, -0.2)
     inverse_bandwidth: float = 1 / bandwidth
@@ -249,6 +303,18 @@ def get_cumulative_hazard_function_eh(
     event_train,
     eta_train,
 ) -> pd.DataFrame:
+    """_summary_
+
+    Args:
+        time_query (_type_): _description_
+        eta_query (_type_): _description_
+        time_train (_type_): _description_
+        event_train (_type_): _description_
+        eta_train (_type_): _description_
+
+    Returns:
+        pd.DataFrame: _description_
+    """
     time: np.array = np.unique(time_query)
     theta: np.array = np.exp(eta_query)
     n_samples: int = eta_query.shape[0]
@@ -289,9 +355,7 @@ def get_cumulative_hazard_function_eh(
     for _ in range(n_samples):
         cumulative_hazard[_] = (
             integration_values[
-                np.digitize(
-                    x=time * theta[_, 0], bins=integration_times, right=False
-                )
+                np.digitize(x=time * theta[_, 0], bins=integration_times, right=False)
                 - 1
             ]
             * theta[_, 1]
