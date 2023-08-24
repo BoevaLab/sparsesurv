@@ -6,3 +6,5 @@ python scripts/py/run_path_sparsesurv.py
 
 Rscript scripts/r/run_glmnet.R
 python scripts/py/run_sparsesurv.py
+
+python scripts/py/run_teachers.py
