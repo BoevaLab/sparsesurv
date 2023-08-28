@@ -14,13 +14,13 @@ from .constants import PDF_PREFACTOR, SQRT_TWO
 
 
 def normal_density(x: torch.Tensor) -> torch.Tensor:
-    """_summary_
+    """Calculate Gaussian kernel.
 
     Args:
-        x (torch.Tensor): _description_
+        x (torch.Tensor): Input of differences.
 
     Returns:
-        torch.Tensor: _description_
+        torch.Tensor: Gaussian kernel value.
     """
     # PDF_PREFACTOR = 0.3989423 (old version - rounded up)
     density = PDF_PREFACTOR * torch.exp(-0.5 * torch.pow(x, 2.0))
@@ -30,13 +30,13 @@ def normal_density(x: torch.Tensor) -> torch.Tensor:
 def inverse_transform_survival(
     y: np.array,
 ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.int64]]:
-    """_summary_
+    """Transform input variable into time and event variable.
 
     Args:
-        y (np.array): _description_
+        y (np.array): One dimensional array containing time and censoring events.
 
     Returns:
-        tuple[npt.NDArray[np.float64], npt.NDArray[np.int64]]: _description_
+        tuple[npt.NDArray[np.float64], npt.NDArray[np.int64]]: Survival time and event array.
     """
     return y["time"].astype(np.float_), y["event"].astype(np.int_)
 
@@ -44,14 +44,14 @@ def inverse_transform_survival(
 def transform_survival(
     time: npt.NDArray[np.float64], event: npt.NDArray[np.int64]
 ) -> np.array:
-    """_summary_
+    """Transform time and event variables into one variable.
 
     Args:
-        time (npt.NDArray[np.float64]): _description_
-        event (npt.NDArray[np.int64]): _description_
+        time (npt.NDArray[np.float64]): Survival times.
+        event (npt.NDArray[np.int64]): Censoring information.
 
     Returns:
-        np.array: _description_
+        np.array: Structured array containing survival times and right-censored survival information.
     """
     y = np.array(
         [
@@ -69,13 +69,13 @@ def transform_survival(
 def inverse_transform_survival_preconditioning(
     y: np.array,
 ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.int64], npt.NDArray[np.float64]]:
-    """_summary_
+    """Obtain survival times, censoring information and eta (e.g. y train) from structuted array.
 
     Args:
-        y (np.array): _description_
+        y (np.array): Structured array containing survival times, censoring information.
 
     Returns:
-        tuple[npt.NDArray[np.float64], npt.NDArray[np.int64], npt.NDArray[np.float64]]: _description_
+        tuple[npt.NDArray[np.float64], npt.NDArray[np.int64], npt.NDArray[np.float64]]: survival times, censoring information, eta.
     """
     time = y["time"].astype(np.float_)
     event = y["event"].astype(np.int_)
@@ -95,18 +95,18 @@ def transform_survival_preconditioning(
     event: npt.NDArray[np.int64],
     eta_hat: npt.NDArray[np.float64],
 ) -> np.array:
-    """_summary_
+    """Transform survival times, censoring information and eta (e.g. y train) into one array.
 
     Args:
-        time (npt.NDArray[np.float64]): _description_
-        event (npt.NDArray[np.int64]): _description_
-        eta_hat (npt.NDArray[np.float64]): _description_
+        time (npt.NDArray[np.float64]): Survival times.
+        event (npt.NDArray[np.int64]): Censoring information.
+        eta_hat (npt.NDArray[np.float64]): Estimated dependent variable.
 
     Raises:
-        NotImplementedError: _description_
+        NotImplementedError: Checking for dimensions.
 
     Returns:
-        np.array: _description_
+        np.array: Structured array containing survival times and censoring information.
     """
     eta_hat = eta_hat.squeeze()
     # TODO DW: This whole thing should be somewhat simplified long-term.
@@ -170,14 +170,14 @@ def transform_survival_preconditioning(
 
 @jit(nopython=True, cache=True)
 def logsubstractexp(a: float, b: float) -> float:
-    """_summary_
+    """Apply log-sum-exp trick when calculating the log difference for numerical stability.
 
     Args:
-        a (float): _description_
-        b (float): _description_
+        a (npt.NDArray[np.float64]): Subtraction value first entity.
+        b (npt.NDArray[np.float64]): Subtraction value second entity.
 
     Returns:
-        float: _description_
+        npt.NDArray[np.float64]: Result of substraction with log-sum-exp trick.
     """
     max_value = max(a, b)
     return max_value + np.log(np.exp(a - max_value) - np.exp(b - max_value))
@@ -185,14 +185,14 @@ def logsubstractexp(a: float, b: float) -> float:
 
 @jit(nopython=True, cache=True)
 def logaddexp(a: float, b: float) -> float:
-    """_summary_
+    """Apply log-sum-exp trick when calculating the log addition for numerical stability.
 
     Args:
-        a (float): _description_
-        b (float): _description_
+        a (float): Addition value first entity.
+        b (float): Addition value second entity.
 
     Returns:
-        float: _description_
+        float: Result of addition with log-sum-exp trick.
     """
     max_value = max(a, b)
     return max_value + np.log(np.exp(a - max_value) + np.exp(b - max_value))
@@ -200,13 +200,14 @@ def logaddexp(a: float, b: float) -> float:
 
 @jit(nopython=True, fastmath=True)
 def numba_logsumexp_stable(a: npt.NDArray[np.float64]) -> float:
-    """_summary_
+    """Apply log-sum-exp trick.
 
     Args:
-        a (npt.NDArray[np.float64]): _description_
+        a (npt.NDArray[np.float64]): Input array to which the sum and then 
+        log will be applied.
 
     Returns:
-        float: _description_
+        float: Result of log-sum-exp trick.
     """
     max_ = np.max(a)
     return max_ + log(np.sum(np.exp(a - max_)))
@@ -374,41 +375,41 @@ def _path_predictions(
 
 @jit(nopython=True, cache=True, fastmath=True)
 def gaussian_integrated_kernel(x):
-    """_summary_
+    """Obtain result of the integration of the Gaussian kernel.
 
     Args:
-        x (_type_): _description_
+        x (float): Difference of hazard predictions.
 
     Returns:
-        _type_: _description_
+        float: Integration value of Gaussian kernel.
     """
     return 0.5 * (1 + erf(x / SQRT_TWO))
 
 
 @jit(nopython=True, cache=True, fastmath=True)
 def gaussian_kernel(x):
-    """_summary_
+    """Obtain result of Gaussian kernel.
 
     Args:
-        x (_type_): _description_
+        x (float): Difference of hazard predictions.
 
     Returns:
-        _type_: _description_
+        float: Value of Gaussian kernel.
     """
     return PDF_PREFACTOR * exp(-0.5 * (x**2))
 
 
 @jit(nopython=True, cache=True, fastmath=True)
 def kernel(a, b, bandwidth) -> np.array:
-    """_summary_
+    """Subtract predictor values from each other and calculate Gaussian kernel.
 
     Args:
-        a (_type_): _description_
-        b (_type_): _description_
-        bandwidth (_type_): _description_
+        a (npt.NDArray[np.float64]): First predictor value (hazard prediction).
+        b (npt.NDArray[np.float64]): Second predictor value (hazard prediction).
+        bandwidth (_type_): Fixed kernel bandwith.
 
     Returns:
-        np.array: _description_
+        npt.NDArray[np.float64]: Kernel matrix.
     """
 
     kernel_matrix: np.array = np.empty(shape=(a.shape[0], b.shape[0]))
@@ -420,15 +421,15 @@ def kernel(a, b, bandwidth) -> np.array:
 
 @jit(nopython=True, cache=True, fastmath=True)
 def integrated_kernel(a, b, bandwidth) -> np.array:
-    """_summary_
+    """Subtract predictor values from each other and calculate integrated Gaussian kernel.
 
     Args:
-        a (_type_): _description_
-        b (_type_): _description_
-        bandwidth (_type_): _description_
+        a (npt.NDArray[np.float64]): First predictor value (hazard prediction).
+        b (npt.NDArray[np.float64]): Second predictor value (hazard prediction).
+        bandwidth (float): Fixed kernel bandwith.
 
     Returns:
-        np.array: _description_
+        npt.NDArray[np.float64]: Integrated kernel matrix.
     """
     integrated_kernel_matrix: np.array = np.empty(shape=(a.shape[0], b.shape[0]))
     for ix in range(a.shape[0]):
@@ -441,15 +442,15 @@ def integrated_kernel(a, b, bandwidth) -> np.array:
 
 @jit(nopython=True, cache=True, fastmath=True)
 def difference_kernels(a, b, bandwidth) -> Tuple:
-    """_summary_
+    """Subtract predictor values from each other as well as calculate (integrated) Gaussian kernel.
 
     Args:
-        a (_type_): _description_
-        b (_type_): _description_
-        bandwidth (_type_): _description_
+        a (npt.NDArray[np.float64]): First predictor value (hazard prediction).
+        b (npt.NDArray[np.float64]): Second predictor value (hazard prediction).
+        bandwidth (float): Fixed kernel bandwith.
 
     Returns:
-        Tuple: _description_
+        Tuple[npt.NDArray[np.float64],npt.NDArray[np.float64],npt.NDArray[np.float64]]: Predictor difference, kernel matrix, integrated kernel matrix
     """
     difference: np.array = np.empty(shape=(a.shape[0], b.shape[0]))
     kernel_matrix: np.array = np.empty(shape=(a.shape[0], b.shape[0]))
