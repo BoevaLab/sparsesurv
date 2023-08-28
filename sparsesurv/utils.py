@@ -28,7 +28,7 @@ def normal_density(x: torch.Tensor) -> torch.Tensor:
 
 
 def inverse_transform_survival(
-    y: np.array,
+    y: npt.NDArray[np.float64],
 ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.int64]]:
     """Transform input variable into time and event variable.
 
@@ -43,7 +43,7 @@ def inverse_transform_survival(
 
 def transform_survival(
     time: npt.NDArray[np.float64], event: npt.NDArray[np.int64]
-) -> np.array:
+) -> npt.NDArray[np.float64]:
     """Transform time and event variables into one variable.
 
     Args:
@@ -51,7 +51,7 @@ def transform_survival(
         event (npt.NDArray[np.int64]): Censoring information.
 
     Returns:
-        np.array: Structured array containing survival times and right-censored survival information.
+        npt.NDArray[np.float64]: Structured array containing survival times and right-censored survival information.
     """
     y = np.array(
         [
@@ -67,12 +67,12 @@ def transform_survival(
 
 
 def inverse_transform_survival_preconditioning(
-    y: np.array,
+    y: npt.NDArray[np.float64],
 ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.int64], npt.NDArray[np.float64]]:
     """Obtain survival times, censoring information and eta (e.g. y train) from structuted array.
 
     Args:
-        y (np.array): Structured array containing survival times, censoring information.
+        y (npt.NDArray[np.float64]): Structured array containing survival times, censoring information.
 
     Returns:
         tuple[npt.NDArray[np.float64], npt.NDArray[np.int64], npt.NDArray[np.float64]]: survival times, censoring information, eta.
@@ -94,7 +94,7 @@ def transform_survival_preconditioning(
     time: npt.NDArray[np.float64],
     event: npt.NDArray[np.int64],
     eta_hat: npt.NDArray[np.float64],
-) -> np.array:
+) ->  np.array[npt.NDArray[np.float64],npt.NDArray[np.int],npt.NDArray[np.float64]]:
     """Transform survival times, censoring information and eta (e.g. y train) into one array.
 
     Args:
@@ -400,13 +400,13 @@ def gaussian_kernel(x):
 
 
 @jit(nopython=True, cache=True, fastmath=True)
-def kernel(a, b, bandwidth) -> np.array:
+def kernel(a, b, bandwidth) -> npt.NDArray[np.float64]:
     """Subtract predictor values from each other and calculate Gaussian kernel.
 
     Args:
         a (npt.NDArray[np.float64]): First predictor value (hazard prediction).
         b (npt.NDArray[np.float64]): Second predictor value (hazard prediction).
-        bandwidth (_type_): Fixed kernel bandwith.
+        bandwidth (float): Fixed kernel bandwith.
 
     Returns:
         npt.NDArray[np.float64]: Kernel matrix.
@@ -420,7 +420,7 @@ def kernel(a, b, bandwidth) -> np.array:
 
 
 @jit(nopython=True, cache=True, fastmath=True)
-def integrated_kernel(a, b, bandwidth) -> np.array:
+def integrated_kernel(a, b, bandwidth) -> npt.NDArray[np.float64]:
     """Subtract predictor values from each other and calculate integrated Gaussian kernel.
 
     Args:
@@ -467,13 +467,13 @@ def difference_kernels(a, b, bandwidth) -> Tuple:
 
 
 def basic_cv_fold(
-    test_linear_predictor: np.array,
-    test_time: np.array,
-    test_event: np.array,
-    test_eta_hat: np.array,
-    train_linear_predictor: np.array,
-    train_time: np.array,
-    train_event: np.array,
+    test_linear_predictor: npt.NDArray[np.float64],
+    test_time: npt.NDArray[np.float64],
+    test_event: npt.NDArray[np.int64],
+    test_eta_hat: npt.NDArray[np.float64],
+    train_linear_predictor: npt.NDArray[np.float64],
+    train_time: npt.NDArray[np.float64],
+    train_event: npt.NDArray[np.int64],
     score_function: Callable,
 ) -> float:
     """Basic CV scoring function.
@@ -495,13 +495,13 @@ def basic_cv_fold(
 
 
 def basic_mse(
-    test_linear_predictor: np.array,
-    test_time: np.array,
-    test_event: np.array,
-    test_eta_hat: np.array,
-    train_linear_predictor: np.array,
-    train_time: np.array,
-    train_event: np.array,
+    test_linear_predictor: npt.NDArray[np.float64],
+    test_time: npt.NDArray[np.float64],
+    test_event: npt.NDArray[np.int64],
+    test_eta_hat: npt.NDArray[np.float64],
+    train_linear_predictor: npt.NDArray[np.float64],
+    train_time: npt.NDArray[np.float64],
+    train_event: npt.NDArray[np.int64],
     score_function: Callable,
 ) -> float:
     """Basic CV scoring function.
@@ -525,13 +525,13 @@ def basic_mse(
 
 
 def vvh_cv_fold(
-    test_linear_predictor: np.array,
-    test_time: np.array,
-    test_event: np.array,
-    test_eta_hat: np.array,
-    train_linear_predictor: np.array,
-    train_time: np.array,
-    train_event: np.array,
+    test_linear_predictor: npt.NDArray[np.float64],
+    test_time: npt.NDArray[np.float64],
+    test_event: npt.NDArray[np.int64],
+    test_eta_hat: npt.NDArray[np.float64],
+    train_linear_predictor: npt.NDArray[np.float64],
+    train_time: npt.NDArray[np.float64],
+    train_event: npt.NDArray[np.int64],
     score_function: Callable,
 ) -> float:
     """Verweij and Van Houwelingen CV scoring function.
@@ -564,9 +564,9 @@ def vvh_cv_fold(
 
 
 def linear_cv(
-    test_linear_predictor: np.array,
-    test_time: np.array,
-    test_event: np.array,
+    test_linear_predictor: npt.NDArray[np.float64],
+    test_time: npt.NDArray[np.float64],
+    test_event: npt.NDArray[np.int64],
     score_function: Callable,
 ) -> float:
     """CV score computation using linear predictors (Dai et. al. 2019).
