@@ -42,9 +42,6 @@ class TestEHGradient:
             .flatten()
         )
         eh_torch_gradient = get_eh_gradient(case="default")
-        pd.DataFrame(eh_gradient_computed).to_csv("/Users/nja/Desktop/eh_grad_comp.csv")
-        pd.DataFrame(eh_torch_gradient).to_csv("/Users/nja/Desktop/eh_grad_torch.csv")
-        print("EHTorch", eh_torch_gradient)
         assert np.allclose(eh_gradient_computed, eh_torch_gradient, atol=self.abs_tol)
 
     def test_first_five_zero(self):
