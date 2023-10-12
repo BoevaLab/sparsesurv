@@ -14,7 +14,7 @@ import pathlib
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
-project = "survhive"
+project = "sparsesurv"
 copyright = "2023, David Wissel, Nikita Janakarajan"
 author = "David Wissel, Nikita Janakarajan"
 release = "0.1"

@@ -3,9 +3,9 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to hisurv's documentation!
+Welcome to sparsesurv's documentation!
 ==================================
-**hisurv** is a Python package for high-dimensional survival analysis. it includes implementations
+**sparsesurv** is a Python package for high-dimensional survival analysis. it includes implementations
 of efficient versions of the Breslow and Efron approximations for the Cox Proportional Hazards model. 
 The toolbox addiitonally includes “preconditioning” approaches to improve feature selection and model performance 
 in datasets that are generally difficult to handle due to their high dimensionality and sparsity.
