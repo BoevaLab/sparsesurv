@@ -1,7 +1,7 @@
 import numbers
 from functools import partial
 from numbers import Real
-from typing import List, Optional, Union, TypeVar
+from typing import List, Optional, Union, TypeVar, Tuple
 
 import celer
 import numpy as np
@@ -32,7 +32,8 @@ Self = TypeVar("Self")
 
 
 class PCSurvCV(SurvivalMixin, celer.ElasticNetCV):
-    """Parent class to fit preconditioned sparse semiparametric right-censored survival models.
+    """Parent class to fit preconditioned sparse semi-parametric right-censored survival
+        models using cross validation.
 
     Notes:
         This class is largely adapted from the `ElasticNetCV` implementations
@@ -63,7 +64,7 @@ class PCSurvCV(SurvivalMixin, celer.ElasticNetCV):
         max_coef=np.inf,
         alpha_type="min",
     ) -> None:
-        """_summary_
+        """Constructor.
 
         Args:
             l1_ratio (Union[float, List[float]], optional): Float between 0 and 1 passed
@@ -131,7 +132,7 @@ class PCSurvCV(SurvivalMixin, celer.ElasticNetCV):
         y: npt.NDArray[np.float64],
         sample_weight: Optional[npt.NDArray[np.float64]] = None,
     ) -> Self:
-        """_summary_
+        """Fit preconditioned semi-parametric survival model to given data.
 
         Args:
             X (npt.NDArray[np.float64]): _description_

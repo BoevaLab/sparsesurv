@@ -262,7 +262,7 @@ def eh_negative_likelihood(
 
     Args:
         linear_predictor (np.array): Linear predictor of the training data.
-        time (np.array): Time of the training data of length n. Assumed to be sorted.
+        time (np.array): Time points of the training data of length n. Assumed to be sorted.
         event (np.array): Event indicator of the training data of length n.
         bandwidth (float, optional): Bandwidth to kernel-smooth the profile likelihood.
             Will be estimated empirically if not specified. Defaults to None.

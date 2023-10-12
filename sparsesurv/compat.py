@@ -19,7 +19,7 @@ from .utils import basic_cv_fold, basic_mse, linear_cv, vvh_cv_fold
 # perfectly aligned for different model types (in particular
 # Cox versus kernel-smoothed methods).
 
-LOSS_FACTORY: Dict[str, Callable,] = {
+LOSS_FACTORY: Dict[str, Callable] = {
     "breslow": breslow_negative_likelihood,
     "efron": efron_negative_likelihood,
     "aft": aft_negative_likelihood,
@@ -27,7 +27,7 @@ LOSS_FACTORY: Dict[str, Callable,] = {
 }
 
 
-BASELINE_HAZARD_FACTORY: Dict[str, Callable,] = {
+BASELINE_HAZARD_FACTORY: Dict[str, Callable] = {
     "breslow": breslow_estimator_breslow,
     "efron": breslow_estimator_efron,
     "aft": get_cumulative_hazard_function_aft,

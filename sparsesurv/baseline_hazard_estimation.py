@@ -182,17 +182,17 @@ def get_cumulative_hazard_function_aft(
     event_train,
     eta_train,
 ) -> pd.DataFrame:
-    """_summary_
+    """Computes cumulative hazard for the accelerated failure time model.
 
     Args:
         time_query (_type_): _description_
         eta_query (_type_): _description_
-        time_train (_type_): _description_
-        event_train (_type_): _description_
-        eta_train (_type_): _description_
+        time_train (_type_): Event times of training samples.
+        event_train (_type_): Event states of training samples.
+        eta_train (_type_): Linear predictor of training samples.
 
     Returns:
-        pd.DataFrame: _description_
+        pd.DataFrame: Cumulative hazard at each unique and sorted time step.
     """
     time: np.array = np.unique(time_query)
     theta: np.array = np.exp(eta_query)
@@ -255,9 +255,9 @@ def baseline_hazard_estimator_eh(
 
     Args:
         time (np.array): _description_
-        time_train (np.array): _description_
-        event_train (np.array): _description_
-        eta_train (np.array): _description_
+        time_train (np.array): Event times of training samples.
+        event_train (np.array): Event states of training samples.
+        eta_train (np.array): Linear predictor of training samples.
 
     Returns:
         float: _description_
@@ -308,9 +308,9 @@ def get_cumulative_hazard_function_eh(
     Args:
         time_query (_type_): _description_
         eta_query (_type_): _description_
-        time_train (_type_): _description_
-        event_train (_type_): _description_
-        eta_train (_type_): _description_
+        time_train (_type_): Event times of training samples.
+        event_train (_type_): Event states of training samples.
+        eta_train (_type_): Linear predictor of training samples.
 
     Returns:
         pd.DataFrame: _description_

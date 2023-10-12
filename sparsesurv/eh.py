@@ -15,11 +15,11 @@ from .utils import inverse_transform_survival
 
 
 class EH(SurvivalMixin):
-    """Linear Extended Hazards (EH) model based on kernel-smoothed PL [1].
+    """Linear Extended Hazards (EH) model based on kernel-smoothed PL [1]_.
 
     Fits a linear EH model based on the kernel smoothed profile likelihood
     as proposed by [1]. Uses the `trust-ncg` algorithm implementation
-    from 'scipy.optimize.minimize` for optimization using a BFGS [2]
+    from 'scipy.optimize.minimize` for optimization using a BFGS [2]_
     quasi-Newton strategy. Gradients are JIT-compiled using numba
     and implemented in an efficient manner (see `pcsurv.gradients`).
 
@@ -41,7 +41,7 @@ class EH(SurvivalMixin):
         Args:
             bandwidth (Optional[float], optional): Bandwidth to be used for kernel
                 smoothing the profile likelihood. If left unspecified (i.e., `None`),
-                optimal bandwidth will be estimted empirically, similar to previous work [3, 4].
+                optimal bandwidth will be estimted empirically, similar to previous work [[3]_, [4]_].
                 Defaults to None.
             tol (float, optional): Tolerance for terminating the `trust-ncg`
                 algorithm in scipy. Defaults to None.
@@ -149,7 +149,7 @@ class EH(SurvivalMixin):
                 Assumed to be unique and ordered.
 
         Raises:
-            ValueError: _description_
+            ValueError: If time array is not unique and sorted.
 
         Returns:
             npt.NDArray[np.float64]: Query cumulative hazard function for samples 1, ..., u
@@ -157,7 +157,7 @@ class EH(SurvivalMixin):
         """
 
         if not np.array_equal(time, np.unique(time)):
-            raise ValueError("Times passed to ")
+            raise ValueError("Times passed are not unqiue and sorted.")
         cumulative_hazard_function: npt.NDArray[
             np.float64
         ] = get_cumulative_hazard_function_eh(

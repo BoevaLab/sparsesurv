@@ -65,17 +65,17 @@ class AFT(SurvivalMixin):
 
     def fit(
         self,
-        X: np.NDArray[np.float64],
+        X: npt.NDArray[np.float64],
         y: np.array,
-        sample_weight: np.NDarray[np.float64] = None,
+        sample_weight: npt.NDArray[np.float64] = None,
     ) -> None:
         """Fits the linear AFT model using quasi-Newton methods.
 
 
         Args:
-            X (np.NDArray[np.float64]): Design matrix.
+            X (npt.NDArray[np.float64]): Design matrix.
             y (np.array): Structured array containing right-censored survival information.
-            sample_weight (np.NDarray[np.float64], optional): Sample weight used during model fitting.
+            sample_weight (npt.NDArray[np.float64], optional): Sample weight used during model fitting.
                 Currently unused and kept for sklearn compatibility. Defaults to None.
         """
 

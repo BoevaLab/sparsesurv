@@ -140,10 +140,7 @@ def aft_gradient_beta(
     Returns:
         npt.NDArray[np.float64]:  Negative gradient of the AFT model wrt beta of length p.
     """
-    # if not np.array_equal(np.sort(time), time):
-    #     raise ValueError(
-    #         "`time` is expected to be sorted (ascending). Unsorted `time` found instead."
-    #     )
+
     eta_gradient: npt.NDArray[np.float64] = aft_gradient(
         linear_predictor=np.matmul(X, beta),
         time=time,
@@ -331,10 +328,6 @@ def eh_gradient_beta(
         npt.NDArray[np.float64]: Negative gradient of the AFT model wrt beta of length 2p.
     """
 
-    # if not np.array_equal(np.sort(time), time):
-    #     raise ValueError(
-    #         "`time` is expected to be sorted (ascending). Unsorted `time` found instead."
-    #     )
     # Calculate original feature size (i.e., get rid of coefficient
     # stacking).
     p: int = int(X.shape[1] / 2)

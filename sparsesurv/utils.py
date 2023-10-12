@@ -1,5 +1,6 @@
 from math import erf, exp, log
-from typing import Callable, Tuple
+from typing import Callable, Tuple, List
+from matplotlib import ArrayLike
 
 import numpy as np
 import numpy.typing as npt
@@ -203,7 +204,7 @@ def numba_logsumexp_stable(a: npt.NDArray[np.float64]) -> float:
     """Apply log-sum-exp trick.
 
     Args:
-        a (npt.NDArray[np.float64]): Input array to which the sum and then 
+        a (npt.NDArray[np.float64]): Input array to which the sum and then
         log will be applied.
 
     Returns:
@@ -214,72 +215,52 @@ def numba_logsumexp_stable(a: npt.NDArray[np.float64]) -> float:
 
 
 def _path_predictions(
-    X,
-    y,
-    time,
-    event,
-    sample_weight,
-    train,
-    test,
-    fit_intercept,
-    path,
-    path_params,
-    alphas=None,
-    l1_ratio=1.0,
-    X_order=None,
-    dtype=None,
-):
-    """Returns the MSE for the models computed by 'path'.
+    X: npt.ArrayLike,
+    y: npt.ArrayLike,
+    time: npt.NDArray[np.float64],
+    event: npt.NDArray[np.int64],
+    sample_weight: npt.ArrayLike,
+    train: List,
+    test: List,
+    fit_intercept: bool,
+    path: Callable,
+    path_params: dict,
+    alphas: npt.ArrayLike = None,
+    l1_ratio: float = 1.0,
+    X_order: str = None,
+    dtype: np.dtype = None,
+) -> Tuple:
+    """Returns linear predictors for the models computed by 'path'.
 
-    Parameters
-    ----------
-    X : {array-like, sparse matrix} of shape (n_samples, n_features)
-        Training data.
+    Note:
+        Almost as-is adapted from `sklearn`.
+    Args:
+        X (npt.ArrayLike): Training data of shape (n_samples, n_features).
+        y (npt.ArrayLike): Target values of shape (n_samples,) or (n_samples, n_targets).
+        time (npt.NDArray[np.float64]): Survival times.
+        event (npt.NDArray[np.int64]): Censoring information.
+        sample_weight (npt.ArrayLike): Sample weights of shape (n_samples,). Defaults to None.
+        train (List): The indices of the train set.
+        test (List): The indices of the test set.
+        fit_intercept (bool): Whether to fit intercept or not.
+        path (Callable): Function returning a list of models on the path. See enet_path
+            for an example of signature.
+        path_params (dict): Parameters passed to the path function.
+        alphas (npt.ArrayLike, optional): Array of float that is used for cross-validation.
+            If not provided, computed using 'path'. Defaults to None.
+        l1_ratio (float, optional): float between 0 and 1 passed to ElasticNet (scaling
+            between l1 and l2 penalties). For ``l1_ratio = 0`` the penalty is an L2
+            penalty. For ``l1_ratio = 1`` it is an L1 penalty. For ``0 < l1_ratio < 1``,
+            the penalty is a combination of L1 and L2. Defaults to 1.0.
+        X_order (str, optional): The order of the arrays expected by the path function to
+            avoid memory copies. One of {'F', 'C'}. Defaults to None.
+        dtype (np.dtype, optional): The dtype of the arrays expected by the path function to
+        avoid memory copies. Defaults to None.
 
-    y : array-like of shape (n_samples,) or (n_samples, n_targets)
-        Target values.
-
-    sample_weight : None or array-like of shape (n_samples,)
-        Sample weights.
-
-    train : list of indices
-        The indices of the train set.
-
-    test : list of indices
-        The indices of the test set.
-
-    path : callable
-        Function returning a list of models on the path. See
-        enet_path for an example of signature.
-
-    path_params : dictionary
-        Parameters passed to the path function.
-
-    alphas : array-like, default=None
-        Array of float that is used for cross-validation. If not
-        provided, computed using 'path'.
-
-    l1_ratio : float, default=1
-        float between 0 and 1 passed to ElasticNet (scaling between
-        l1 and l2 penalties). For ``l1_ratio = 0`` the penalty is an
-        L2 penalty. For ``l1_ratio = 1`` it is an L1 penalty. For ``0
-        < l1_ratio < 1``, the penalty is a combination of L1 and L2.
-
-    X_order : {'F', 'C'}, default=None
-        The order of the arrays expected by the path function to
-        avoid memory copies.
-
-    dtype : a numpy dtype, default=None
-        The dtype of the arrays expected by the path function to
-        avoid memory copies.
-
-    Notes
-    -----
-    Almost as-is adapted from `sklearn`.
-
-    See Also
-    --------
-    TODO DW
+    Returns:
+        Tuple: Tuple of linear predictors of both train and test data including transformed
+            target values (time, event) and number of non-zero coefficients for each model
+            on the 'path'.
     """
     X_train = X[train]
     y_train = y[train]
@@ -466,6 +447,20 @@ def difference_kernels(a, b, bandwidth) -> Tuple:
     return difference, kernel_matrix, integrated_kernel_matrix
 
 
+"""
+
+    Args:
+        z_test (np.ndarray): 3-dimensional array of the linear predictors of all test folds.
+            The array is of shape (folds, samples, predictors).
+        y_test (np.ndarray): 3-dimensional array of survival time and event data
+            corresponding to samples in all test folds. The array is of shape
+            (folds, samples, target).
+
+    Returns:
+        float: 
+    """
+
+
 def basic_cv_fold(
     test_linear_predictor: npt.NDArray[np.float64],
     test_time: npt.NDArray[np.float64],
@@ -476,17 +471,20 @@ def basic_cv_fold(
     train_event: npt.NDArray[np.int64],
     score_function: Callable,
 ) -> float:
-    """Basic CV scoring function.
+    """Basic CV scoring function based on the scoring function used.
 
     Args:
-        z_test (np.ndarray): 3-dimensional array of the linear predictors of all test folds.
-            The array is of shape (folds, samples, predictors).
-        y_test (np.ndarray): 3-dimensional array of survival time and event data
-            corresponding to samples in all test folds. The array is of shape
-            (folds, samples, target).
+        test_linear_predictor (np.array): Linear predictors of a given test fold. X@beta.
+        test_time (np.array): Sorted time points of the test fold.
+        test_event (np.array): Event indicator of the test fold.
+        test_eta_hat (np.array): Predicted linear predictors of a given test fold.
+        train_linear_predictor (np.array): Linear predictors of the training fold.
+        train_time (np.array): Sorted time points of the training fold.
+        train_event (np.array): Event indicator of the training fold.
+        score_function (Callable): Scoring function used to compute the negative log-likelihood.
 
     Returns:
-        float: Scalar value of the mean partial log-likelihoods across all test folds.
+        float: Scalar value of the mean partial log-likelihood for a given test fold.
     """
 
     test_fold_likelihood = -score_function(test_linear_predictor, test_time, test_event)
@@ -504,17 +502,20 @@ def basic_mse(
     train_event: npt.NDArray[np.int64],
     score_function: Callable,
 ) -> float:
-    """Basic CV scoring function.
+    """Mean-squared error based CV scoring function.
 
     Args:
-        z_test (np.ndarray): 3-dimensional array of the linear predictors of all test folds.
-            The array is of shape (folds, samples, predictors).
-        y_test (np.ndarray): 3-dimensional array of survival time and event data
-            corresponding to samples in all test folds. The array is of shape
-            (folds, samples, target).
+        test_linear_predictor (np.array): Linear predictors of a given test fold. X@beta.
+        test_time (np.array): Sorted time points of the test fold.
+        test_event (np.array): Event indicator of the test fold.
+        test_eta_hat (np.array): Predicted linear predictors of a given test fold.
+        train_linear_predictor (np.array): Linear predictors of the training fold.
+        train_time (np.array): Sorted time points of the training fold.
+        train_event (np.array): Event indicator of the training fold.
+        score_function (Callable): Scoring function used to compute the negative log-likelihood.
 
     Returns:
-        float: Scalar value of the mean partial log-likelihoods across all test folds.
+        float: Scalar value of the mean partial log-likelihood for a given test fold.
     """
 
     test_negative_mse = np.negative(
@@ -537,18 +538,17 @@ def vvh_cv_fold(
     """Verweij and Van Houwelingen CV scoring function.
 
     Args:
-        z_test (np.ndarray): 3-dimensional array of the linear predictors of all test folds.
-            The array is of shape (folds, samples, predictors).
-        y_test (np.ndarray): 3-dimensional array of survival time and event data
-            corresponding to samples in all test folds. The array is of shape
-            (folds, samples, target).
-        kwargs : VVH method requires that the linear predictors and targets of the
-            training folds are also passed as addiitonal keyword arguments. For linear
-            predictors of the training data, use "z_train" as the keyword, and for the
-            correspondig targets, use "y_train" as the keyword when calling the function.
+        test_linear_predictor (np.array): Linear predictors of a given test fold. X@beta.
+        test_time (np.array): Sorted time points of the test fold.
+        test_event (np.array): Event indicator of the test fold.
+        test_eta_hat (np.array): Predicted linear predictors of a given test fold.
+        train_linear_predictor (np.array): Linear predictors of the training fold.
+        train_time (np.array): Sorted time points of the training fold.
+        train_event (np.array): Event indicator of the training fold.
+        score_function (Callable): Scoring function used to compute the negative log-likelihood.
 
     Returns:
-        float: Scalar value of the mean partial log-likelihoods across all test folds.
+        float: Scalar value of the mean partial log-likelihood for a given test fold.
     """
     z = np.append(train_linear_predictor, test_linear_predictor, axis=0)
     time = np.append(train_time, test_time)
@@ -572,14 +572,13 @@ def linear_cv(
     """CV score computation using linear predictors (Dai et. al. 2019).
 
     Args:
-        z_test (np.ndarray): flattened array of the linear predictors of all test folds.
-            The array is of shape (folds, samples, predictors).
-        y_test (np.ndarray): flattened array of survival time and event data
-            corresponding to samples in all test folds. The array is of shape
-            (folds, samples, target).
+        test_linear_predictor (np.array): Linear predictors of a given test fold. X@beta.
+        test_time (np.array): Sorted time points of the test fold.
+        test_event (np.array): Event indicator of the test fold.
+        score_function (Callable): Scoring function used to compute the negative log-likelihood.
 
     Returns:
-        float: Scalar value of the partial log-likelihoods across all test folds.
+        float: Scalar value of the mean partial log-likelihood for a given test fold.
     """
     log_likelihood = -score_function(test_linear_predictor, test_time, test_event)
     return log_likelihood
