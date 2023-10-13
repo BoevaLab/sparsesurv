@@ -1,6 +1,5 @@
 from math import erf, exp, log
 from typing import Callable, Tuple, List
-from matplotlib import ArrayLike
 
 import numpy as np
 import numpy.typing as npt
@@ -95,7 +94,7 @@ def transform_survival_preconditioning(
     time: npt.NDArray[np.float64],
     event: npt.NDArray[np.int64],
     eta_hat: npt.NDArray[np.float64],
-) ->  np.array[npt.NDArray[np.float64],npt.NDArray[np.int],npt.NDArray[np.float64]]:
+) -> np.array[npt.NDArray[np.float64], npt.NDArray[np.int], npt.NDArray[np.float64]]:
     """Transform survival times, censoring information and eta (e.g. y train) into one array.
 
     Args:
