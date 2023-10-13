@@ -1,5 +1,5 @@
 from scipy.optimize import check_grad
-from .get_data_arrays import get_1d_array
+from sparsesurv.tests.get_data_arrays import get_1d_array
 
 from sparsesurv.gradients import aft_gradient
 from sparsesurv.loss import aft_negative_likelihood

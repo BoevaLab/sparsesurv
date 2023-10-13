@@ -94,7 +94,7 @@ def transform_survival_preconditioning(
     time: npt.NDArray[np.float64],
     event: npt.NDArray[np.int64],
     eta_hat: npt.NDArray[np.float64],
-) -> np.array[npt.NDArray[np.float64], npt.NDArray[np.int], npt.NDArray[np.float64]]:
+) -> npt.NDArray[np.float64]:
     """Transform survival times, censoring information and eta (e.g. y train) into one array.
 
     Args:
@@ -106,7 +106,7 @@ def transform_survival_preconditioning(
         NotImplementedError: Checking for dimensions.
 
     Returns:
-        np.array: Structured array containing survival times and censoring information.
+        npt.NDArray: Structured array containing survival times and censoring information.
     """
     eta_hat = eta_hat.squeeze()
     # TODO DW: This whole thing should be somewhat simplified long-term.
