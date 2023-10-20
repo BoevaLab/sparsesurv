@@ -3,11 +3,7 @@ import warnings
 import numpy as np
 from sklearn.base import BaseEstimator
 
-from .utils import (
-    inverse_transform_survival,
-    transform_survival,
-    transform_survival_preconditioning,
-)
+from .utils import inverse_transform_survival, transform_survival, transform_survival_kd
 
 
 class SurvivalMixin(BaseEstimator):
@@ -21,19 +17,17 @@ class SurvivalMixin(BaseEstimator):
         # Take unique time elements and sort them.
         time = np.unique(time)
         return np.exp(
-            np.negative(
-                self.predict_cumulative_hazard_function(X=X, time=time)
-            )
+            np.negative(self.predict_cumulative_hazard_function(X=X, time=time))
         )
 
     def predict(self, X):
         return X @ self.coef_
 
 
-class PCSurvCV:
-    def __init__(self, pc_pipe, model_pipe) -> None:
-        self.pc_pipe = pc_pipe
-        self.model_pipe = model_pipe
+class KDSurv:
+    def __init__(self, teacher, student) -> None:
+        self.teacher = teacher
+        self.student = student
 
     def fit(self, X, y):
         time, event = inverse_transform_survival(y=y)
@@ -42,16 +36,16 @@ class PCSurvCV:
         X = X[time_ix, :]
         time = time[time_ix]
         event = event[time_ix]
-        self.pc_pipe.fit(X=X, y=transform_survival(time=time, event=event))
-        self.model_pipe.fit(
+        self.teacher.fit(X=X, y=transform_survival(time=time, event=event))
+        self.student.fit(
             X=X,
-            y=transform_survival_preconditioning(
-                time=time, event=event, eta_hat=self.pc_pipe.predict(X=X)
+            y=transform_survival_kd(
+                time=time, event=event, eta_hat=self.teacher.predict(X=X)
             ),
         )
 
     def predict(self, X):
-        return self.model_pipe.predict(X=X)
+        return self.student.predict(X=X)
 
     def predict_survival_function(self, X, time):
-        return self.model_pipe.predict_survival_function(X=X, time=time)
+        return self.student.predict_survival_function(X=X, time=time)

@@ -9,8 +9,8 @@ from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 from sksurv.linear_model import CoxPHSurvivalAnalysis
 
-from survhive.cv import PCPHElasticNetCV
-from survhive.utils import transform_survival
+from sparsesurv.cv import KDPHElasticNetCV
+from sparsesurv.utils import transform_survival
 
 with open("./config.json") as f:
     config = json.load(f)
@@ -33,19 +33,18 @@ pc_pipe = make_pipeline(
     PCA(n_components=config["pc_n_components"]),
     CoxPHSurvivalAnalysis(ties="efron"),
 )
+
 for cancer in config["datasets"]:
     sparsity = {}
 
     print(f"Starting: {cancer}")
     train_splits = pd.read_csv(f"./data/splits/TCGA/{cancer}_train_splits.csv")
     test_splits = pd.read_csv(f"./data/splits/TCGA/{cancer}_test_splits.csv")
-    data = pd.read_csv(
-        f"./data/processed/TCGA/{cancer}_data_preprocessed.csv"
-    ).iloc[:, 1:]
+    data = pd.read_csv(f"./data/processed/TCGA/{cancer}_data_preprocessed.csv").iloc[
+        :, 1:
+    ]
     X_ = data.iloc[:, 3:]
-    y_ = transform_survival(
-        time=data["OS_days"].values, event=data["OS"].values
-    )
+    y_ = transform_survival(time=data["OS_days"].values, event=data["OS"].values)
     for split in range(25):
         print(f"Starting split: {split+1} / 25")
         train_ix = train_splits.iloc[split, :].dropna().to_numpy().astype(int)
@@ -70,14 +69,15 @@ for cancer in config["datasets"]:
             if z == 0:
                 sparsity[split] = []
             sparsity[split].append(np.sum(path_coef != 0.0))
-            helper = PCPHElasticNetCV(tie_correction="efron")
+            helper = KDPHElasticNetCV(
+                tie_correction="efron",
+                seed=np.random.RandomState(config["random_state"]),
+            )
             helper.coef_ = path_coef
             ix_sort = np.argsort(y_train["time"])
             helper.train_time_ = y_train["time"][ix_sort]
             helper.train_event_ = y_train["event"][ix_sort]
-            helper.train_eta_ = helper.predict(model_pipe.transform(X_train))[
-                ix_sort
-            ]
+            helper.train_eta_ = helper.predict(model_pipe.transform(X_train))[ix_sort]
             surv = helper.predict_survival_function(
                 model_pipe.transform(X_test), np.unique(y_test["time"])
             )
@@ -104,13 +104,11 @@ for cancer in config["datasets"]:
     print(f"Starting: {cancer}")
     train_splits = pd.read_csv(f"./data/splits/TCGA/{cancer}_train_splits.csv")
     test_splits = pd.read_csv(f"./data/splits/TCGA/{cancer}_test_splits.csv")
-    data = pd.read_csv(
-        f"./data/processed/TCGA/{cancer}_data_preprocessed.csv"
-    ).iloc[:, 1:]
+    data = pd.read_csv(f"./data/processed/TCGA/{cancer}_data_preprocessed.csv").iloc[
+        :, 1:
+    ]
     X_ = data.iloc[:, 3:]
-    y_ = transform_survival(
-        time=data["OS_days"].values, event=data["OS"].values
-    )
+    y_ = transform_survival(time=data["OS_days"].values, event=data["OS"].values)
     for split in range(25):
         print(f"Starting split: {split+1} / 25")
         train_ix = train_splits.iloc[split, :].dropna().to_numpy().astype(int)
@@ -135,14 +133,15 @@ for cancer in config["datasets"]:
             if z == 0:
                 sparsity[split] = []
             sparsity[split].append(np.sum(path_coef != 0.0))
-            helper = PCPHElasticNetCV(tie_correction="breslow")
+            helper = KDPHElasticNetCV(
+                tie_correction="breslow",
+                seed=np.random.RandomState(config["random_state"]),
+            )
             helper.coef_ = path_coef
             ix_sort = np.argsort(y_train["time"])
             helper.train_time_ = y_train["time"][ix_sort]
             helper.train_event_ = y_train["event"][ix_sort]
-            helper.train_eta_ = helper.predict(model_pipe.transform(X_train))[
-                ix_sort
-            ]
+            helper.train_eta_ = helper.predict(model_pipe.transform(X_train))[ix_sort]
 
             surv = helper.predict_survival_function(
                 model_pipe.transform(X_test), np.unique(y_test["time"])

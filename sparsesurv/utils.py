@@ -1,9 +1,8 @@
 from math import erf, exp, log
-from typing import Callable, Tuple, List
+from typing import Callable, List, Tuple
 
 import numpy as np
 import numpy.typing as npt
-import torch
 from numba import jit
 from scipy import sparse
 from sklearn.linear_model._base import _pre_fit
@@ -11,20 +10,6 @@ from sklearn.utils import check_array
 from sklearn.utils.extmath import safe_sparse_dot
 
 from .constants import PDF_PREFACTOR, SQRT_TWO
-
-
-def normal_density(x: torch.Tensor) -> torch.Tensor:
-    """Calculate Gaussian kernel.
-
-    Args:
-        x (torch.Tensor): Input of differences.
-
-    Returns:
-        torch.Tensor: Gaussian kernel value.
-    """
-    # PDF_PREFACTOR = 0.3989423 (old version - rounded up)
-    density = PDF_PREFACTOR * torch.exp(-0.5 * torch.pow(x, 2.0))
-    return density
 
 
 def inverse_transform_survival(
@@ -66,7 +51,7 @@ def transform_survival(
     return y
 
 
-def inverse_transform_survival_preconditioning(
+def inverse_transform_survival_kd(
     y: npt.NDArray[np.float64],
 ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.int64], npt.NDArray[np.float64]]:
     """Obtain survival times, censoring information and eta (e.g. y train) from structuted array.
@@ -90,7 +75,7 @@ def inverse_transform_survival_preconditioning(
     return time, event, eta_hat
 
 
-def transform_survival_preconditioning(
+def transform_survival_kd(
     time: npt.NDArray[np.float64],
     event: npt.NDArray[np.int64],
     eta_hat: npt.NDArray[np.float64],
@@ -334,21 +319,15 @@ def _path_predictions(
 
     X_train_coefs = safe_sparse_dot(X_train, coefs)
     X_test_coefs = safe_sparse_dot(X_test, coefs)
-    # print(coefs.shape)
-    # raise ValueError
     if len(coefs.squeeze().shape) == 2:
         n_sparsity = np.sum(coefs != 0.0, axis=(0, 1))
     else:
         n_sparsity = np.sum(coefs != 0.0, axis=(0, 1)) / 2
-    # print(X_test_coefs.shape)
-    # raise ValueError
-    # print(y_train)
-    # raise ValueError
     return (
         X_train_coefs,
         X_test_coefs,
-        transform_survival_preconditioning(time_train, event_train, y_train),
-        transform_survival_preconditioning(time_test, event_test, y_test),
+        transform_survival_kd(time_train, event_train, y_train),
+        transform_survival_kd(time_test, event_test, y_test),
         n_sparsity,
     )
 

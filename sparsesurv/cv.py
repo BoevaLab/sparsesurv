@@ -1,7 +1,7 @@
 import numbers
 from functools import partial
 from numbers import Real
-from typing import List, Optional, Union, TypeVar, Tuple
+from typing import List, Optional, Tuple, TypeVar, Union
 
 import celer
 import numpy as np
@@ -9,9 +9,7 @@ import numpy.typing as npt
 import pandas as pd
 from joblib import effective_n_jobs
 from scipy import sparse
-from sklearn.linear_model._coordinate_descent import (
-    _alpha_grid,
-)
+from sklearn.linear_model._coordinate_descent import _alpha_grid
 from sklearn.model_selection import KFold, StratifiedKFold, check_cv
 from sklearn.utils.parallel import Parallel, delayed
 from sklearn.utils.validation import (
@@ -23,16 +21,13 @@ from sklearn.utils.validation import (
 
 from ._base import SurvivalMixin
 from .compat import BASELINE_HAZARD_FACTORY, CVSCORERFACTORY, LOSS_FACTORY
-from .utils import (
-    _path_predictions,
-    inverse_transform_survival_preconditioning,
-)
+from .utils import _path_predictions, inverse_transform_survival_kd
 
 Self = TypeVar("Self")
 
 
-class PCSurvCV(SurvivalMixin, celer.ElasticNetCV):
-    """Parent class to fit preconditioned sparse semi-parametric right-censored survival
+class BaseKDSurv(SurvivalMixin, celer.ElasticNetCV):
+    """Parent class to fit distilled sparse semi-parametric right-censored survival
         models using cross validation.
 
     Notes:
@@ -132,7 +127,7 @@ class PCSurvCV(SurvivalMixin, celer.ElasticNetCV):
         y: npt.NDArray[np.float64],
         sample_weight: Optional[npt.NDArray[np.float64]] = None,
     ) -> Self:
-        """Fit preconditioned semi-parametric survival model to given data.
+        """Fit knowledge distilled semi-parametric survival model to given data.
 
         Args:
             X (npt.NDArray[np.float64]): _description_
@@ -168,7 +163,7 @@ class PCSurvCV(SurvivalMixin, celer.ElasticNetCV):
         check_y_params = dict(
             copy=False, dtype=[np.float64, np.float32], ensure_2d=False
         )
-        time, event, y = inverse_transform_survival_preconditioning(y)
+        time, event, y = inverse_transform_survival_kd(y)
         sorted_ix = np.argsort(time)
         time = time[sorted_ix]
         event = event[sorted_ix]
@@ -371,12 +366,12 @@ class PCSurvCV(SurvivalMixin, celer.ElasticNetCV):
                     train_time,
                     train_event,
                     _,
-                ) = inverse_transform_survival_preconditioning(train_y_method)
+                ) = inverse_transform_survival_kd(train_y_method)
                 (
                     test_time,
                     test_event,
                     _,
-                ) = inverse_transform_survival_preconditioning(test_y_method)
+                ) = inverse_transform_survival_kd(test_y_method)
                 for j in range(len(alphas[i])):
                     likelihood = CVSCORERFACTORY[self.cv_score_method](
                         test_linear_predictor=test_eta_method[:, :, j].squeeze(),
@@ -407,12 +402,12 @@ class PCSurvCV(SurvivalMixin, celer.ElasticNetCV):
                             train_time,
                             train_event,
                             _,
-                        ) = inverse_transform_survival_preconditioning(train_y_method)
+                        ) = inverse_transform_survival_kd(train_y_method)
                         (
                             test_time,
                             test_event,
                             test_eta_hat,
-                        ) = inverse_transform_survival_preconditioning(test_y_method)
+                        ) = inverse_transform_survival_kd(test_y_method)
                         fold_likelihood = CVSCORERFACTORY[self.cv_score_method](
                             test_linear_predictor=test_eta_method[:, :, j].squeeze(),
                             test_time=test_time,
@@ -483,7 +478,7 @@ class PCSurvCV(SurvivalMixin, celer.ElasticNetCV):
                     best_alpha = l1_alphas[i_best_alpha]
                     best_l1_ratio = l1_ratio
 
-        elif self.alpha_type == "pcvl":
+        elif self.alpha_type == "KDvl":
             for l1_ratio, l1_alphas, pl_alphas, n_coefs in zip(
                 l1_ratios, alphas, mean_cv_score, mean_sparsity
             ):
@@ -571,7 +566,7 @@ class PCSurvCV(SurvivalMixin, celer.ElasticNetCV):
         return X @ self.coef_
 
 
-class PCPHElasticNetCV(PCSurvCV):
+class KDPHElasticNetCV(BaseKDSurv):
     """TODO DW"""
 
     def __init__(
@@ -705,7 +700,7 @@ class PCPHElasticNetCV(PCSurvCV):
         return cumulative_hazard_function
 
 
-class PCAFTElasticNetCV(PCSurvCV):
+class KDAFTElasticNetCV(BaseKDSurv):
     """TODO DW"""
 
     def __init__(
@@ -793,7 +788,7 @@ class PCAFTElasticNetCV(PCSurvCV):
         )
 
 
-class PCEHMultiTaskLassoCV(PCSurvCV):
+class KDEHMultiTaskLassoCV(BaseKDSurv):
     """TODO DW"""
 
     def __init__(
