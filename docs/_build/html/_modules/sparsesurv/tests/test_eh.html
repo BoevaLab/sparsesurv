@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>sparsesurv.tests.test_eh &mdash; sparsesurv  documentation</title>
+      <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../../_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="../../../_static/jquery.js"></script>
+        <script src="../../../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js"></script>
+        <script src="../../../_static/doctools.js"></script>
+        <script src="../../../_static/sphinx_highlight.js"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            sparsesurv
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../overview.html">Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../sparsesurv_api/sparsesurv.html">API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../references.html">References</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">sparsesurv</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">sparsesurv.tests.test_eh</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for sparsesurv.tests.test_eh</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">math</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">pytest</span>
+<span class="kn">import</span> <span class="nn">torch</span>
+<span class="kn">from</span> <span class="nn">.get_data_arrays</span> <span class="kn">import</span> <span class="n">get_2d_array</span>
+
+<span class="kn">from</span> <span class="nn">sparsesurv.loss</span> <span class="kn">import</span> <span class="n">eh_negative_likelihood</span>
+<span class="kn">from</span> <span class="nn">sparsesurv.utils</span> <span class="kn">import</span> <span class="n">normal_density</span>
+
+
+<div class="viewcode-block" id="eh_calculation"><a class="viewcode-back" href="../../../sparsesurv_api/sparsesurv.tests.test_eh.html#sparsesurv.tests.test_eh.eh_calculation">[docs]</a><span class="k">def</span> <span class="nf">eh_calculation</span><span class="p">(</span><span class="n">linear_predictor</span><span class="p">,</span> <span class="n">time</span><span class="p">,</span> <span class="n">event</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Extended Hazards Loss.&quot;&quot;&quot;</span>
+    <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span>
+        <span class="n">linear_predictor</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
+    <span class="p">),</span> <span class="sa">f</span><span class="s2">&quot;&lt;linear_predictor&gt; should be a Tensor, but is </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">linear_predictor</span><span class="p">)</span><span class="si">}</span><span class="s2"> instead.&quot;</span>
+    <span class="k">if</span> <span class="n">torch</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">event</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;No events detected!&quot;</span><span class="p">)</span>
+
+    <span class="n">n_samples</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">event</span><span class="p">)</span>
+
+    <span class="n">h</span> <span class="o">=</span> <span class="mf">1.30</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">pow</span><span class="p">(</span><span class="n">n_samples</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.2</span><span class="p">)</span>  <span class="c1">## or 1.59*n_samples^(-1/3)</span>
+    <span class="n">time</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">n_samples</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">event</span> <span class="o">=</span> <span class="n">event</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">n_samples</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">g1</span> <span class="o">=</span> <span class="n">linear_predictor</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">n_samples</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">g2</span> <span class="o">=</span> <span class="n">linear_predictor</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">n_samples</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+
+    <span class="c1"># R = g(Xi) + log(Oi)</span>
+    <span class="n">R</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">g1</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">time</span><span class="p">))</span>
+
+    <span class="n">S1</span> <span class="o">=</span> <span class="p">(</span><span class="n">event</span> <span class="o">*</span> <span class="n">g2</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span> <span class="o">/</span> <span class="n">n_samples</span>
+    <span class="n">S2</span> <span class="o">=</span> <span class="o">-</span><span class="p">(</span><span class="n">event</span> <span class="o">*</span> <span class="n">R</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span> <span class="o">/</span> <span class="n">n_samples</span>
+
+    <span class="c1"># Rj - Ri</span>
+    <span class="n">rawones</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">n_samples</span><span class="p">)</span>
+    <span class="n">R1</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">mm</span><span class="p">(</span><span class="n">R</span><span class="p">,</span> <span class="n">rawones</span><span class="p">)</span>
+    <span class="n">R2</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">mm</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">t</span><span class="p">(</span><span class="n">rawones</span><span class="p">),</span> <span class="n">torch</span><span class="o">.</span><span class="n">t</span><span class="p">(</span><span class="n">R</span><span class="p">))</span>
+    <span class="n">DR</span> <span class="o">=</span> <span class="n">R1</span> <span class="o">-</span> <span class="n">R2</span>
+
+    <span class="c1"># K[(Rj-Ri)/h]</span>
+    <span class="n">K</span> <span class="o">=</span> <span class="n">normal_density</span><span class="p">(</span><span class="n">DR</span> <span class="o">/</span> <span class="n">h</span><span class="p">)</span>
+    <span class="n">Del</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">mm</span><span class="p">(</span><span class="n">event</span><span class="p">,</span> <span class="n">rawones</span><span class="p">)</span>
+    <span class="n">DelK</span> <span class="o">=</span> <span class="n">Del</span> <span class="o">*</span> <span class="n">K</span>
+
+    <span class="c1"># (1/nh) *sum_j eventj * K[(Rj-Ri)/h]</span>
+    <span class="n">Dk</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">DelK</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span>
+        <span class="n">n_samples</span> <span class="o">*</span> <span class="n">h</span>
+    <span class="p">)</span>  <span class="c1">## Dk would be zero as learning rate too large!</span>
+
+    <span class="c1"># log {(1/nh) * eventj * K[(Rj-Ri)/h]}</span>
+    <span class="n">log_Dk</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">Dk</span><span class="p">)</span>
+
+    <span class="n">S3</span> <span class="o">=</span> <span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">t</span><span class="p">(</span><span class="n">event</span><span class="p">)</span> <span class="o">*</span> <span class="n">log_Dk</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span> <span class="o">/</span> <span class="n">n_samples</span>
+
+    <span class="c1"># Phi((Rj-Ri)/h)</span>
+    <span class="n">ncdf</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">distributions</span><span class="o">.</span><span class="n">normal</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span>
+        <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">([</span><span class="mf">0.0</span><span class="p">]),</span> <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">([</span><span class="mf">1.0</span><span class="p">])</span>
+    <span class="p">)</span><span class="o">.</span><span class="n">cdf</span>
+    <span class="n">P</span> <span class="o">=</span> <span class="n">ncdf</span><span class="p">(</span><span class="n">DR</span> <span class="o">/</span> <span class="n">h</span><span class="p">)</span>
+    <span class="n">L</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">g2</span> <span class="o">-</span> <span class="n">g1</span><span class="p">)</span>
+    <span class="n">LL</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">mm</span><span class="p">(</span><span class="n">L</span><span class="p">,</span> <span class="n">rawones</span><span class="p">)</span>
+    <span class="n">LP_sum</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">LL</span> <span class="o">*</span> <span class="n">P</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span> <span class="o">/</span> <span class="n">n_samples</span>
+    <span class="n">Q</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">LP_sum</span><span class="p">)</span>
+
+    <span class="n">S4</span> <span class="o">=</span> <span class="o">-</span><span class="p">(</span><span class="n">event</span> <span class="o">*</span> <span class="n">Q</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">n_samples</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span> <span class="o">/</span> <span class="n">n_samples</span>
+
+    <span class="n">S</span> <span class="o">=</span> <span class="n">S1</span> <span class="o">+</span> <span class="n">S2</span> <span class="o">+</span> <span class="n">S3</span> <span class="o">+</span> <span class="n">S4</span>
+    <span class="n">S</span> <span class="o">=</span> <span class="o">-</span><span class="n">S</span>
+    <span class="k">return</span> <span class="n">S</span></div>
+
+
+<div class="viewcode-block" id="TestEHLoss"><a class="viewcode-back" href="../../../sparsesurv_api/sparsesurv.tests.test_eh.html#sparsesurv.tests.test_eh.TestEHLoss">[docs]</a><span class="k">class</span> <span class="nc">TestEHLoss</span><span class="p">:</span>
+<div class="viewcode-block" id="TestEHLoss.test_default"><a class="viewcode-back" href="../../../sparsesurv_api/sparsesurv.tests.test_eh.html#sparsesurv.tests.test_eh.TestEHLoss.test_default">[docs]</a>    <span class="k">def</span> <span class="nf">test_default</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">linear_predictor</span><span class="p">,</span> <span class="n">time</span><span class="p">,</span> <span class="n">event</span> <span class="o">=</span> <span class="n">get_2d_array</span><span class="p">(</span><span class="s2">&quot;default&quot;</span><span class="p">)</span>
+
+        <span class="c1"># convert to torch tensor for external testing</span>
+        <span class="n">linear_predictor_tensor</span><span class="p">,</span> <span class="n">time_tensor</span><span class="p">,</span> <span class="n">event_tensor</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">torch</span><span class="o">.</span><span class="n">from_numpy</span><span class="p">(</span><span class="n">linear_predictor</span><span class="p">),</span>
+            <span class="n">torch</span><span class="o">.</span><span class="n">from_numpy</span><span class="p">(</span><span class="n">time</span><span class="p">),</span>
+            <span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">event</span><span class="p">),</span>
+        <span class="p">)</span>
+        <span class="n">eh_formula_computation</span> <span class="o">=</span> <span class="n">eh_calculation</span><span class="p">(</span>
+            <span class="n">linear_predictor_tensor</span><span class="p">,</span> <span class="n">time_tensor</span><span class="p">,</span> <span class="n">event_tensor</span>
+        <span class="p">)</span>
+
+        <span class="n">eh_loss</span> <span class="o">=</span> <span class="n">eh_negative_likelihood</span><span class="p">(</span><span class="n">linear_predictor</span><span class="p">,</span> <span class="n">time</span><span class="p">,</span> <span class="n">event</span><span class="p">)</span>
+
+        <span class="k">assert</span> <span class="n">np</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span>
+            <span class="n">eh_loss</span><span class="p">,</span> <span class="n">eh_formula_computation</span><span class="p">,</span> <span class="n">atol</span><span class="o">=</span><span class="mf">1e-2</span>
+        <span class="p">),</span> <span class="sa">f</span><span class="s2">&quot;Computed EH loss is </span><span class="si">{</span><span class="n">eh_loss</span><span class="si">}</span><span class="s2"> but formula yields </span><span class="si">{</span><span class="n">eh_formula_computation</span><span class="si">}</span><span class="s2"> for default data.&quot;</span></div>
+
+<div class="viewcode-block" id="TestEHLoss.test_first_five_zero"><a class="viewcode-back" href="../../../sparsesurv_api/sparsesurv.tests.test_eh.html#sparsesurv.tests.test_eh.TestEHLoss.test_first_five_zero">[docs]</a>    <span class="k">def</span> <span class="nf">test_first_five_zero</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">linear_predictor</span><span class="p">,</span> <span class="n">time</span><span class="p">,</span> <span class="n">event</span> <span class="o">=</span> <span class="n">get_2d_array</span><span class="p">(</span><span class="s2">&quot;first_five_zero&quot;</span><span class="p">)</span>
+
+        <span class="c1"># convert to torch tensor for external testing</span>
+        <span class="n">linear_predictor_tensor</span><span class="p">,</span> <span class="n">time_tensor</span><span class="p">,</span> <span class="n">event_tensor</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">torch</span><span class="o">.</span><span class="n">from_numpy</span><span class="p">(</span><span class="n">linear_predictor</span><span class="p">),</span>
+            <span class="n">torch</span><span class="o">.</span><span class="n">from_numpy</span><span class="p">(</span><span class="n">time</span><span class="p">),</span>
+            <span class="n">torch</span><span class="o">.</span><span class="n">from_numpy</span><span class="p">(</span><span class="n">event</span><span class="p">),</span>
+        <span class="p">)</span>
+        <span class="n">eh_formula_computation</span> <span class="o">=</span> <span class="n">eh_calculation</span><span class="p">(</span>
+            <span class="n">linear_predictor_tensor</span><span class="p">,</span> <span class="n">time_tensor</span><span class="p">,</span> <span class="n">event_tensor</span>
+        <span class="p">)</span>
+
+        <span class="n">eh_loss</span> <span class="o">=</span> <span class="n">eh_negative_likelihood</span><span class="p">(</span><span class="n">linear_predictor</span><span class="p">,</span> <span class="n">time</span><span class="p">,</span> <span class="n">event</span><span class="p">)</span>
+
+        <span class="k">assert</span> <span class="n">np</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span>
+            <span class="n">eh_loss</span><span class="p">,</span> <span class="n">eh_formula_computation</span><span class="p">,</span> <span class="n">atol</span><span class="o">=</span><span class="mf">1e-2</span>
+        <span class="p">),</span> <span class="sa">f</span><span class="s2">&quot;Computed EH loss is </span><span class="si">{</span><span class="n">eh_loss</span><span class="si">}</span><span class="s2"> but formula yields </span><span class="si">{</span><span class="n">eh_formula_computation</span><span class="si">}</span><span class="s2"> for edge case: first five zero events.&quot;</span></div>
+
+<div class="viewcode-block" id="TestEHLoss.test_last_five_zero"><a class="viewcode-back" href="../../../sparsesurv_api/sparsesurv.tests.test_eh.html#sparsesurv.tests.test_eh.TestEHLoss.test_last_five_zero">[docs]</a>    <span class="k">def</span> <span class="nf">test_last_five_zero</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">linear_predictor</span><span class="p">,</span> <span class="n">time</span><span class="p">,</span> <span class="n">event</span> <span class="o">=</span> <span class="n">get_2d_array</span><span class="p">(</span><span class="s2">&quot;last_five_zero&quot;</span><span class="p">)</span>
+
+        <span class="c1"># convert to torch tensor for external testing</span>
+        <span class="n">linear_predictor_tensor</span><span class="p">,</span> <span class="n">time_tensor</span><span class="p">,</span> <span class="n">event_tensor</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">torch</span><span class="o">.</span><span class="n">from_numpy</span><span class="p">(</span><span class="n">linear_predictor</span><span class="p">),</span>
+            <span class="n">torch</span><span class="o">.</span><span class="n">from_numpy</span><span class="p">(</span><span class="n">time</span><span class="p">),</span>
+            <span class="n">torch</span><span class="o">.</span><span class="n">from_numpy</span><span class="p">(</span><span class="n">event</span><span class="p">),</span>
+        <span class="p">)</span>
+        <span class="n">eh_formula_computation</span> <span class="o">=</span> <span class="n">eh_calculation</span><span class="p">(</span>
+            <span class="n">linear_predictor_tensor</span><span class="p">,</span> <span class="n">time_tensor</span><span class="p">,</span> <span class="n">event_tensor</span>
+        <span class="p">)</span>
+
+        <span class="n">eh_loss</span> <span class="o">=</span> <span class="n">eh_negative_likelihood</span><span class="p">(</span><span class="n">linear_predictor</span><span class="p">,</span> <span class="n">time</span><span class="p">,</span> <span class="n">event</span><span class="p">)</span>
+
+        <span class="k">assert</span> <span class="n">np</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span>
+            <span class="n">eh_loss</span><span class="p">,</span> <span class="n">eh_formula_computation</span><span class="p">,</span> <span class="n">atol</span><span class="o">=</span><span class="mf">1e-2</span>
+        <span class="p">),</span> <span class="sa">f</span><span class="s2">&quot;Computed EH loss is </span><span class="si">{</span><span class="n">eh_loss</span><span class="si">}</span><span class="s2"> but formula yields </span><span class="si">{</span><span class="n">eh_formula_computation</span><span class="si">}</span><span class="s2"> for edge case: last five zero events.&quot;</span></div>
+
+<div class="viewcode-block" id="TestEHLoss.test_high_event_ratio"><a class="viewcode-back" href="../../../sparsesurv_api/sparsesurv.tests.test_eh.html#sparsesurv.tests.test_eh.TestEHLoss.test_high_event_ratio">[docs]</a>    <span class="k">def</span> <span class="nf">test_high_event_ratio</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">linear_predictor</span><span class="p">,</span> <span class="n">time</span><span class="p">,</span> <span class="n">event</span> <span class="o">=</span> <span class="n">get_2d_array</span><span class="p">(</span><span class="s2">&quot;high_event_ratio&quot;</span><span class="p">)</span>
+
+        <span class="c1"># convert to torch tensor for external testing</span>
+        <span class="n">linear_predictor_tensor</span><span class="p">,</span> <span class="n">time_tensor</span><span class="p">,</span> <span class="n">event_tensor</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">torch</span><span class="o">.</span><span class="n">from_numpy</span><span class="p">(</span><span class="n">linear_predictor</span><span class="p">),</span>
+            <span class="n">torch</span><span class="o">.</span><span class="n">from_numpy</span><span class="p">(</span><span class="n">time</span><span class="p">),</span>
+            <span class="n">torch</span><span class="o">.</span><span class="n">from_numpy</span><span class="p">(</span><span class="n">event</span><span class="p">),</span>
+        <span class="p">)</span>
+        <span class="n">eh_formula_computation</span> <span class="o">=</span> <span class="n">eh_calculation</span><span class="p">(</span>
+            <span class="n">linear_predictor_tensor</span><span class="p">,</span> <span class="n">time_tensor</span><span class="p">,</span> <span class="n">event_tensor</span>
+        <span class="p">)</span>
+
+        <span class="n">eh_loss</span> <span class="o">=</span> <span class="n">eh_negative_likelihood</span><span class="p">(</span><span class="n">linear_predictor</span><span class="p">,</span> <span class="n">time</span><span class="p">,</span> <span class="n">event</span><span class="p">)</span>
+
+        <span class="k">assert</span> <span class="n">np</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span>
+            <span class="n">eh_loss</span><span class="p">,</span> <span class="n">eh_formula_computation</span><span class="p">,</span> <span class="n">atol</span><span class="o">=</span><span class="mf">1e-2</span>
+        <span class="p">),</span> <span class="sa">f</span><span class="s2">&quot;Computed EH loss is </span><span class="si">{</span><span class="n">eh_loss</span><span class="si">}</span><span class="s2"> but formula yields </span><span class="si">{</span><span class="n">eh_formula_computation</span><span class="si">}</span><span class="s2"> for edge case: high event ratio.&quot;</span></div>
+
+<div class="viewcode-block" id="TestEHLoss.test_low_event_ratio"><a class="viewcode-back" href="../../../sparsesurv_api/sparsesurv.tests.test_eh.html#sparsesurv.tests.test_eh.TestEHLoss.test_low_event_ratio">[docs]</a>    <span class="k">def</span> <span class="nf">test_low_event_ratio</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">linear_predictor</span><span class="p">,</span> <span class="n">time</span><span class="p">,</span> <span class="n">event</span> <span class="o">=</span> <span class="n">get_2d_array</span><span class="p">(</span><span class="s2">&quot;low_event_ratio&quot;</span><span class="p">)</span>
+
+        <span class="c1"># convert to torch tensor for external testing</span>
+        <span class="n">linear_predictor_tensor</span><span class="p">,</span> <span class="n">time_tensor</span><span class="p">,</span> <span class="n">event_tensor</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">torch</span><span class="o">.</span><span class="n">from_numpy</span><span class="p">(</span><span class="n">linear_predictor</span><span class="p">),</span>
+            <span class="n">torch</span><span class="o">.</span><span class="n">from_numpy</span><span class="p">(</span><span class="n">time</span><span class="p">),</span>
+            <span class="n">torch</span><span class="o">.</span><span class="n">from_numpy</span><span class="p">(</span><span class="n">event</span><span class="p">),</span>
+        <span class="p">)</span>
+        <span class="n">eh_formula_computation</span> <span class="o">=</span> <span class="n">eh_calculation</span><span class="p">(</span>
+            <span class="n">linear_predictor_tensor</span><span class="p">,</span> <span class="n">time_tensor</span><span class="p">,</span> <span class="n">event_tensor</span>
+        <span class="p">)</span>
+
+        <span class="n">eh_loss</span> <span class="o">=</span> <span class="n">eh_negative_likelihood</span><span class="p">(</span><span class="n">linear_predictor</span><span class="p">,</span> <span class="n">time</span><span class="p">,</span> <span class="n">event</span><span class="p">)</span>
+
+        <span class="k">assert</span> <span class="n">np</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span>
+            <span class="n">eh_loss</span><span class="p">,</span> <span class="n">eh_formula_computation</span><span class="p">,</span> <span class="n">atol</span><span class="o">=</span><span class="mf">1e-2</span>
+        <span class="p">),</span> <span class="sa">f</span><span class="s2">&quot;Computed EH loss is </span><span class="si">{</span><span class="n">eh_loss</span><span class="si">}</span><span class="s2"> but formula yields </span><span class="si">{</span><span class="n">eh_formula_computation</span><span class="si">}</span><span class="s2"> for edge case: low event ratio.&quot;</span></div>
+
+<div class="viewcode-block" id="TestEHLoss.test_all_events"><a class="viewcode-back" href="../../../sparsesurv_api/sparsesurv.tests.test_eh.html#sparsesurv.tests.test_eh.TestEHLoss.test_all_events">[docs]</a>    <span class="k">def</span> <span class="nf">test_all_events</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">linear_predictor</span><span class="p">,</span> <span class="n">time</span><span class="p">,</span> <span class="n">event</span> <span class="o">=</span> <span class="n">get_2d_array</span><span class="p">(</span><span class="s2">&quot;all_events&quot;</span><span class="p">)</span>
+
+        <span class="c1"># convert to torch tensor for external testing</span>
+        <span class="n">linear_predictor_tensor</span><span class="p">,</span> <span class="n">time_tensor</span><span class="p">,</span> <span class="n">event_tensor</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">torch</span><span class="o">.</span><span class="n">from_numpy</span><span class="p">(</span><span class="n">linear_predictor</span><span class="p">),</span>
+            <span class="n">torch</span><span class="o">.</span><span class="n">from_numpy</span><span class="p">(</span><span class="n">time</span><span class="p">),</span>
+            <span class="n">torch</span><span class="o">.</span><span class="n">from_numpy</span><span class="p">(</span><span class="n">event</span><span class="p">),</span>
+        <span class="p">)</span>
+        <span class="n">eh_formula_computation</span> <span class="o">=</span> <span class="n">eh_calculation</span><span class="p">(</span>
+            <span class="n">linear_predictor_tensor</span><span class="p">,</span> <span class="n">time_tensor</span><span class="p">,</span> <span class="n">event_tensor</span>
+        <span class="p">)</span>
+
+        <span class="n">eh_loss</span> <span class="o">=</span> <span class="n">eh_negative_likelihood</span><span class="p">(</span><span class="n">linear_predictor</span><span class="p">,</span> <span class="n">time</span><span class="p">,</span> <span class="n">event</span><span class="p">)</span>
+
+        <span class="k">assert</span> <span class="n">np</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span>
+            <span class="n">eh_loss</span><span class="p">,</span> <span class="n">eh_formula_computation</span><span class="p">,</span> <span class="n">atol</span><span class="o">=</span><span class="mf">1e-2</span>
+        <span class="p">),</span> <span class="sa">f</span><span class="s2">&quot;Computed EH loss is </span><span class="si">{</span><span class="n">eh_loss</span><span class="si">}</span><span class="s2"> but formula yields </span><span class="si">{</span><span class="n">eh_formula_computation</span><span class="si">}</span><span class="s2"> for edge case: all(100%) events.&quot;</span></div>
+
+<div class="viewcode-block" id="TestEHLoss.test_no_events"><a class="viewcode-back" href="../../../sparsesurv_api/sparsesurv.tests.test_eh.html#sparsesurv.tests.test_eh.TestEHLoss.test_no_events">[docs]</a>    <span class="k">def</span> <span class="nf">test_no_events</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">linear_predictor</span><span class="p">,</span> <span class="n">time</span><span class="p">,</span> <span class="n">event</span> <span class="o">=</span> <span class="n">get_2d_array</span><span class="p">(</span><span class="s2">&quot;no_events&quot;</span><span class="p">)</span>
+
+        <span class="k">with</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="ne">RuntimeError</span><span class="p">)</span> <span class="k">as</span> <span class="n">excinfo</span><span class="p">:</span>
+            <span class="n">eh_negative_likelihood</span><span class="p">(</span><span class="n">linear_predictor</span><span class="p">,</span> <span class="n">time</span><span class="p">,</span> <span class="n">event</span><span class="p">)</span>
+        <span class="k">assert</span> <span class="s2">&quot;No events detected!&quot;</span> <span class="ow">in</span> <span class="nb">str</span><span class="p">(</span>
+            <span class="n">excinfo</span><span class="o">.</span><span class="n">value</span>
+        <span class="p">),</span> <span class="s2">&quot;Events detected in data. Check data or the function &lt;eh_negative_likelihood&gt; to make sure data is processed correctly.&quot;</span></div></div>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright IBM Corp. 2022.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

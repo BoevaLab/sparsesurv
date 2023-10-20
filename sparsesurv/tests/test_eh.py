@@ -3,10 +3,10 @@ import math
 import numpy as np
 import pytest
 import torch
-from .get_data_arrays import get_2d_array
 
-from sparsesurv.loss import eh_negative_likelihood
-from sparsesurv.utils import normal_density
+from ..loss import eh_negative_likelihood
+from .get_data_arrays import get_2d_array
+from .test_utils import normal_density
 
 
 def eh_calculation(linear_predictor, time, event):

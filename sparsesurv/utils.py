@@ -75,11 +75,35 @@ def transform_survival(
     return y
 
 
+def inverse_transform_survival_kd(
+    y: npt.NDArray[np.float64],
+) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.int64], npt.NDArray[np.float64]]:
+    """Obtain survival times, censoring information and eta (e.g. y train) from structuted array.
+
+    Args:
+        y (npt.NDArray[np.float64]): Structured array containing survival times, censoring information.
+
+    Returns:
+        tuple[npt.NDArray[np.float64], npt.NDArray[np.int64], npt.NDArray[np.float64]]: survival times, censoring information, eta.
+    """
+    time = y["time"].astype(np.float_)
+    event = y["event"].astype(np.int_)
+    if len(y[0]) > 3:
+        n_eta = len(y[0]) - 2
+        eta_hat = []
+        for eta in range(1, n_eta + 1):
+            eta_hat.append(y[f"eta_hat_{eta}"].astype(np.float_))
+        eta_hat = np.stack(eta_hat, axis=1)
+    else:
+        eta_hat = y["eta_hat"].astype(np.float_)
+    return time, event, eta_hat
+
+
 def transform_survival_kd(
     time: npt.NDArray[np.float64],
     event: npt.NDArray[np.float64],
     eta_hat: npt.NDArray[np.float64],
-) -> np.array:
+) -> npt.NDArray[np.float64]:
     """Transform survival times, censoring information and eta (e.g. y train) into one array.
 
     Args:
@@ -91,7 +115,7 @@ def transform_survival_kd(
         NotImplementedError: Checking for dimensions.
 
     Returns:
-        np.array: Structured array containing survival times and censoring information.
+        npt.NDArray: Structured array containing survival times and censoring information.
     """
     eta_hat = eta_hat.squeeze()
     if eta_hat.shape[0] > time.shape[0]:
@@ -317,12 +341,10 @@ def _path_predictions(
 
     X_train_coefs = safe_sparse_dot(X_train, coefs)
     X_test_coefs = safe_sparse_dot(X_test, coefs)
-
     if len(coefs.squeeze().shape) == 2:
         n_sparsity = np.sum(coefs != 0.0, axis=(0, 1))
     else:
         n_sparsity = np.sum(coefs != 0.0, axis=(0, 1)) / 2
-
     return (
         X_train_coefs,
         X_test_coefs,

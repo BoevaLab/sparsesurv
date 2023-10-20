@@ -54,7 +54,7 @@ class SurvivalMixin(BaseEstimator):
         return X @ self.coef_
 
 
-class KDSurvCV:
+class KDSurv:
     """Wrapper class to perform knowledge distillation (KD) for sparse survival models [1, 2].
 
     References:
@@ -126,7 +126,7 @@ class KDSurvCV:
             the student, based on design matrix `X`. Has length
             `X.shape[0]`.
         """
-        return self.model_pipe.predict(X=X)
+        return self.student.predict(X=X)
 
     def predict_survival_function(
         self, X: npt.NDArray[np.float64], time: npt.NDArray[np.float64]
@@ -146,4 +146,4 @@ class KDSurvCV:
             the student, at times `time` and based on design matrix
             `X`. Has `len(time)` columns and `X.shape[0]` rows.
         """
-        return self.model_pipe.predict_survival_function(X=X, time=time)
+        return self.student.predict_survival_function(X=X, time=time)

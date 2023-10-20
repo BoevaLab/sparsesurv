@@ -26,8 +26,8 @@ from .utils import _path_predictions, inverse_transform_survival_kd
 Self = TypeVar("Self")
 
 
-class PCSurvCV(SurvivalMixin, celer.ElasticNetCV):
-    """Parent class to fit preconditioned sparse semi-parametric right-censored survival
+class BaseKDSurv(SurvivalMixin, celer.ElasticNetCV):
+    """Parent class to fit distilled sparse semi-parametric right-censored survival
         models using cross validation.
 
     Notes:
@@ -538,7 +538,7 @@ class PCSurvCV(SurvivalMixin, celer.ElasticNetCV):
                     best_alpha = l1_alphas[i_best_alpha]
                     best_l1_ratio = l1_ratio
 
-        elif self.alpha_type == "pcvl":
+        elif self.alpha_type == "KDvl":
             for l1_ratio, l1_alphas, pl_alphas, n_coefs in zip(
                 l1_ratios, alphas, mean_cv_score, mean_sparsity
             ):
@@ -626,8 +626,8 @@ class PCSurvCV(SurvivalMixin, celer.ElasticNetCV):
         return X @ self.coef_
 
 
-class PCPHElasticNetCV(PCSurvCV):
-    """Child-class of KDSurvCV to perform knowledge distillation specifically for Cox PH models."""
+class KDPHElasticNetCV(BaseKDSurv):
+    """Child-class of BaseKDSurv to perform knowledge distillation specifically for Cox PH models."""
 
     def __init__(
         self,
@@ -854,8 +854,8 @@ class PCPHElasticNetCV(PCSurvCV):
         return cumulative_hazard_function
 
 
-class PCAFTElasticNetCV(PCSurvCV):
-    """Child-class of KDSurvCV to perform knowledge distillation specifically for semiparametric AFT models."""
+class KDAFTElasticNetCV(BaseKDSurv):
+    """Child-class of BaseKDSurv to perform knowledge distillation specifically for semiparametric AFT models."""
 
     def __init__(
         self,
@@ -1052,8 +1052,8 @@ class PCAFTElasticNetCV(PCSurvCV):
         )
 
 
-class PCEHMultiTaskLassoCV(PCSurvCV):
-    """Child-class of KDSurvCV to perform knowledge distillation specifically for semiparametric EH models."""
+class KDEHMultiTaskLassoCV(BaseKDSurv):
+    """Child-class of BaseKDSurv to perform knowledge distillation specifically for semiparametric EH models."""
 
     def __init__(
         self,
