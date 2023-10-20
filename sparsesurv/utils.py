@@ -461,11 +461,11 @@ def basic_cv_fold(
     test_linear_predictor: npt.NDArray[np.float64],
     test_time: npt.NDArray[np.float64],
     test_event: npt.NDArray[np.float64],
-    test_eta_hat: npt.NDArray[np.float64],
-    train_linear_predictor: npt.NDArray[np.float64],
-    train_time: npt.NDArray[np.float64],
-    train_event: npt.NDArray[np.float64],
     score_function: Callable,
+    test_eta_hat: npt.NDArray[np.float64] = None,
+    train_linear_predictor: npt.NDArray[np.float64] = None,
+    train_time: npt.NDArray[np.float64] = None,
+    train_event: npt.NDArray[np.float64] = None,
 ) -> float:
     """Basic CV scoring function based on the scoring function used [1].
 
@@ -496,13 +496,13 @@ def basic_cv_fold(
 
 def basic_mse(
     test_linear_predictor: npt.NDArray[np.float64],
-    test_time: npt.NDArray[np.float64],
-    test_event: npt.NDArray[np.float64],
     test_eta_hat: npt.NDArray[np.float64],
-    train_linear_predictor: npt.NDArray[np.float64],
-    train_time: npt.NDArray[np.float64],
-    train_event: npt.NDArray[np.float64],
-    score_function: Callable,
+    test_time: npt.NDArray[np.float64] = None,
+    test_event: npt.NDArray[np.float64] = None,
+    train_linear_predictor: npt.NDArray[np.float64] = None,
+    train_time: npt.NDArray[np.float64] = None,
+    train_event: npt.NDArray[np.float64] = None,
+    score_function: Callable = None,
 ) -> float:
     """Mean-squared error based CV scoring function.
 
@@ -535,11 +535,11 @@ def vvh_cv_fold(
     test_linear_predictor: npt.NDArray[np.float64],
     test_time: npt.NDArray[np.float64],
     test_event: npt.NDArray[np.float64],
-    test_eta_hat: npt.NDArray[np.float64],
     train_linear_predictor: npt.NDArray[np.float64],
     train_time: npt.NDArray[np.float64],
     train_event: npt.NDArray[np.float64],
     score_function: Callable,
+    test_eta_hat: npt.NDArray[np.float64] = None,
 ) -> float:
     """Verweij and Van Houwelingen CV scoring function [1, 2].
 
@@ -587,11 +587,11 @@ def linear_cv(
     test_linear_predictor: npt.NDArray[np.float64],
     test_time: npt.NDArray[np.float64],
     test_event: npt.NDArray[np.float64],
-    test_eta_hat: npt.NDArray[np.float64],
-    train_linear_predictor: npt.NDArray[np.float64],
-    train_time: npt.NDArray[np.float64],
-    train_event: npt.NDArray[np.float64],
     score_function: Callable,
+    test_eta_hat: npt.NDArray[np.float64] = None,
+    train_linear_predictor: npt.NDArray[np.float64] = None,
+    train_time: npt.NDArray[np.float64] = None,
+    train_event: npt.NDArray[np.float64] = None,
 ) -> float:
     """CV score computation using linear predictors [1, 2].
 
