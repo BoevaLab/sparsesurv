@@ -538,7 +538,7 @@ class BaseKDSurv(SurvivalMixin, celer.ElasticNetCV):
                     best_alpha = l1_alphas[i_best_alpha]
                     best_l1_ratio = l1_ratio
 
-        elif self.alpha_type == "KDvl":
+        elif self.alpha_type == "pcvl":
             for l1_ratio, l1_alphas, pl_alphas, n_coefs in zip(
                 l1_ratios, alphas, mean_cv_score, mean_sparsity
             ):
