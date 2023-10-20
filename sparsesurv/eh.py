@@ -15,18 +15,21 @@ from .utils import inverse_transform_survival
 
 
 class EH(SurvivalMixin):
-    """Linear Extended Hazards (EH) model based on kernel-smoothed PL [1]_.
+    """Linear Extended Hazards (EH) model based on kernel-smoothed PL [1].
 
     Fits a linear EH model based on the kernel smoothed profile likelihood
     as proposed by [1]. Uses the `trust-ncg` algorithm implementation
-    from 'scipy.optimize.minimize` for optimization using a BFGS [2]_
+    from 'scipy.optimize.minimize` for optimization using a BFGS [2]
     quasi-Newton strategy. Gradients are JIT-compiled using numba
     and implemented in an efficient manner (see `pcsurv.gradients`).
 
     References:
         [1] Tseng, Yi-Kuan, and Ken-Ning Shu. "Efficient estimation for a semiparametric extended hazards model." Communications in Statistics—Simulation and Computation® 40.2 (2011): 258-273.
+
         [2] Fletcher, Roger. Practical methods of optimization. John Wiley & Sons, 2000.
+
         [3] Sheather, Simon J., and Michael C. Jones. "A reliable data‐based bandwidth selection method for kernel density estimation." Journal of the Royal Statistical Society: Series B (Methodological) 53.3 (1991): 683-690.
+
         [4] Zhong, Qixian, Jonas W. Mueller, and Jane-Ling Wang. "Deep extended hazard models for survival analysis." Advances in Neural Information Processing Systems 34 (2021): 15111-15124.
     """
 
@@ -70,27 +73,24 @@ class EH(SurvivalMixin):
         y: np.array,
         sample_weight: Optional[npt.NDArray[np.float64]] = None,
     ) -> None:
-        """Fits the linear EH model using quasi-Newton methods.
+        """Fits the linear AFT model using the `trust-ncg` implementation from `scipy`.
 
         Args:
             X (npt.NDArray[np.float64]): Design matrix.
             y (np.array): Structured array containing right-censored survival information.
-            sample_weight (npt.NDArray[np.float64], optional): Sample weight used
-                during model fitting. Currently unused and kept for sklearn compatibility.
-                Defaults to None.
-
+            sample_weight (npt.NDArray[np.float64], optional): Sample weight used during model fitting.
+                Currently unused and kept for sklearn compatibility. Defaults to None.
+            sample_weight (npt.NDArray[np.float64]): Kept for API compatibility.
         """
 
-        # TODO DW: Add some additional arg checks here.
         time: npt.NDArray[np.float64]
-        event: npt.NDArray[np.int64]
+        event: npt.NDArray[np.float64]
         time, event = inverse_transform_survival(y)
         # Since `minimize` works solely with vectors (i.e.,
         # one-dimensional) matrices, we stack the coefficients
         # into a vector. For this, we also duplicate X for easier
         # `sklearn`` compatability.
         X: npt.NDArray[np.float64] = np.concatenate((X, X), axis=1)
-        # TODO DW: Add correct typing here.
         res: Any = minimize(
             fun=eh_negative_likelihood_beta,
             x0=self.init_coefs(X=X),
@@ -115,7 +115,7 @@ class EH(SurvivalMixin):
         # the cumulative hazard (or, rather, survival) function later.
         self.train_eta: npt.NDArray[np.float64] = X @ self.coef_
         self.train_time: npt.NDArray[np.float64] = time
-        self.train_event: npt.NDArray[np.int64] = event
+        self.train_event: npt.NDArray[np.float64] = event
         return None
 
     def predict(self, X: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
@@ -141,15 +141,14 @@ class EH(SurvivalMixin):
     def predict_cumulative_hazard_function(
         self, X: npt.NDArray[np.float64], time: npt.NDArray[np.float64]
     ) -> npt.NDArray[np.float64]:
-        """Calculate cumulative hazard function for the EH model.
+        """Predict cumulative hazard function for patients in `X` at times `time`.
 
         Args:
             X (npt.NDArray[np.float64]): Query design matrix with u rows and p columns.
-            time (npt.NDArray[np.float64]): Query times of dimension k.
-                Assumed to be unique and ordered.
+            time (npt.NDArray[np.float64]): Query times of dimension k. Assumed to be unique and ordered.
 
         Raises:
-            ValueError: If time array is not unique and sorted.
+            ValueError: Raises ValueError when the event times are not unique and sorted in ascending order.
 
         Returns:
             npt.NDArray[np.float64]: Query cumulative hazard function for samples 1, ..., u
@@ -157,7 +156,9 @@ class EH(SurvivalMixin):
         """
 
         if not np.array_equal(time, np.unique(time)):
-            raise ValueError("Times passed are not unqiue and sorted.")
+            raise ValueError(
+                "Expected `time` to be unique and sorted in ascending order."
+            )
         cumulative_hazard_function: npt.NDArray[
             np.float64
         ] = get_cumulative_hazard_function_eh(

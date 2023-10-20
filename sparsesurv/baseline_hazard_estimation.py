@@ -1,29 +1,32 @@
 from math import log
+from typing import Tuple
 
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 from numba import jit
 from scipy.integrate import quadrature
-from typing import Tuple
+
 from .constants import EPS
 from .utils import gaussian_integrated_kernel, gaussian_kernel
 
 
 @jit(nopython=True, cache=True, fastmath=True)
 def breslow_estimator_breslow(
-    time: np.array,
-    event: np.array,
-    eta: np.array,
-) -> Tuple:
+    time: npt.NDArray[np.float64],
+    event: npt.NDArray[np.float64],
+    eta: npt.NDArray[np.float64],
+) -> Tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
     """Breslow approximation of the hazard function with breslow tie-correction.
 
     Args:
-        time (np.array): Event times.
-        event (np.array): Event states.
-        eta (np.array): Linear predictor of the samples.
+        time (npt.NDArray[np.float64]): Event times.
+        event (npt.NDArray[np.float64]): Event states.
+        eta (npt.NDArray[np.float64]): Linear predictor of the samples.
 
     Returns:
-        Tuple: Tuple of unique and sorted time points, and the corresponding cumulative
+        Tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+            Tuple of unique and sorted time points, and the corresponding cumulative
             hazard at that point as arrays.
     """
     exp_eta: np.array = np.exp(eta)
@@ -68,26 +71,27 @@ def breslow_estimator_breslow(
 
 @jit(nopython=True, cache=True, fastmath=True)
 def breslow_estimator_efron(
-    time: np.array,
-    event: np.array,
-    eta: np.array,
-) -> Tuple:
+    time: npt.NDArray[np.float64],
+    event: npt.NDArray[np.float64],
+    eta: npt.NDArray[np.float64],
+) -> Tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
     """Breslow approximation of the hazard function with efron tie-correction.
 
     Args:
-        time (np.array): Event times.
-        event (np.array): Event states.
-        eta (np.array): Linear predictor of the samples.
+        time (npt.NDArray[np.float64]): Event times.
+        event (npt.NDArray[np.float64]): Event states.
+        eta (npt.NDArray[np.float64]): Linear predictor of the samples.
 
     Returns:
-        Tuple: Tuple of unique and sorted time points, and the corresponding cumulative
+        Tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+            Tuple of unique and sorted time points, and the corresponding cumulative
             hazard at that point as arrays.
     """
-    exp_eta: np.array = np.exp(eta)
+    exp_eta: npt.NDArray[np.float64] = np.exp(eta)
     local_risk_set: float = np.sum(exp_eta)
-    event_mask: np.array = event.astype(np.bool_)
+    event_mask: npt.NDArray[np.float64] = event.astype(np.bool_)
     n_unique_events: int = np.unique(time[event_mask]).shape[0]
-    cumulative_baseline_hazards: np.array = np.zeros(n_unique_events)
+    cumulative_baseline_hazards: npt.NDArray[np.float64] = np.zeros(n_unique_events)
     n_events_counted: int = 0
     local_death_set: int = 0
     accumulated_risk_set: float = 0
@@ -131,18 +135,18 @@ def breslow_estimator_efron(
 
 @jit(nopython=True, cache=True, fastmath=True)
 def aft_baseline_hazard_estimator(
-    time: np.array,
-    time_train: np.array,
-    event_train: np.array,
-    eta_train: np.array,
+    time: npt.NDArray[np.float64],
+    time_train: npt.NDArray[np.float64],
+    event_train: npt.NDArray[np.float64],
+    eta_train: npt.NDArray[np.float64],
 ) -> float:
     """Accelerated Failure Time baseline hazard estimator function.
 
     Args:
-        time (np.array): Event times.
-        time_train (np.array): Event times of training samples.
-        event_train (np.array): Event states of training samples.
-        eta_train (np.array): Linear predictor of training samples.
+        time (npt.NDArray[np.float64]): Event times.
+        time_train (npt.NDArray[np.float64]): Event times of training samples.
+        event_train (npt.NDArray[np.float64]): Event states of training samples.
+        eta_train (npt.NDArray[np.float64]): Linear predictor of training samples.
 
     Returns:
         float: Baseline hazard value.
@@ -156,8 +160,8 @@ def aft_baseline_hazard_estimator(
     )
     log_time: float = log(time + EPS)
 
-    R_lp: np.array = np.log(time_train * np.exp(eta_train))
-    difference_lp_log_time: np.array = (R_lp - log_time) / bandwidth
+    R_lp: npt.NDArray[np.float64] = np.log(time_train * np.exp(eta_train))
+    difference_lp_log_time: npt.NDArray[np.float64] = (R_lp - log_time) / bandwidth
     numerator: float = 0.0
     denominator: float = 0.0
     for _ in range(n_samples):
@@ -173,38 +177,40 @@ def aft_baseline_hazard_estimator(
         return numerator / denominator
 
 
-# TODO DW: Rejit this later on.
-# @jit(nopython=True, cache=True, fastmath=True)
 def get_cumulative_hazard_function_aft(
-    time_query,
-    eta_query,
-    time_train,
-    event_train,
-    eta_train,
+    time_query: npt.NDArray[np.float64],
+    eta_query: npt.NDArray[np.float64],
+    time_train: npt.NDArray[np.float64],
+    event_train: npt.NDArray[np.float64],
+    eta_train: npt.NDArray[np.float64],
 ) -> pd.DataFrame:
     """Computes cumulative hazard for the accelerated failure time model.
 
     Args:
-        time_query (_type_): _description_
-        eta_query (_type_): _description_
-        time_train (_type_): Event times of training samples.
-        event_train (_type_): Event states of training samples.
-        eta_train (_type_): Linear predictor of training samples.
+        time_query npt.NDArray[np.float64]: Times at which cumulative hazard function estimation is desired.
+        eta_query npt.NDArray[np.float64]: Linear predictor of query samples.
+        time_train npt.NDArray[np.float64]: Event times of training samples.
+        event_train npt.NDArray[np.float64]: Event states of training samples.
+        eta_train npt.NDArray[np.float64]: Linear predictor of training samples.
 
     Returns:
         pd.DataFrame: Cumulative hazard at each unique and sorted time step.
     """
-    time: np.array = np.unique(time_query)
-    theta: np.array = np.exp(eta_query)
+    time: npt.NDArray[np.float64] = np.unique(time_query)
+    theta: npt.NDArray[np.float64] = np.exp(eta_query)
     n_samples: int = eta_query.shape[0]
 
     zero_flag: bool = False
     if 0 not in time:
         zero_flag = True
         time = np.concatenate([np.array([0]), time])
-        cumulative_hazard: np.array = np.empty((n_samples, time.shape[0]))
+        cumulative_hazard: npt.NDArray[np.float64] = np.empty(
+            (n_samples, time.shape[0])
+        )
     else:
-        cumulative_hazard: np.array = np.empty((n_samples, time.shape[0]))
+        cumulative_hazard: npt.NDArray[np.float64] = np.empty(
+            (n_samples, time.shape[0])
+        )
 
     def hazard_function_integrate(s):
         return aft_baseline_hazard_estimator(
@@ -246,21 +252,21 @@ def get_cumulative_hazard_function_aft(
 
 @jit(nopython=True, cache=True, fastmath=True)
 def baseline_hazard_estimator_eh(
-    time: np.array,
-    time_train: np.array,
-    event_train: np.array,
-    eta_train: np.array,
+    time: npt.NDArray[np.float64],
+    time_train: npt.NDArray[np.float64],
+    event_train: npt.NDArray[np.float64],
+    eta_train: npt.NDArray[np.float64],
 ) -> float:
-    """_summary_
+    """Extended Hazards baseline hazard estimator function.
 
     Args:
-        time (np.array): _description_
-        time_train (np.array): Event times of training samples.
-        event_train (np.array): Event states of training samples.
-        eta_train (np.array): Linear predictor of training samples.
+        time (npt.NDArray[np.float64]): Event times.
+        time_train (npt.NDArray[np.float64]): Event times of training samples.
+        event_train (npt.NDArray[np.float64]): Event states of training samples.
+        eta_train (npt.NDArray[np.float64]): Linear predictor of training samples.
 
     Returns:
-        float: _description_
+        float: Baseline hazard value.
     """
     n_samples: int = time_train.shape[0]
     bandwidth = 1.30 * pow(n_samples, -0.2)
@@ -271,7 +277,7 @@ def baseline_hazard_estimator_eh(
     )
     log_time: float = np.log(time + EPS)
     theta_train = np.exp(eta_train)
-    R_lp: np.array = np.log(time_train * theta_train[:, 0])
+    R_lp: npt.NDArray[np.float64] = np.log(time_train * theta_train[:, 0])
     difference_lp_log_time: np.array = (R_lp - log_time) / bandwidth
     numerator: float = 0.0
     denominator: float = 0.0
@@ -294,37 +300,39 @@ def baseline_hazard_estimator_eh(
         return numerator / denominator
 
 
-# TODO DW: Rejit this later on.
-# @jit(nopython=True, cache=True, fastmath=True)
 def get_cumulative_hazard_function_eh(
-    time_query,
-    eta_query,
-    time_train,
-    event_train,
-    eta_train,
+    time_query: npt.NDArray[np.float64],
+    eta_query: npt.NDArray[np.float64],
+    time_train: npt.NDArray[np.float64],
+    event_train: npt.NDArray[np.float64],
+    eta_train: npt.NDArray[np.float64],
 ) -> pd.DataFrame:
-    """_summary_
+    """Computes cumulative hazard for the extended hazards model.
 
     Args:
-        time_query (_type_): _description_
-        eta_query (_type_): _description_
-        time_train (_type_): Event times of training samples.
-        event_train (_type_): Event states of training samples.
-        eta_train (_type_): Linear predictor of training samples.
+        time_query npt.NDArray[np.float64]: Times at which cumulative hazard function estimation is desired.
+        eta_query npt.NDArray[np.float64]: Linear predictor of query samples.
+        time_train npt.NDArray[np.float64]: Event times of training samples.
+        event_train npt.NDArray[np.float64]: Event states of training samples.
+        eta_train npt.NDArray[np.float64]: Linear predictor of training samples.
 
     Returns:
-        pd.DataFrame: _description_
+        pd.DataFrame: Cumulative hazard at each unique and sorted time step.
     """
-    time: np.array = np.unique(time_query)
-    theta: np.array = np.exp(eta_query)
+    time: npt.NDArray[np.float64] = np.unique(time_query)
+    theta: npt.NDArray[np.float64] = np.exp(eta_query)
     n_samples: int = eta_query.shape[0]
     zero_flag: bool = False
     if 0 not in time:
         zero_flag = True
         time = np.concatenate([np.array([0]), time])
-        cumulative_hazard: np.array = np.empty((n_samples, time.shape[0]))
+        cumulative_hazard: npt.NDArray[np.float64] = np.empty(
+            (n_samples, time.shape[0])
+        )
     else:
-        cumulative_hazard: np.array = np.empty((n_samples, time.shape[0]))
+        cumulative_hazard: npt.NDArray[np.float64] = np.empty(
+            (n_samples, time.shape[0])
+        )
 
     def hazard_function_integrate(s):
         return baseline_hazard_estimator_eh(

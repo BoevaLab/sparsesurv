@@ -1,7 +1,7 @@
 import numbers
 from functools import partial
 from numbers import Real
-from typing import List, Optional, Union, TypeVar, Tuple
+from typing import List, Optional, Tuple, TypeVar, Union
 
 import celer
 import numpy as np
@@ -9,9 +9,7 @@ import numpy.typing as npt
 import pandas as pd
 from joblib import effective_n_jobs
 from scipy import sparse
-from sklearn.linear_model._coordinate_descent import (
-    _alpha_grid,
-)
+from sklearn.linear_model._coordinate_descent import _alpha_grid
 from sklearn.model_selection import KFold, StratifiedKFold, check_cv
 from sklearn.utils.parallel import Parallel, delayed
 from sklearn.utils.validation import (
@@ -23,10 +21,7 @@ from sklearn.utils.validation import (
 
 from ._base import SurvivalMixin
 from .compat import BASELINE_HAZARD_FACTORY, CVSCORERFACTORY, LOSS_FACTORY
-from .utils import (
-    _path_predictions,
-    inverse_transform_survival_preconditioning,
-)
+from .utils import _path_predictions, inverse_transform_survival_kd
 
 Self = TypeVar("Self")
 
@@ -61,8 +56,8 @@ class PCSurvCV(SurvivalMixin, celer.ElasticNetCV):
         seed: Optional[int] = 42,
         shuffle_cv: bool = False,
         cv_score_method: str = "linear_predictor",
-        max_coef=np.inf,
-        alpha_type="min",
+        max_coef: float = np.inf,
+        alpha_type: str = "min",
     ) -> None:
         """Constructor.
 
@@ -84,7 +79,8 @@ class PCSurvCV(SurvivalMixin, celer.ElasticNetCV):
             tol (float, optional): The tolerance for the optimization: if the updates are
                 smaller than ``tol``, the optimization code checks the dual gap for optimality
                 and continues until it is smaller than ``tol``. Defaults to 1e-4.
-            cv (int, optional): _description_. Defaults to 5.
+            cv (int, optional): Number of folds to perform to select hyperparameters.
+                Defaults to 5. See also `stratify_cv`.
             verbose (int, optional): Degree of verbosity. Defaults to 0.
             max_epochs (int, optional): Maximum number of coordinate descent epochs when
                 solving a subproblem. Defaults to 50000.
@@ -94,13 +90,90 @@ class PCSurvCV(SurvivalMixin, celer.ElasticNetCV):
             n_jobs (Optional[int], optional): Number of CPUs to use during the cross validation.
                 ``None`` means 1 unless in a :obj:`joblib.parallel_backend` context.
                 ``-1`` means using all processors. See :term:`Glossary <n_jobs>`
-                for more details.. Defaults to None.
-            stratify_cv (bool, optional): _description_. Defaults to True.
-            seed (Optional[int], optional): _description_. Defaults to 42.
-            shuffle_cv (bool, optional): _description_. Defaults to False.
-            cv_score_method (str, optional): _description_. Defaults to "linear_predictor".
-            max_coef (_type_, optional): _description_. Defaults to np.inf.
-            alpha_type (str, optional): _description_. Defaults to "min".
+                for more details. Defaults to None.
+            stratify_cv (bool, optional): Whether to perform the cross-validation stratified
+                on the event indicator or not. Defaults to True.
+            seed (Optional[int], optional): Random seed. Defaults to 42.
+            shuffle_cv (bool, optional): Whether to perform shuffling to generate
+                CV fold indices. Defaults to False.
+            cv_score_method (str, optional): Which scoring method to use. Defaults to "linear_predictor".
+                Must be one of "linear_predictor", "mse", "basic" and "vvh".
+                See Notes.
+            max_coef (float, optional): Maximum number of non-zero covariates to be selected
+                with chosen optimal regularization hyperparameter. Defaults to np.inf.
+                See Notes.
+            alpha_type (str, optional): How to select the optimal regularization hyperparameter. Defaults to "min".
+                Must be one of "min", "1se" and "pcvl". See Notes.
+
+
+
+        Notes:
+            `cv_score_method`:
+                Decides how the score which is used to select the optimal
+                regularization hyperparameter is selected. The `basic`
+                approach may suffer from issues with small event sizes or
+                for large number of folds [1]. Meanwhile, the `mse` approach
+                may yield good teacher-student fidelity, but suboptimal
+                survival predictions.
+
+                - `mse`: Calculates the score as the mean squared error
+                of the teacher predictions and the student predictions.
+                The MSE is calculated per test fold and aggregated across
+                folds using the arithmetic mean.
+                - `linear_predictor`: Calculates out of sample predictions
+                for each test fold and caches them. Once out of sample
+                predictions are produced for each sample, an appropriate
+                survival loss between student predictions and the observed
+                time and censoring indactor is calculated once, using only
+                the cached out of sample predictions. See [1].
+                - `basic`: Calculates the score as an appropriate survival
+                loss between student predictions and observed time
+                and event indicators in each test fold. The overall
+                loss is obtained as an arithmetic mean across all folds.
+                - `vvh`: Calculates the test score in each test fold as the difference
+                between the score across all samples in that fold and only
+                the training samples in that fold.The overall loss
+                is obtained as an arithmetic mean across all folds. See [1, 2].
+
+            `max_coef`:
+                Places an upper bound on the number of non-zero coefficients
+                the selected model returned after cross validation may have.
+
+                In particular, if `max_coef=k`, during scoring, only models
+                with a total number of non-zero coefficients less than k are
+                considered.
+
+                Currently, we still calculate the solutions for these
+                models, we just disregard them at scoring time.
+
+            `alpha_type`:
+                Decides how the regularization hyperparameter is selected.
+                For a given `cv_score_method` and `max_coef`, we end up with
+                a vector of length k > 1, that contains numeric scores,
+                where lower is better (i.e., losses). `alpha_type` decides
+                how we choose among the regularization hyperparameters corresponding
+                to this loss vector.
+
+                - `min`: Selects the regularization hyperparameter that
+                yields the minimum loss.
+
+                - `1se`: Selects the highest regularization hyperparameter
+                that is within one standard error of the mean loss of the
+                regularization hyperparameter with minimum loss [3].
+
+                - `pcvl`: Selects a hyperparameter inbetween `min` and
+                `1se` via a penalization term. See [4].
+
+
+
+        References:
+            [1] Dai, Biyue, and Patrick Breheny. "Cross validation approaches for penalized Cox regression." arXiv preprint arXiv:1905.10432 (2019).
+
+            [2] Verweij, Pierre JM, and Hans C. Van Houwelingen. "Cross‐validation in survival analysis." Statistics in medicine 12.24 (1993): 2305-2314.
+
+            [3] Hastie, Trevor, et al. The elements of statistical learning: data mining, inference, and prediction. Vol. 2. New York: Springer, 2009.
+
+            [4] Ternès, Nils, Federico Rotolo, and Stefan Michiels. "Empirical extensions of the lasso penalty to reduce the false discovery rate in high‐dimensional Cox regression models." Statistics in medicine 35.15 (2016): 2561-2573.
         """
         super().__init__(
             l1_ratio=l1_ratio,
@@ -131,27 +204,15 @@ class PCSurvCV(SurvivalMixin, celer.ElasticNetCV):
         X: npt.NDArray[np.float64],
         y: npt.NDArray[np.float64],
         sample_weight: Optional[npt.NDArray[np.float64]] = None,
-    ) -> Self:
-        """Fit preconditioned semi-parametric survival model to given data.
+    ) -> None:
+        """Fit knowledge distilled semi-parametric survival model to given data.
 
         Args:
-            X (npt.NDArray[np.float64]): _description_
-            y (npt.NDArray[np.float64]): _description_
-            sample_weight (Optional[npt.NDArray[np.float64]], optional): _description_. Defaults to None.
-
-        Raises:
-            ValueError: _description_
-            ValueError: _description_
-            TypeError: _description_
-            ValueError: _description_
-            ValueError: _description_
-
-        Returns:
-            Self: _description_
+            X (npt.NDArray[np.float64]): Design matrix.
+            y (npt.NDArray[np.float64]): Linear predictor as returned by the teacher.
+            sample_weight (npt.NDArray[np.float64], optional): Sample weight used during model fitting.
+                Currently unused and kept for sklearn compatibility. Defaults to None.
         """
-
-        # TODO DW: Add additional parameter checks here and clean
-        # up the docs a bit more.
         self._validate_params()
         if self.alpha_type == "1se":
             if self.cv_score_method == "linear_predictor":
@@ -168,7 +229,7 @@ class PCSurvCV(SurvivalMixin, celer.ElasticNetCV):
         check_y_params = dict(
             copy=False, dtype=[np.float64, np.float32], ensure_2d=False
         )
-        time, event, y = inverse_transform_survival_preconditioning(y)
+        time, event, y = inverse_transform_survival_kd(y)
         sorted_ix = np.argsort(time)
         time = time[sorted_ix]
         event = event[sorted_ix]
@@ -371,12 +432,12 @@ class PCSurvCV(SurvivalMixin, celer.ElasticNetCV):
                     train_time,
                     train_event,
                     _,
-                ) = inverse_transform_survival_preconditioning(train_y_method)
+                ) = inverse_transform_survival_kd(train_y_method)
                 (
                     test_time,
                     test_event,
                     _,
-                ) = inverse_transform_survival_preconditioning(test_y_method)
+                ) = inverse_transform_survival_kd(test_y_method)
                 for j in range(len(alphas[i])):
                     likelihood = CVSCORERFACTORY[self.cv_score_method](
                         test_linear_predictor=test_eta_method[:, :, j].squeeze(),
@@ -407,12 +468,12 @@ class PCSurvCV(SurvivalMixin, celer.ElasticNetCV):
                             train_time,
                             train_event,
                             _,
-                        ) = inverse_transform_survival_preconditioning(train_y_method)
+                        ) = inverse_transform_survival_kd(train_y_method)
                         (
                             test_time,
                             test_event,
                             test_eta_hat,
-                        ) = inverse_transform_survival_preconditioning(test_y_method)
+                        ) = inverse_transform_survival_kd(test_y_method)
                         fold_likelihood = CVSCORERFACTORY[self.cv_score_method](
                             test_linear_predictor=test_eta_method[:, :, j].squeeze(),
                             test_time=test_time,
@@ -437,12 +498,6 @@ class PCSurvCV(SurvivalMixin, celer.ElasticNetCV):
             for l1_ratio, l1_alphas, pl_alphas, n_coefs in zip(
                 l1_ratios, alphas, mean_cv_score, mean_sparsity
             ):
-                # print(n_coefs)
-                # raise ValueError
-                # np.array(n_coefs) <= self.max_coef
-                # print(np.array(n_coefs) <= self.max_coef)
-                # print(pl_alphas)
-                # print(n_coefs)
                 i_best_alpha = np.argmax(
                     np.array(pl_alphas)[np.where(np.array(n_coefs) <= self.max_coef)[0]]
                 )
@@ -552,7 +607,7 @@ class PCSurvCV(SurvivalMixin, celer.ElasticNetCV):
         self.train_time_ = time
         self.train_event_ = event
         self.train_eta_ = model.predict(X)
-        return self
+        return None
 
     def _is_multitask(self):
         """Return whether the model instance in question is a multitask model."""
@@ -572,7 +627,7 @@ class PCSurvCV(SurvivalMixin, celer.ElasticNetCV):
 
 
 class PCPHElasticNetCV(PCSurvCV):
-    """TODO DW"""
+    """Child-class of KDSurvCV to perform knowledge distillation specifically for Cox PH models."""
 
     def __init__(
         self,
@@ -595,30 +650,123 @@ class PCPHElasticNetCV(PCSurvCV):
         max_coef=np.inf,
         alpha_type="min",
     ) -> None:
-        """_summary_
+        """Constructor.
 
         Args:
-            tie_correction (str, optional): _description_. Defaults to "efron".
-            l1_ratio (Union[float, List[float]], optional): _description_. Defaults to 1.0.
-            eps (float, optional): _description_. Defaults to 1e-3.
-            n_alphas (int, optional): _description_. Defaults to 100.
-            max_iter (int, optional): _description_. Defaults to 100.
-            tol (float, optional): _description_. Defaults to 1e-4.
-            cv (int, optional): _description_. Defaults to 5.
-            verbose (int, optional): _description_. Defaults to 0.
-            max_epochs (int, optional): _description_. Defaults to 50000.
-            p0 (int, optional): _description_. Defaults to 10.
-            prune (bool, optional): _description_. Defaults to True.
-            n_jobs (Optional[int], optional): _description_. Defaults to None.
-            stratify_cv (bool, optional): _description_. Defaults to True.
-            seed (Optional[int], optional): _description_. Defaults to 42.
-            shuffle_cv (bool, optional): _description_. Defaults to False.
-            cv_score_method (str, optional): _description_. Defaults to "linear_predictor".
-            max_coef (_type_, optional): _description_. Defaults to np.inf.
-            alpha_type (str, optional): _description_. Defaults to "min".
+            tie_correction (str): Which method to use to correct for ties
+            in observed survival times. Must be one of "breslow" or "efron".
+            l1_ratio (Union[float, List[float]], optional): Float between 0 and 1 passed
+                to ElasticNet (scaling between l1 and l2 penalties). For ``l1_ratio = 0``
+                the penalty is an L2 penalty. For ``l1_ratio = 1`` it is an L1 penalty.
+                For ``0 < l1_ratio < 1``, the penalty is a combination of L1 and L2.
+                This parameter can be a list, in which case the different values are tested
+                by cross-validation and the one giving the best prediction score is used.
+                Note that a good choice of list of values for l1_ratio is often to put more
+                values close to 1 (i.e. Lasso) and less close to 0 (i.e. Ridge),
+                as in ``[.1, .5, .7, .9, .95, .99, 1]``. Defaults to 1.0.
+            eps (float, optional): Length of the path. ``eps=1e-3`` means that
+                ``alpha_min / alpha_max = 1e-3``. Defaults to 1e-3.
+            n_alphas (int, optional): Number of alphas along the regularization path,
+                used for each l1_ratio. Defaults to 100.
+            max_iter (int, optional): The maximum number of iterations. Defaults to 100.
+            tol (float, optional): The tolerance for the optimization: if the updates are
+                smaller than ``tol``, the optimization code checks the dual gap for optimality
+                and continues until it is smaller than ``tol``. Defaults to 1e-4.
+            cv (int, optional): Number of folds to perform to select hyperparameters.
+                Defaults to 5. See also `stratify_cv`.
+            verbose (int, optional): Degree of verbosity. Defaults to 0.
+            max_epochs (int, optional): Maximum number of coordinate descent epochs when
+                solving a subproblem. Defaults to 50000.
+            p0 (int, optional): Number of features in the first working set. Defaults to 10.
+            prune (bool, optional): Whether to use pruning when growing the working sets.
+                Defaults to True.
+            n_jobs (Optional[int], optional): Number of CPUs to use during the cross validation.
+                ``None`` means 1 unless in a :obj:`joblib.parallel_backend` context.
+                ``-1`` means using all processors. See :term:`Glossary <n_jobs>`
+                for more details. Defaults to None.
+            stratify_cv (bool, optional): Whether to perform the cross-validation stratified
+                on the event indicator or not. Defaults to True.
+            seed (Optional[int], optional): Random seed. Defaults to 42.
+            shuffle_cv (bool, optional): Whether to perform shuffling to generate
+                CV fold indices. Defaults to False.
+            cv_score_method (str, optional): Which scoring method to use. Defaults to "linear_predictor".
+                Must be one of "linear_predictor", "mse", "basic" and "vvh".
+                See Notes.
+            max_coef (float, optional): Maximum number of non-zero covariates to be selected
+                with chosen optimal regularization hyperparameter. Defaults to np.inf.
+                See Notes.
+            alpha_type (str, optional): How to select the optimal regularization hyperparameter. Defaults to "min".
+                Must be one of "min", "1se" and "pcvl". See Notes.
 
-        Raises:
-            ValueError: _description_
+
+
+        Notes:
+            `cv_score_method`:
+                Decides how the score which is used to select the optimal
+                regularization hyperparameter is selected. The `basic`
+                approach may suffer from issues with small event sizes or
+                for large number of folds [1]. Meanwhile, the `mse` approach
+                may yield good teacher-student fidelity, but suboptimal
+                survival predictions.
+
+                - `mse`: Calculates the score as the mean squared error
+                of the teacher predictions and the student predictions.
+                The MSE is calculated per test fold and aggregated across
+                folds using the arithmetic mean.
+                - `linear_predictor`: Calculates out of sample predictions
+                for each test fold and caches them. Once out of sample
+                predictions are produced for each sample, an appropriate
+                survival loss between student predictions and the observed
+                time and censoring indactor is calculated once, using only
+                the cached out of sample predictions. See [1].
+                - `basic`: Calculates the score as an appropriate survival
+                loss between student predictions and observed time
+                and event indicators in each test fold. The overall
+                loss is obtained as an arithmetic mean across all folds.
+                - `vvh`: Calculates the test score in each test fold as the difference
+                between the score across all samples in that fold and only
+                the training samples in that fold.The overall loss
+                is obtained as an arithmetic mean across all folds. See [1, 2].
+
+            `max_coef`:
+                Places an upper bound on the number of non-zero coefficients
+                the selected model returned after cross validation may have.
+
+                In particular, if `max_coef=k`, during scoring, only models
+                with a total number of non-zero coefficients less than k are
+                considered.
+
+                Currently, we still calculate the solutions for these
+                models, we just disregard them at scoring time.
+
+            `alpha_type`:
+                Decides how the regularization hyperparameter is selected.
+                For a given `cv_score_method` and `max_coef`, we end up with
+                a vector of length k > 1, that contains numeric scores,
+                where lower is better (i.e., losses). `alpha_type` decides
+                how we choose among the regularization hyperparameters corresponding
+                to this loss vector.
+
+                - `min`: Selects the regularization hyperparameter that
+                yields the minimum loss.
+
+                - `1se`: Selects the highest regularization hyperparameter
+                that is within one standard error of the mean loss of the
+                regularization hyperparameter with minimum loss [3].
+
+                - `pcvl`: Selects a hyperparameter inbetween `min` and
+                `1se` via a penalization term. See [4].
+
+
+
+        References:
+            [1] Dai, Biyue, and Patrick Breheny. "Cross validation approaches for penalized Cox regression." arXiv preprint arXiv:1905.10432 (2019).
+
+            [2] Verweij, Pierre JM, and Hans C. Van Houwelingen. "Cross‐validation in survival analysis." Statistics in medicine 12.24 (1993): 2305-2314.
+
+            [3] Hastie, Trevor, et al. The elements of statistical learning: data mining, inference, and prediction. Vol. 2. New York: Springer, 2009.
+
+            [4] Ternès, Nils, Federico Rotolo, and Stefan Michiels. "Empirical extensions of the lasso penalty to reduce the false discovery rate in high‐dimensional Cox regression models." Statistics in medicine 35.15 (2016): 2561-2573.
         """
         super().__init__(
             l1_ratio=l1_ratio,
@@ -651,17 +799,18 @@ class PCPHElasticNetCV(PCSurvCV):
     def predict_cumulative_hazard_function(
         self, X: npt.NDArray[np.float64], time: npt.NDArray[np.float64]
     ) -> pd.DataFrame:
-        """_summary_
+        """Predict cumulative hazard function for patients in `X` at times `time`.
 
         Args:
-            X (npt.NDArray[np.float64]): _description_
-            time (npt.NDArray[np.float64]): _description_
+            X (npt.NDArray[np.float64]): Query design matrix with u rows and p columns.
+            time (npt.NDArray[np.float64]): Query times of dimension k. Assumed to be unique and ordered.
 
         Raises:
-            ValueError: _description_
+            ValueError: Raises ValueError when the event times are not unique and sorted in ascending order.
 
         Returns:
-            pd.DataFrame: _description_
+            npt.NDArray[np.float64]: Query cumulative hazard function for samples 1, ..., u
+                and times 1, ..., k. Thus, has u rows and k columns.
         """
         if np.min(time) < 0:
             raise ValueError(
@@ -706,7 +855,7 @@ class PCPHElasticNetCV(PCSurvCV):
 
 
 class PCAFTElasticNetCV(PCSurvCV):
-    """TODO DW"""
+    """Child-class of KDSurvCV to perform knowledge distillation specifically for semiparametric AFT models."""
 
     def __init__(
         self,
@@ -729,27 +878,125 @@ class PCAFTElasticNetCV(PCSurvCV):
         max_coef=np.inf,
         alpha_type="min",
     ) -> None:
-        """_summary_
+        """Constructor.
 
         Args:
-            bandwidth (Optional[float], optional): _description_. Defaults to None.
-            l1_ratio (Union[float, List[float]], optional): _description_. Defaults to 1.0.
-            eps (float, optional): _description_. Defaults to 1e-3.
-            n_alphas (int, optional): _description_. Defaults to 100.
-            max_iter (int, optional): _description_. Defaults to 100.
-            tol (float, optional): _description_. Defaults to 1e-4.
-            cv (int, optional): _description_. Defaults to 5.
-            verbose (int, optional): _description_. Defaults to 0.
-            max_epochs (int, optional): _description_. Defaults to 50000.
-            p0 (int, optional): _description_. Defaults to 10.
-            prune (bool, optional): _description_. Defaults to True.
-            n_jobs (Optional[int], optional): _description_. Defaults to None.
-            stratify_cv (bool, optional): _description_. Defaults to True.
-            seed (Optional[int], optional): _description_. Defaults to 42.
-            shuffle_cv (bool, optional): _description_. Defaults to False.
-            cv_score_method (str, optional): _description_. Defaults to "linear_predictor".
-            max_coef (_type_, optional): _description_. Defaults to np.inf.
-            alpha_type (str, optional): _description_. Defaults to "min".
+            bandwidth (Optional[float]): Bandwidth to use for kernel-smoothing
+                the profile likelihood. If not provided, a theoretically
+                motivated profile likelihood is estimated based on the data.
+            in observed survival times. Must be one of "breslow" or "efron".
+            l1_ratio (Union[float, List[float]], optional): Float between 0 and 1 passed
+                to ElasticNet (scaling between l1 and l2 penalties). For ``l1_ratio = 0``
+                the penalty is an L2 penalty. For ``l1_ratio = 1`` it is an L1 penalty.
+                For ``0 < l1_ratio < 1``, the penalty is a combination of L1 and L2.
+                This parameter can be a list, in which case the different values are tested
+                by cross-validation and the one giving the best prediction score is used.
+                Note that a good choice of list of values for l1_ratio is often to put more
+                values close to 1 (i.e. Lasso) and less close to 0 (i.e. Ridge),
+                as in ``[.1, .5, .7, .9, .95, .99, 1]``. Defaults to 1.0.
+            eps (float, optional): Length of the path. ``eps=1e-3`` means that
+                ``alpha_min / alpha_max = 1e-3``. Defaults to 1e-3.
+            n_alphas (int, optional): Number of alphas along the regularization path,
+                used for each l1_ratio. Defaults to 100.
+            max_iter (int, optional): The maximum number of iterations. Defaults to 100.
+            tol (float, optional): The tolerance for the optimization: if the updates are
+                smaller than ``tol``, the optimization code checks the dual gap for optimality
+                and continues until it is smaller than ``tol``. Defaults to 1e-4.
+            cv (int, optional): Number of folds to perform to select hyperparameters.
+                Defaults to 5. See also `stratify_cv`.
+            verbose (int, optional): Degree of verbosity. Defaults to 0.
+            max_epochs (int, optional): Maximum number of coordinate descent epochs when
+                solving a subproblem. Defaults to 50000.
+            p0 (int, optional): Number of features in the first working set. Defaults to 10.
+            prune (bool, optional): Whether to use pruning when growing the working sets.
+                Defaults to True.
+            n_jobs (Optional[int], optional): Number of CPUs to use during the cross validation.
+                ``None`` means 1 unless in a :obj:`joblib.parallel_backend` context.
+                ``-1`` means using all processors. See :term:`Glossary <n_jobs>`
+                for more details. Defaults to None.
+            stratify_cv (bool, optional): Whether to perform the cross-validation stratified
+                on the event indicator or not. Defaults to True.
+            seed (Optional[int], optional): Random seed. Defaults to 42.
+            shuffle_cv (bool, optional): Whether to perform shuffling to generate
+                CV fold indices. Defaults to False.
+            cv_score_method (str, optional): Which scoring method to use. Defaults to "linear_predictor".
+                Must be one of "linear_predictor", "mse", "basic" and "vvh".
+                See Notes.
+            max_coef (float, optional): Maximum number of non-zero covariates to be selected
+                with chosen optimal regularization hyperparameter. Defaults to np.inf.
+                See Notes.
+            alpha_type (str, optional): How to select the optimal regularization hyperparameter. Defaults to "min".
+                Must be one of "min", "1se" and "pcvl". See Notes.
+
+
+
+        Notes:
+            `cv_score_method`:
+                Decides how the score which is used to select the optimal
+                regularization hyperparameter is selected. The `basic`
+                approach may suffer from issues with small event sizes or
+                for large number of folds [1]. Meanwhile, the `mse` approach
+                may yield good teacher-student fidelity, but suboptimal
+                survival predictions.
+
+                - `mse`: Calculates the score as the mean squared error
+                of the teacher predictions and the student predictions.
+                The MSE is calculated per test fold and aggregated across
+                folds using the arithmetic mean.
+                - `linear_predictor`: Calculates out of sample predictions
+                for each test fold and caches them. Once out of sample
+                predictions are produced for each sample, an appropriate
+                survival loss between student predictions and the observed
+                time and censoring indactor is calculated once, using only
+                the cached out of sample predictions. See [1].
+                - `basic`: Calculates the score as an appropriate survival
+                loss between student predictions and observed time
+                and event indicators in each test fold. The overall
+                loss is obtained as an arithmetic mean across all folds.
+                - `vvh`: Calculates the test score in each test fold as the difference
+                between the score across all samples in that fold and only
+                the training samples in that fold.The overall loss
+                is obtained as an arithmetic mean across all folds. See [1, 2].
+
+            `max_coef`:
+                Places an upper bound on the number of non-zero coefficients
+                the selected model returned after cross validation may have.
+
+                In particular, if `max_coef=k`, during scoring, only models
+                with a total number of non-zero coefficients less than k are
+                considered.
+
+                Currently, we still calculate the solutions for these
+                models, we just disregard them at scoring time.
+
+            `alpha_type`:
+                Decides how the regularization hyperparameter is selected.
+                For a given `cv_score_method` and `max_coef`, we end up with
+                a vector of length k > 1, that contains numeric scores,
+                where lower is better (i.e., losses). `alpha_type` decides
+                how we choose among the regularization hyperparameters corresponding
+                to this loss vector.
+
+                - `min`: Selects the regularization hyperparameter that
+                yields the minimum loss.
+
+                - `1se`: Selects the highest regularization hyperparameter
+                that is within one standard error of the mean loss of the
+                regularization hyperparameter with minimum loss [3].
+
+                - `pcvl`: Selects a hyperparameter inbetween `min` and
+                `1se` via a penalization term. See [4].
+
+
+
+        References:
+            [1] Dai, Biyue, and Patrick Breheny. "Cross validation approaches for penalized Cox regression." arXiv preprint arXiv:1905.10432 (2019).
+
+            [2] Verweij, Pierre JM, and Hans C. Van Houwelingen. "Cross‐validation in survival analysis." Statistics in medicine 12.24 (1993): 2305-2314.
+
+            [3] Hastie, Trevor, et al. The elements of statistical learning: data mining, inference, and prediction. Vol. 2. New York: Springer, 2009.
+
+            [4] Ternès, Nils, Federico Rotolo, and Stefan Michiels. "Empirical extensions of the lasso penalty to reduce the false discovery rate in high‐dimensional Cox regression models." Statistics in medicine 35.15 (2016): 2561-2573.
         """
         super().__init__(
             l1_ratio=l1_ratio,
@@ -777,7 +1024,19 @@ class PCAFTElasticNetCV(PCSurvCV):
     def predict_cumulative_hazard_function(
         self, X: npt.NDArray[np.float64], time: npt.NDArray[np.float64]
     ) -> pd.DataFrame:
-        """TODO DW"""
+        """Predict cumulative hazard function for patients in `X` at times `time`.
+
+        Args:
+            X (npt.NDArray[np.float64]): Query design matrix with u rows and p columns.
+            time (npt.NDArray[np.float64]): Query times of dimension k. Assumed to be unique and ordered.
+
+        Raises:
+            ValueError: Raises ValueError when the event times are not unique and sorted in ascending order.
+
+        Returns:
+            npt.NDArray[np.float64]: Query cumulative hazard function for samples 1, ..., u
+                and times 1, ..., k. Thus, has u rows and k columns.
+        """
         if np.min(time) < 0:
             raise ValueError(
                 "Times for survival and cumulative hazard prediction must be greater than or equal to zero."
@@ -794,7 +1053,7 @@ class PCAFTElasticNetCV(PCSurvCV):
 
 
 class PCEHMultiTaskLassoCV(PCSurvCV):
-    """TODO DW"""
+    """Child-class of KDSurvCV to perform knowledge distillation specifically for semiparametric EH models."""
 
     def __init__(
         self,
@@ -816,26 +1075,125 @@ class PCEHMultiTaskLassoCV(PCSurvCV):
         max_coef=np.inf,
         alpha_type="min",
     ) -> None:
-        """_summary_
+        """Constructor.
 
         Args:
-            bandwidth (Optional[float], optional): _description_. Defaults to None.
-            eps (float, optional): _description_. Defaults to 1e-3.
-            n_alphas (int, optional): _description_. Defaults to 100.
-            max_iter (int, optional): _description_. Defaults to 100.
-            tol (float, optional): _description_. Defaults to 1e-4.
-            cv (int, optional): _description_. Defaults to 5.
-            verbose (int, optional): _description_. Defaults to 0.
-            max_epochs (int, optional): _description_. Defaults to 50000.
-            p0 (int, optional): _description_. Defaults to 10.
-            prune (bool, optional): _description_. Defaults to True.
-            n_jobs (Optional[int], optional): _description_. Defaults to None.
-            stratify_cv (bool, optional): _description_. Defaults to True.
-            seed (Optional[int], optional): _description_. Defaults to 42.
-            shuffle_cv (bool, optional): _description_. Defaults to False.
-            cv_score_method (str, optional): _description_. Defaults to "linear_predictor".
-            max_coef (_type_, optional): _description_. Defaults to np.inf.
-            alpha_type (str, optional): _description_. Defaults to "min".
+            bandwidth (Optional[float]): Bandwidth to use for kernel-smoothing
+                the profile likelihood. If not provided, a theoretically
+                motivated profile likelihood is estimated based on the data.
+            in observed survival times. Must be one of "breslow" or "efron".
+            l1_ratio (Union[float, List[float]], optional): Float between 0 and 1 passed
+                to ElasticNet (scaling between l1 and l2 penalties). For ``l1_ratio = 0``
+                the penalty is an L2 penalty. For ``l1_ratio = 1`` it is an L1 penalty.
+                For ``0 < l1_ratio < 1``, the penalty is a combination of L1 and L2.
+                This parameter can be a list, in which case the different values are tested
+                by cross-validation and the one giving the best prediction score is used.
+                Note that a good choice of list of values for l1_ratio is often to put more
+                values close to 1 (i.e. Lasso) and less close to 0 (i.e. Ridge),
+                as in ``[.1, .5, .7, .9, .95, .99, 1]``. Defaults to 1.0.
+            eps (float, optional): Length of the path. ``eps=1e-3`` means that
+                ``alpha_min / alpha_max = 1e-3``. Defaults to 1e-3.
+            n_alphas (int, optional): Number of alphas along the regularization path,
+                used for each l1_ratio. Defaults to 100.
+            max_iter (int, optional): The maximum number of iterations. Defaults to 100.
+            tol (float, optional): The tolerance for the optimization: if the updates are
+                smaller than ``tol``, the optimization code checks the dual gap for optimality
+                and continues until it is smaller than ``tol``. Defaults to 1e-4.
+            cv (int, optional): Number of folds to perform to select hyperparameters.
+                Defaults to 5. See also `stratify_cv`.
+            verbose (int, optional): Degree of verbosity. Defaults to 0.
+            max_epochs (int, optional): Maximum number of coordinate descent epochs when
+                solving a subproblem. Defaults to 50000.
+            p0 (int, optional): Number of features in the first working set. Defaults to 10.
+            prune (bool, optional): Whether to use pruning when growing the working sets.
+                Defaults to True.
+            n_jobs (Optional[int], optional): Number of CPUs to use during the cross validation.
+                ``None`` means 1 unless in a :obj:`joblib.parallel_backend` context.
+                ``-1`` means using all processors. See :term:`Glossary <n_jobs>`
+                for more details. Defaults to None.
+            stratify_cv (bool, optional): Whether to perform the cross-validation stratified
+                on the event indicator or not. Defaults to True.
+            seed (Optional[int], optional): Random seed. Defaults to 42.
+            shuffle_cv (bool, optional): Whether to perform shuffling to generate
+                CV fold indices. Defaults to False.
+            cv_score_method (str, optional): Which scoring method to use. Defaults to "linear_predictor".
+                Must be one of "linear_predictor", "mse", "basic" and "vvh".
+                See Notes.
+            max_coef (float, optional): Maximum number of non-zero covariates to be selected
+                with chosen optimal regularization hyperparameter. Defaults to np.inf.
+                See Notes.
+            alpha_type (str, optional): How to select the optimal regularization hyperparameter. Defaults to "min".
+                Must be one of "min", "1se" and "pcvl". See Notes.
+
+
+
+        Notes:
+            `cv_score_method`:
+                Decides how the score which is used to select the optimal
+                regularization hyperparameter is selected. The `basic`
+                approach may suffer from issues with small event sizes or
+                for large number of folds [1]. Meanwhile, the `mse` approach
+                may yield good teacher-student fidelity, but suboptimal
+                survival predictions.
+
+                - `mse`: Calculates the score as the mean squared error
+                of the teacher predictions and the student predictions.
+                The MSE is calculated per test fold and aggregated across
+                folds using the arithmetic mean.
+                - `linear_predictor`: Calculates out of sample predictions
+                for each test fold and caches them. Once out of sample
+                predictions are produced for each sample, an appropriate
+                survival loss between student predictions and the observed
+                time and censoring indactor is calculated once, using only
+                the cached out of sample predictions. See [1].
+                - `basic`: Calculates the score as an appropriate survival
+                loss between student predictions and observed time
+                and event indicators in each test fold. The overall
+                loss is obtained as an arithmetic mean across all folds.
+                - `vvh`: Calculates the test score in each test fold as the difference
+                between the score across all samples in that fold and only
+                the training samples in that fold.The overall loss
+                is obtained as an arithmetic mean across all folds. See [1, 2].
+
+            `max_coef`:
+                Places an upper bound on the number of non-zero coefficients
+                the selected model returned after cross validation may have.
+
+                In particular, if `max_coef=k`, during scoring, only models
+                with a total number of non-zero coefficients less than k are
+                considered.
+
+                Currently, we still calculate the solutions for these
+                models, we just disregard them at scoring time.
+
+            `alpha_type`:
+                Decides how the regularization hyperparameter is selected.
+                For a given `cv_score_method` and `max_coef`, we end up with
+                a vector of length k > 1, that contains numeric scores,
+                where lower is better (i.e., losses). `alpha_type` decides
+                how we choose among the regularization hyperparameters corresponding
+                to this loss vector.
+
+                - `min`: Selects the regularization hyperparameter that
+                yields the minimum loss.
+
+                - `1se`: Selects the highest regularization hyperparameter
+                that is within one standard error of the mean loss of the
+                regularization hyperparameter with minimum loss [3].
+
+                - `pcvl`: Selects a hyperparameter inbetween `min` and
+                `1se` via a penalization term. See [4].
+
+
+
+        References:
+            [1] Dai, Biyue, and Patrick Breheny. "Cross validation approaches for penalized Cox regression." arXiv preprint arXiv:1905.10432 (2019).
+
+            [2] Verweij, Pierre JM, and Hans C. Van Houwelingen. "Cross‐validation in survival analysis." Statistics in medicine 12.24 (1993): 2305-2314.
+
+            [3] Hastie, Trevor, et al. The elements of statistical learning: data mining, inference, and prediction. Vol. 2. New York: Springer, 2009.
+
+            [4] Ternès, Nils, Federico Rotolo, and Stefan Michiels. "Empirical extensions of the lasso penalty to reduce the false discovery rate in high‐dimensional Cox regression models." Statistics in medicine 35.15 (2016): 2561-2573.
         """
         super().__init__(
             l1_ratio=1.0,
@@ -863,15 +1221,6 @@ class PCEHMultiTaskLassoCV(PCSurvCV):
     def path(self, X, y, alphas, coef_init=None, **kwargs) -> Tuple:
         """Compute Lasso path with Celer. Function taken as-is from celer for compatibility
             with parent class.
-
-        Args:
-            X (_type_): _description_
-            y (_type_): _description_
-            alphas (_type_): _description_
-            coef_init (_type_, optional): _description_. Defaults to None.
-
-        Returns:
-            Tuple: _description_
 
         See Also:
             celer.homotopy.mtl_path
@@ -907,33 +1256,31 @@ class PCEHMultiTaskLassoCV(PCSurvCV):
     def _is_multitask(self) -> bool:
         """Return whether the model instance in question is a multitask model.
 
+        Needed for scikit-learn/celer compatability.
+
         Returns:
-            bool: _description_
+            bool
         """
         return True
 
     def _get_estimator(self):
-        """_summary_
-
-        Returns:
-            _type_: _description_
-        """
         return celer.MultiTaskLasso()
 
     def predict_cumulative_hazard_function(
         self, X: npt.NDArray[np.float64], time: npt.NDArray[np.float64]
     ) -> pd.DataFrame:
-        """_summary_
+        """Predict cumulative hazard function for patients in `X` at times `time`.
 
         Args:
-            X (npt.NDArray[np.float64]): _description_
-            time (npt.NDArray[np.float64]): _description_
+            X (npt.NDArray[np.float64]): Query design matrix with u rows and p columns.
+            time (npt.NDArray[np.float64]): Query times of dimension k. Assumed to be unique and ordered.
 
         Raises:
-            ValueError: _description_
+            ValueError: Raises ValueError when the event times are not unique and sorted in ascending order.
 
         Returns:
-            pd.DataFrame: _description_
+            npt.NDArray[np.float64]: Query cumulative hazard function for samples 1, ..., u
+                and times 1, ..., k. Thus, has u rows and k columns.
         """
         if np.min(time) < 0:
             raise ValueError(

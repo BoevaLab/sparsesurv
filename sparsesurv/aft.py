@@ -21,13 +21,16 @@ class AFT(SurvivalMixin):
     as proposed by [2]. Uses the `trust-ncg` algorithm implementation
     from 'scipy.optimize.minimize` for optimization using a BFGS [2]
     quasi-Newton strategy. Gradients are JIT-compiled using numba
-    and implemented in an efficient manner (see `pcsurv.gradients`).
+    and implemented in an efficient manner (see `sparsesurv.gradients`).
 
     References:
-    [1] Zeng, Donglin, and D. Y. Lin. "Efficient estimation for the accelerated failure time model." Journal of the American Statistical Association 102.480 (2007): 1387-1396.
-    [2] Fletcher, Roger. Practical methods of optimization. John Wiley & Sons, 2000.
-    [3] Sheather, Simon J., and Michael C. Jones. "A reliable data‐based bandwidth selection method for kernel density estimation." Journal of the Royal Statistical Society: Series B (Methodological) 53.3 (1991): 683-690.
-    [4] Zhong, Qixian, Jonas W. Mueller, and Jane-Ling Wang. "Deep extended hazard models for survival analysis." Advances in Neural Information Processing Systems 34 (2021): 15111-15124.
+        [1] Zeng, Donglin, and D. Y. Lin. "Efficient estimation for the accelerated failure time model." Journal of the American Statistical Association 102.480 (2007): 1387-1396.
+
+        [2] Fletcher, Roger. Practical methods of optimization. John Wiley & Sons, 2000.
+
+        [3] Sheather, Simon J., and Michael C. Jones. "A reliable data‐based bandwidth selection method for kernel density estimation." Journal of the Royal Statistical Society: Series B (Methodological) 53.3 (1991): 683-690.
+
+        [4] Zhong, Qixian, Jonas W. Mueller, and Jane-Ling Wang. "Deep extended hazard models for survival analysis." Advances in Neural Information Processing Systems 34 (2021): 15111-15124.
     """
 
     def __init__(
@@ -36,7 +39,7 @@ class AFT(SurvivalMixin):
         tol: Optional[float] = None,
         options: Optional[Dict[str, Union[bool, int, float]]] = None,
     ) -> None:
-        """_summary_
+        """Constructor.
 
         Args:
             bandwidth (Optional[float], optional): Bandwidth to be used for kernel
@@ -66,24 +69,21 @@ class AFT(SurvivalMixin):
     def fit(
         self,
         X: npt.NDArray[np.float64],
-        y: np.array,
+        y: npt.NDArray[np.float64],
         sample_weight: npt.NDArray[np.float64] = None,
     ) -> None:
-        """Fits the linear AFT model using quasi-Newton methods.
-
+        """Fits the linear AFT model using the `trust-ncg` implementation from `scipy`.
 
         Args:
             X (npt.NDArray[np.float64]): Design matrix.
-            y (np.array): Structured array containing right-censored survival information.
+            y (npt.NDArray[np.float64]): Structured array containing right-censored survival information.
             sample_weight (npt.NDArray[np.float64], optional): Sample weight used during model fitting.
                 Currently unused and kept for sklearn compatibility. Defaults to None.
         """
 
-        # TODO DW: Add some additional arg checks here.
         time: npt.NDArray[np.float64]
-        event: npt.NDArray[np.int64]
+        event: npt.NDArray[np.float64]
         time, event = inverse_transform_survival(y)
-        # TODO DW: Add correct typing here.
         res: Any = minimize(
             fun=aft_negative_likelihood_beta,
             x0=self.init_coefs(X=X),
@@ -107,13 +107,13 @@ class AFT(SurvivalMixin):
         # the cumulative hazard (or, rather, survival) function later.
         self.train_eta: npt.NDArray[np.float64] = X @ self.coef_
         self.train_time: npt.NDArray[np.float64] = time
-        self.train_event: npt.NDArray[np.int64] = event
+        self.train_event: npt.NDArray[np.float64] = event
         return None
 
     def predict_cumulative_hazard_function(
         self, X: npt.NDArray[np.float64], time: npt.NDArray[np.float64]
     ) -> npt.NDArray[np.float64]:
-        """_summary_
+        """Predict cumulative hazard function for patients in `X` at times `time`.
 
         Args:
             X (npt.NDArray[np.float64]): Query design matrix with u rows and p columns.
@@ -128,7 +128,9 @@ class AFT(SurvivalMixin):
         """
 
         if not np.array_equal(time, np.unique(time)):
-            raise ValueError("Times passed to ")
+            raise ValueError(
+                "Expected `time` to be unique and sorted in ascending order."
+            )
         cumulative_hazard_function: npt.NDArray[
             np.float64
         ] = get_cumulative_hazard_function_aft(
