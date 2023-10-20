@@ -2,6 +2,7 @@ import warnings
 
 import numpy as np
 import numpy.typing as npt
+import pandas as pd
 from sklearn.base import BaseEstimator
 
 from .utils import inverse_transform_survival, transform_survival, transform_survival_kd
@@ -97,6 +98,8 @@ class KDSurv:
                 p corresponds to the number of covariates.
             y (np.array): Structured array containing right-censored survival information.
         """
+        if isinstance(X, pd.DataFrame):
+            X = X.to_numpy()
         time: npt.NDArray[np.float64]
         event: npt.NDArray[np.float64]
         time, event = inverse_transform_survival(y=y)
