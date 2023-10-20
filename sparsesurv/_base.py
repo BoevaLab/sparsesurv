@@ -109,7 +109,7 @@ class KDSurv:
         self.student.fit(
             X=X,
             y=transform_survival_kd(
-                time=time, event=event, eta_hat=self.pc_pipe.predict(X=X)
+                time=time, event=event, eta_hat=self.teacher.predict(X=X)
             ),
         )
 
