@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html class="writer-html5" lang="en" >
 <head>
-  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>sparsesurv.baseline_hazard_estimation module &mdash; sparsesurv  documentation</title>
@@ -16,6 +16,7 @@
         <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
         <script src="../_static/doctools.js"></script>
         <script src="../_static/sphinx_highlight.js"></script>
+        <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
     <script src="../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
@@ -68,9 +69,6 @@
 <li class="toctree-l2"><a class="reference internal" href="sparsesurv.gradients.html">sparsesurv.gradients module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="sparsesurv.loss.html">sparsesurv.loss module</a></li>
 <li class="toctree-l2"><a class="reference internal" href="sparsesurv.utils.html">sparsesurv.utils module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="sparsesurv.tests.html">sparsesurv.tests package</a></li>
-<li class="toctree-l2"><a class="reference internal" href="sparsesurv.html#summary">Summary</a></li>
-<li class="toctree-l2"><a class="reference internal" href="sparsesurv.html#reference">Reference</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../references.html">References</a></li>
@@ -112,7 +110,7 @@
 <td><p>Accelerated Failure Time baseline hazard estimator function.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#sparsesurv.baseline_hazard_estimation.baseline_hazard_estimator_eh" title="sparsesurv.baseline_hazard_estimation.baseline_hazard_estimator_eh"><code class="xref py py-obj docutils literal notranslate"><span class="pre">baseline_hazard_estimator_eh</span></code></a></p></td>
-<td><p>_summary_</p></td>
+<td><p>Extended Hazards baseline hazard estimator function.</p></td>
 </tr>
 <tr class="row-odd"><td><p><a class="reference internal" href="#sparsesurv.baseline_hazard_estimation.breslow_estimator_breslow" title="sparsesurv.baseline_hazard_estimation.breslow_estimator_breslow"><code class="xref py py-obj docutils literal notranslate"><span class="pre">breslow_estimator_breslow</span></code></a></p></td>
 <td><p>Breslow approximation of the hazard function with breslow tie-correction.</p></td>
@@ -124,7 +122,7 @@
 <td><p>Computes cumulative hazard for the accelerated failure time model.</p></td>
 </tr>
 <tr class="row-even"><td><p><a class="reference internal" href="#sparsesurv.baseline_hazard_estimation.get_cumulative_hazard_function_eh" title="sparsesurv.baseline_hazard_estimation.get_cumulative_hazard_function_eh"><code class="xref py py-obj docutils literal notranslate"><span class="pre">get_cumulative_hazard_function_eh</span></code></a></p></td>
-<td><p>_summary_</p></td>
+<td><p>Computes cumulative hazard for the extended hazards model.</p></td>
 </tr>
 </tbody>
 </table>
@@ -138,20 +136,17 @@
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>time</strong> (<em>np.array</em>) – Event times.</p></li>
-<li><p><strong>event</strong> (<em>np.array</em>) – Event states.</p></li>
-<li><p><strong>eta</strong> (<em>np.array</em>) – Linear predictor of the samples.</p></li>
+<li><p><strong>time</strong> (<em>npt.NDArray</em><em>[</em><em>np.float64</em><em>]</em>) – Event times.</p></li>
+<li><p><strong>event</strong> (<em>npt.NDArray</em><em>[</em><em>np.float64</em><em>]</em>) – Event states.</p></li>
+<li><p><strong>eta</strong> (<em>npt.NDArray</em><em>[</em><em>np.float64</em><em>]</em>) – Linear predictor of the samples.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p><dl class="simple">
-<dt>Tuple of unique and sorted time points, and the corresponding cumulative</dt><dd><p>hazard at that point as arrays.</p>
-</dd>
-</dl>
-</p>
+<dd class="field-even"><p>Tuple of unique and sorted time points, and the corresponding cumulative
+hazard at that point as arrays.</p>
 </dd>
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>Tuple</p>
+<dd class="field-odd"><p>Tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]</p>
 </dd>
 </dl>
 </dd></dl>
@@ -163,20 +158,17 @@
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>time</strong> (<em>np.array</em>) – Event times.</p></li>
-<li><p><strong>event</strong> (<em>np.array</em>) – Event states.</p></li>
-<li><p><strong>eta</strong> (<em>np.array</em>) – Linear predictor of the samples.</p></li>
+<li><p><strong>time</strong> (<em>npt.NDArray</em><em>[</em><em>np.float64</em><em>]</em>) – Event times.</p></li>
+<li><p><strong>event</strong> (<em>npt.NDArray</em><em>[</em><em>np.float64</em><em>]</em>) – Event states.</p></li>
+<li><p><strong>eta</strong> (<em>npt.NDArray</em><em>[</em><em>np.float64</em><em>]</em>) – Linear predictor of the samples.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p><dl class="simple">
-<dt>Tuple of unique and sorted time points, and the corresponding cumulative</dt><dd><p>hazard at that point as arrays.</p>
-</dd>
-</dl>
-</p>
+<dd class="field-even"><p>Tuple of unique and sorted time points, and the corresponding cumulative
+hazard at that point as arrays.</p>
 </dd>
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>Tuple</p>
+<dd class="field-odd"><p>Tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]</p>
 </dd>
 </dl>
 </dd></dl>
@@ -188,10 +180,10 @@
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>time</strong> (<em>np.array</em>) – Event times.</p></li>
-<li><p><strong>time_train</strong> (<em>np.array</em>) – Event times of training samples.</p></li>
-<li><p><strong>event_train</strong> (<em>np.array</em>) – Event states of training samples.</p></li>
-<li><p><strong>eta_train</strong> (<em>np.array</em>) – Linear predictor of training samples.</p></li>
+<li><p><strong>time</strong> (<em>npt.NDArray</em><em>[</em><em>np.float64</em><em>]</em>) – Event times.</p></li>
+<li><p><strong>time_train</strong> (<em>npt.NDArray</em><em>[</em><em>np.float64</em><em>]</em>) – Event times of training samples.</p></li>
+<li><p><strong>event_train</strong> (<em>npt.NDArray</em><em>[</em><em>np.float64</em><em>]</em>) – Event states of training samples.</p></li>
+<li><p><strong>eta_train</strong> (<em>npt.NDArray</em><em>[</em><em>np.float64</em><em>]</em>) – Linear predictor of training samples.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
@@ -210,11 +202,11 @@
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>time_query</strong> (<em>_type_</em>) – _description_</p></li>
-<li><p><strong>eta_query</strong> (<em>_type_</em>) – _description_</p></li>
-<li><p><strong>time_train</strong> (<em>_type_</em>) – Event times of training samples.</p></li>
-<li><p><strong>event_train</strong> (<em>_type_</em>) – Event states of training samples.</p></li>
-<li><p><strong>eta_train</strong> (<em>_type_</em>) – Linear predictor of training samples.</p></li>
+<li><p><strong>npt.NDArray</strong><strong>[</strong><strong>np.float64</strong><strong>]</strong> (<em>eta_train</em>) – Times at which cumulative hazard function estimation is desired.</p></li>
+<li><p><strong>npt.NDArray</strong><strong>[</strong><strong>np.float64</strong><strong>]</strong> – Linear predictor of query samples.</p></li>
+<li><p><strong>npt.NDArray</strong><strong>[</strong><strong>np.float64</strong><strong>]</strong> – Event times of training samples.</p></li>
+<li><p><strong>npt.NDArray</strong><strong>[</strong><strong>np.float64</strong><strong>]</strong> – Event states of training samples.</p></li>
+<li><p><strong>npt.NDArray</strong><strong>[</strong><strong>np.float64</strong><strong>]</strong> – Linear predictor of training samples.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
@@ -229,18 +221,18 @@
 <dl class="py function">
 <dt class="sig sig-object py" id="sparsesurv.baseline_hazard_estimation.baseline_hazard_estimator_eh">
 <span class="sig-name descname"><span class="pre">baseline_hazard_estimator_eh</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">time</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_train</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">event_train</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">eta_train</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/sparsesurv/baseline_hazard_estimation.html#baseline_hazard_estimator_eh"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sparsesurv.baseline_hazard_estimation.baseline_hazard_estimator_eh" title="Permalink to this definition"></a></dt>
-<dd><p>_summary_</p>
+<dd><p>Extended Hazards baseline hazard estimator function.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>time</strong> (<em>np.array</em>) – _description_</p></li>
-<li><p><strong>time_train</strong> (<em>np.array</em>) – Event times of training samples.</p></li>
-<li><p><strong>event_train</strong> (<em>np.array</em>) – Event states of training samples.</p></li>
-<li><p><strong>eta_train</strong> (<em>np.array</em>) – Linear predictor of training samples.</p></li>
+<li><p><strong>time</strong> (<em>npt.NDArray</em><em>[</em><em>np.float64</em><em>]</em>) – Event times.</p></li>
+<li><p><strong>time_train</strong> (<em>npt.NDArray</em><em>[</em><em>np.float64</em><em>]</em>) – Event times of training samples.</p></li>
+<li><p><strong>event_train</strong> (<em>npt.NDArray</em><em>[</em><em>np.float64</em><em>]</em>) – Event states of training samples.</p></li>
+<li><p><strong>eta_train</strong> (<em>npt.NDArray</em><em>[</em><em>np.float64</em><em>]</em>) – Linear predictor of training samples.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>_description_</p>
+<dd class="field-even"><p>Baseline hazard value.</p>
 </dd>
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
 <dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)">float</a></p>
@@ -251,19 +243,19 @@
 <dl class="py function">
 <dt class="sig sig-object py" id="sparsesurv.baseline_hazard_estimation.get_cumulative_hazard_function_eh">
 <span class="sig-name descname"><span class="pre">get_cumulative_hazard_function_eh</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">time_query</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">eta_query</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_train</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">event_train</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">eta_train</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/sparsesurv/baseline_hazard_estimation.html#get_cumulative_hazard_function_eh"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sparsesurv.baseline_hazard_estimation.get_cumulative_hazard_function_eh" title="Permalink to this definition"></a></dt>
-<dd><p>_summary_</p>
+<dd><p>Computes cumulative hazard for the extended hazards model.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>time_query</strong> (<em>_type_</em>) – _description_</p></li>
-<li><p><strong>eta_query</strong> (<em>_type_</em>) – _description_</p></li>
-<li><p><strong>time_train</strong> (<em>_type_</em>) – Event times of training samples.</p></li>
-<li><p><strong>event_train</strong> (<em>_type_</em>) – Event states of training samples.</p></li>
-<li><p><strong>eta_train</strong> (<em>_type_</em>) – Linear predictor of training samples.</p></li>
+<li><p><strong>npt.NDArray</strong><strong>[</strong><strong>np.float64</strong><strong>]</strong> (<em>eta_train</em>) – Times at which cumulative hazard function estimation is desired.</p></li>
+<li><p><strong>npt.NDArray</strong><strong>[</strong><strong>np.float64</strong><strong>]</strong> – Linear predictor of query samples.</p></li>
+<li><p><strong>npt.NDArray</strong><strong>[</strong><strong>np.float64</strong><strong>]</strong> – Event times of training samples.</p></li>
+<li><p><strong>npt.NDArray</strong><strong>[</strong><strong>np.float64</strong><strong>]</strong> – Event states of training samples.</p></li>
+<li><p><strong>npt.NDArray</strong><strong>[</strong><strong>np.float64</strong><strong>]</strong> – Linear predictor of training samples.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>_description_</p>
+<dd class="field-even"><p>Cumulative hazard at each unique and sorted time step.</p>
 </dd>
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
 <dd class="field-odd"><p>pd.DataFrame</p>

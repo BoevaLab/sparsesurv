@@ -15,6 +15,7 @@
         <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
         <script src="../../_static/doctools.js"></script>
         <script src="../../_static/sphinx_highlight.js"></script>
+        <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
     <script src="../../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../../genindex.html" />
     <link rel="search" title="Search" href="../../search.html" /> 
@@ -73,11 +74,10 @@
              
   <h1>Source code for sparsesurv.utils</h1><div class="highlight"><pre>
 <span></span><span class="kn">from</span> <span class="nn">math</span> <span class="kn">import</span> <span class="n">erf</span><span class="p">,</span> <span class="n">exp</span><span class="p">,</span> <span class="n">log</span>
-<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">,</span> <span class="n">List</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">Tuple</span>
 
 <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
 <span class="kn">import</span> <span class="nn">numpy.typing</span> <span class="k">as</span> <span class="nn">npt</span>
-<span class="kn">import</span> <span class="nn">torch</span>
 <span class="kn">from</span> <span class="nn">numba</span> <span class="kn">import</span> <span class="n">jit</span>
 <span class="kn">from</span> <span class="nn">scipy</span> <span class="kn">import</span> <span class="n">sparse</span>
 <span class="kn">from</span> <span class="nn">sklearn.linear_model._base</span> <span class="kn">import</span> <span class="n">_pre_fit</span>
@@ -87,50 +87,60 @@
 <span class="kn">from</span> <span class="nn">.constants</span> <span class="kn">import</span> <span class="n">PDF_PREFACTOR</span><span class="p">,</span> <span class="n">SQRT_TWO</span>
 
 
-<div class="viewcode-block" id="normal_density"><a class="viewcode-back" href="../../sparsesurv_api/sparsesurv.utils.html#sparsesurv.utils.normal_density">[docs]</a><span class="k">def</span> <span class="nf">normal_density</span><span class="p">(</span><span class="n">x</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
-    <span class="sd">&quot;&quot;&quot;Calculate Gaussian kernel.</span>
-
-<span class="sd">    Args:</span>
-<span class="sd">        x (torch.Tensor): Input of differences.</span>
-
-<span class="sd">    Returns:</span>
-<span class="sd">        torch.Tensor: Gaussian kernel value.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="c1"># PDF_PREFACTOR = 0.3989423 (old version - rounded up)</span>
-    <span class="n">density</span> <span class="o">=</span> <span class="n">PDF_PREFACTOR</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="mf">0.5</span> <span class="o">*</span> <span class="n">torch</span><span class="o">.</span><span class="n">pow</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="mf">2.0</span><span class="p">))</span>
-    <span class="k">return</span> <span class="n">density</span></div>
-
-
 <div class="viewcode-block" id="inverse_transform_survival"><a class="viewcode-back" href="../../sparsesurv_api/sparsesurv.utils.html#sparsesurv.utils.inverse_transform_survival">[docs]</a><span class="k">def</span> <span class="nf">inverse_transform_survival</span><span class="p">(</span>
-    <span class="n">y</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">]]:</span>
-    <span class="sd">&quot;&quot;&quot;Transform input variable into time and event variable.</span>
+    <span class="n">y</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]]:</span>
+    <span class="sd">&quot;&quot;&quot;Transform input variable into separate time and event arrays.</span>
 
 <span class="sd">    Args:</span>
-<span class="sd">        y (np.array): One dimensional array containing time and censoring events.</span>
+<span class="sd">        y (np.array): Structured array containing time and censoring events.</span>
 
 <span class="sd">    Returns:</span>
-<span class="sd">        tuple[npt.NDArray[np.float64], npt.NDArray[np.int64]]: Survival time and event array.</span>
+<span class="sd">        tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]: Survival time and event array.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">return</span> <span class="n">y</span><span class="p">[</span><span class="s2">&quot;time&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float_</span><span class="p">),</span> <span class="n">y</span><span class="p">[</span><span class="s2">&quot;event&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">int_</span><span class="p">)</span></div>
+    <span class="k">return</span> <span class="n">y</span><span class="p">[</span><span class="s2">&quot;time&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">),</span> <span class="n">y</span><span class="p">[</span><span class="s2">&quot;event&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span></div>
+
+
+<span class="k">def</span> <span class="nf">inverse_transform_survival_kd</span><span class="p">(</span>
+    <span class="n">y</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]]:</span>
+    <span class="sd">&quot;&quot;&quot;Obtain survival times, censoring information and eta (e.g. y train) from structured array.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        y (np.array): Structured array containing survival times, censoring information.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        Tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]]: survival times, censoring information, eta.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">time</span> <span class="o">=</span> <span class="n">y</span><span class="p">[</span><span class="s2">&quot;time&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
+    <span class="n">event</span> <span class="o">=</span> <span class="n">y</span><span class="p">[</span><span class="s2">&quot;event&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">int_</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">y</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="o">&gt;</span> <span class="mi">3</span><span class="p">:</span>
+        <span class="n">n_eta</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">y</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="o">-</span> <span class="mi">2</span>
+        <span class="n">eta_hat</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">eta</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">n_eta</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+            <span class="n">eta_hat</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">y</span><span class="p">[</span><span class="sa">f</span><span class="s2">&quot;eta_hat_</span><span class="si">{</span><span class="n">eta</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">))</span>
+        <span class="n">eta_hat</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">stack</span><span class="p">(</span><span class="n">eta_hat</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">eta_hat</span> <span class="o">=</span> <span class="n">y</span><span class="p">[</span><span class="s2">&quot;eta_hat&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">time</span><span class="p">,</span> <span class="n">event</span><span class="p">,</span> <span class="n">eta_hat</span>
 
 
 <div class="viewcode-block" id="transform_survival"><a class="viewcode-back" href="../../sparsesurv_api/sparsesurv.utils.html#sparsesurv.utils.transform_survival">[docs]</a><span class="k">def</span> <span class="nf">transform_survival</span><span class="p">(</span>
-    <span class="n">time</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span> <span class="n">event</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">]</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]:</span>
+    <span class="n">time</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span> <span class="n">event</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">:</span>
     <span class="sd">&quot;&quot;&quot;Transform time and event variables into one variable.</span>
 
 <span class="sd">    Args:</span>
 <span class="sd">        time (npt.NDArray[np.float64]): Survival times.</span>
-<span class="sd">        event (npt.NDArray[np.int64]): Censoring information.</span>
+<span class="sd">        event (npt.NDArray[np.float64]): Censoring information.</span>
 
 <span class="sd">    Returns:</span>
-<span class="sd">        npt.NDArray[np.float64]: Structured array containing survival times and right-censored survival information.</span>
+<span class="sd">        np.array: Structured array containing survival times and right-censored survival information.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
         <span class="p">[</span>
             <span class="p">(</span><span class="n">event_</span><span class="p">,</span> <span class="n">time_</span><span class="p">)</span>
-            <span class="k">for</span> <span class="n">time_</span><span class="p">,</span> <span class="n">event_</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">time</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float_</span><span class="p">),</span> <span class="n">event</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">bool_</span><span class="p">))</span>
+            <span class="k">for</span> <span class="n">time_</span><span class="p">,</span> <span class="n">event_</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">time</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">),</span> <span class="n">event</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">bool_</span><span class="p">))</span>
         <span class="p">],</span>
         <span class="n">dtype</span><span class="o">=</span><span class="p">[</span>
             <span class="p">(</span><span class="s2">&quot;event&quot;</span><span class="p">,</span> <span class="s2">&quot;?&quot;</span><span class="p">),</span>
@@ -140,7 +150,7 @@
     <span class="k">return</span> <span class="n">y</span></div>
 
 
-<div class="viewcode-block" id="inverse_transform_survival_preconditioning"><a class="viewcode-back" href="../../sparsesurv_api/sparsesurv.utils.html#sparsesurv.utils.inverse_transform_survival_preconditioning">[docs]</a><span class="k">def</span> <span class="nf">inverse_transform_survival_preconditioning</span><span class="p">(</span>
+<div class="viewcode-block" id="inverse_transform_survival_kd"><a class="viewcode-back" href="../../sparsesurv_api/sparsesurv.utils.html#sparsesurv.utils.inverse_transform_survival_kd">[docs]</a><span class="k">def</span> <span class="nf">inverse_transform_survival_kd</span><span class="p">(</span>
     <span class="n">y</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">],</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]]:</span>
     <span class="sd">&quot;&quot;&quot;Obtain survival times, censoring information and eta (e.g. y train) from structuted array.</span>
@@ -164,16 +174,16 @@
     <span class="k">return</span> <span class="n">time</span><span class="p">,</span> <span class="n">event</span><span class="p">,</span> <span class="n">eta_hat</span></div>
 
 
-<div class="viewcode-block" id="transform_survival_preconditioning"><a class="viewcode-back" href="../../sparsesurv_api/sparsesurv.utils.html#sparsesurv.utils.transform_survival_preconditioning">[docs]</a><span class="k">def</span> <span class="nf">transform_survival_preconditioning</span><span class="p">(</span>
+<div class="viewcode-block" id="transform_survival_kd"><a class="viewcode-back" href="../../sparsesurv_api/sparsesurv.utils.html#sparsesurv.utils.transform_survival_kd">[docs]</a><span class="k">def</span> <span class="nf">transform_survival_kd</span><span class="p">(</span>
     <span class="n">time</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
-    <span class="n">event</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">],</span>
+    <span class="n">event</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
     <span class="n">eta_hat</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]:</span>
     <span class="sd">&quot;&quot;&quot;Transform survival times, censoring information and eta (e.g. y train) into one array.</span>
 
 <span class="sd">    Args:</span>
 <span class="sd">        time (npt.NDArray[np.float64]): Survival times.</span>
-<span class="sd">        event (npt.NDArray[np.int64]): Censoring information.</span>
+<span class="sd">        event (npt.NDArray[np.float64]): Censoring information.</span>
 <span class="sd">        eta_hat (npt.NDArray[np.float64]): Estimated dependent variable.</span>
 
 <span class="sd">    Raises:</span>
@@ -183,22 +193,20 @@
 <span class="sd">        npt.NDArray: Structured array containing survival times and censoring information.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">eta_hat</span> <span class="o">=</span> <span class="n">eta_hat</span><span class="o">.</span><span class="n">squeeze</span><span class="p">()</span>
-    <span class="c1"># TODO DW: This whole thing should be somewhat simplified long-term.</span>
     <span class="k">if</span> <span class="n">eta_hat</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&gt;</span> <span class="n">time</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span>
         <span class="n">n_eta</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">eta_hat</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">/</span> <span class="n">time</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
         <span class="k">if</span> <span class="n">n_eta</span> <span class="o">&gt;</span> <span class="mi">2</span><span class="p">:</span>
             <span class="c1"># TODO DW: Document this better.</span>
             <span class="k">raise</span> <span class="ne">NotImplementedError</span>
         <span class="n">n</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
-        <span class="c1"># TODO DW: Generalise this to higher order etas.</span>
         <span class="n">y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
             <span class="p">[</span>
                 <span class="p">(</span><span class="n">event_</span><span class="p">,</span> <span class="n">time_</span><span class="p">,</span> <span class="n">eta_hat_1_</span><span class="p">,</span> <span class="n">eta_hat_2_</span><span class="p">)</span>
                 <span class="k">for</span> <span class="n">time_</span><span class="p">,</span> <span class="n">event_</span><span class="p">,</span> <span class="n">eta_hat_1_</span><span class="p">,</span> <span class="n">eta_hat_2_</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span>
-                    <span class="n">time</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float_</span><span class="p">),</span>
-                    <span class="n">event</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float_</span><span class="p">),</span>
-                    <span class="n">eta_hat</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float_</span><span class="p">)[:</span><span class="n">n</span><span class="p">],</span>
-                    <span class="n">eta_hat</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float_</span><span class="p">)[</span><span class="n">n</span><span class="p">:],</span>
+                    <span class="n">time</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">),</span>
+                    <span class="n">event</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">),</span>
+                    <span class="n">eta_hat</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)[:</span><span class="n">n</span><span class="p">],</span>
+                    <span class="n">eta_hat</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)[</span><span class="n">n</span><span class="p">:],</span>
                 <span class="p">)</span>
             <span class="p">],</span>
             <span class="n">dtype</span><span class="o">=</span><span class="p">[</span>
@@ -214,10 +222,10 @@
             <span class="p">[</span>
                 <span class="p">(</span><span class="n">event_</span><span class="p">,</span> <span class="n">time_</span><span class="p">,</span> <span class="n">eta_hat_1_</span><span class="p">,</span> <span class="n">eta_hat_2_</span><span class="p">)</span>
                 <span class="k">for</span> <span class="n">time_</span><span class="p">,</span> <span class="n">event_</span><span class="p">,</span> <span class="n">eta_hat_1_</span><span class="p">,</span> <span class="n">eta_hat_2_</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span>
-                    <span class="n">time</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float_</span><span class="p">),</span>
-                    <span class="n">event</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float_</span><span class="p">),</span>
-                    <span class="n">eta_hat</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float_</span><span class="p">)[:,</span> <span class="mi">0</span><span class="p">],</span>
-                    <span class="n">eta_hat</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float_</span><span class="p">)[:,</span> <span class="mi">1</span><span class="p">],</span>
+                    <span class="n">time</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">),</span>
+                    <span class="n">event</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">),</span>
+                    <span class="n">eta_hat</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)[:,</span> <span class="mi">0</span><span class="p">],</span>
+                    <span class="n">eta_hat</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)[:,</span> <span class="mi">1</span><span class="p">],</span>
                 <span class="p">)</span>
             <span class="p">],</span>
             <span class="n">dtype</span><span class="o">=</span><span class="p">[</span>
@@ -232,9 +240,9 @@
             <span class="p">[</span>
                 <span class="p">(</span><span class="n">event_</span><span class="p">,</span> <span class="n">time_</span><span class="p">,</span> <span class="n">eta_hat_</span><span class="p">)</span>
                 <span class="k">for</span> <span class="n">time_</span><span class="p">,</span> <span class="n">event_</span><span class="p">,</span> <span class="n">eta_hat_</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span>
-                    <span class="n">time</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float_</span><span class="p">),</span>
+                    <span class="n">time</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">),</span>
                     <span class="n">event</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">bool_</span><span class="p">),</span>
-                    <span class="n">eta_hat</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float_</span><span class="p">),</span>
+                    <span class="n">eta_hat</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">),</span>
                 <span class="p">)</span>
             <span class="p">],</span>
             <span class="n">dtype</span><span class="o">=</span><span class="p">[(</span><span class="s2">&quot;event&quot;</span><span class="p">,</span> <span class="s2">&quot;?&quot;</span><span class="p">),</span> <span class="p">(</span><span class="s2">&quot;time&quot;</span><span class="p">,</span> <span class="s2">&quot;f8&quot;</span><span class="p">),</span> <span class="p">(</span><span class="s2">&quot;eta_hat&quot;</span><span class="p">,</span> <span class="s2">&quot;f8&quot;</span><span class="p">)],</span>
@@ -247,14 +255,14 @@
     <span class="sd">&quot;&quot;&quot;Apply log-sum-exp trick when calculating the log difference for numerical stability.</span>
 
 <span class="sd">    Args:</span>
-<span class="sd">        a (npt.NDArray[np.float64]): Subtraction value first entity.</span>
-<span class="sd">        b (npt.NDArray[np.float64]): Subtraction value second entity.</span>
+<span class="sd">        a (float): Subtraction value first entity.</span>
+<span class="sd">        b (float): Subtraction value second entity.</span>
 
 <span class="sd">    Returns:</span>
-<span class="sd">        npt.NDArray[np.float64]: Result of substraction with log-sum-exp trick.</span>
+<span class="sd">        float: Result of substraction with log-sum-exp trick.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">max_value</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span>
-    <span class="k">return</span> <span class="n">max_value</span> <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">a</span> <span class="o">-</span> <span class="n">max_value</span><span class="p">)</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">b</span> <span class="o">-</span> <span class="n">max_value</span><span class="p">))</span></div>
+    <span class="n">max_value</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">max_value</span> <span class="o">+</span> <span class="n">log</span><span class="p">(</span><span class="n">exp</span><span class="p">(</span><span class="n">a</span> <span class="o">-</span> <span class="n">max_value</span><span class="p">)</span> <span class="o">-</span> <span class="n">exp</span><span class="p">(</span><span class="n">b</span> <span class="o">-</span> <span class="n">max_value</span><span class="p">))</span></div>
 
 
 <div class="viewcode-block" id="logaddexp"><a class="viewcode-back" href="../../sparsesurv_api/sparsesurv.utils.html#sparsesurv.utils.logaddexp">[docs]</a><span class="nd">@jit</span><span class="p">(</span><span class="n">nopython</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">cache</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
@@ -269,7 +277,7 @@
 <span class="sd">        float: Result of addition with log-sum-exp trick.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">max_value</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span>
-    <span class="k">return</span> <span class="n">max_value</span> <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">a</span> <span class="o">-</span> <span class="n">max_value</span><span class="p">)</span> <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">b</span> <span class="o">-</span> <span class="n">max_value</span><span class="p">))</span></div>
+    <span class="k">return</span> <span class="n">max_value</span> <span class="o">+</span> <span class="n">log</span><span class="p">(</span><span class="n">exp</span><span class="p">(</span><span class="n">a</span> <span class="o">-</span> <span class="n">max_value</span><span class="p">)</span> <span class="o">+</span> <span class="n">exp</span><span class="p">(</span><span class="n">b</span> <span class="o">-</span> <span class="n">max_value</span><span class="p">))</span></div>
 
 
 <div class="viewcode-block" id="numba_logsumexp_stable"><a class="viewcode-back" href="../../sparsesurv_api/sparsesurv.utils.html#sparsesurv.utils.numba_logsumexp_stable">[docs]</a><span class="nd">@jit</span><span class="p">(</span><span class="n">nopython</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">fastmath</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
@@ -283,7 +291,7 @@
 <span class="sd">    Returns:</span>
 <span class="sd">        float: Result of log-sum-exp trick.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">max_</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
+    <span class="n">max_</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">max_</span> <span class="o">+</span> <span class="n">log</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">a</span> <span class="o">-</span> <span class="n">max_</span><span class="p">)))</span></div>
 
 
@@ -291,7 +299,7 @@
     <span class="n">X</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">ArrayLike</span><span class="p">,</span>
     <span class="n">y</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">ArrayLike</span><span class="p">,</span>
     <span class="n">time</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
-    <span class="n">event</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">],</span>
+    <span class="n">event</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
     <span class="n">sample_weight</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">ArrayLike</span><span class="p">,</span>
     <span class="n">train</span><span class="p">:</span> <span class="n">List</span><span class="p">,</span>
     <span class="n">test</span><span class="p">:</span> <span class="n">List</span><span class="p">,</span>
@@ -311,7 +319,7 @@
 <span class="sd">        X (npt.ArrayLike): Training data of shape (n_samples, n_features).</span>
 <span class="sd">        y (npt.ArrayLike): Target values of shape (n_samples,) or (n_samples, n_targets).</span>
 <span class="sd">        time (npt.NDArray[np.float64]): Survival times.</span>
-<span class="sd">        event (npt.NDArray[np.int64]): Censoring information.</span>
+<span class="sd">        event (npt.NDArray[np.float64]): Censoring information.</span>
 <span class="sd">        sample_weight (npt.ArrayLike): Sample weights of shape (n_samples,). Defaults to None.</span>
 <span class="sd">        train (List): The indices of the train set.</span>
 <span class="sd">        test (List): The indices of the test set.</span>
@@ -408,40 +416,34 @@
 
     <span class="n">X_train_coefs</span> <span class="o">=</span> <span class="n">safe_sparse_dot</span><span class="p">(</span><span class="n">X_train</span><span class="p">,</span> <span class="n">coefs</span><span class="p">)</span>
     <span class="n">X_test_coefs</span> <span class="o">=</span> <span class="n">safe_sparse_dot</span><span class="p">(</span><span class="n">X_test</span><span class="p">,</span> <span class="n">coefs</span><span class="p">)</span>
-    <span class="c1"># print(coefs.shape)</span>
-    <span class="c1"># raise ValueError</span>
     <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">coefs</span><span class="o">.</span><span class="n">squeeze</span><span class="p">()</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
         <span class="n">n_sparsity</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">coefs</span> <span class="o">!=</span> <span class="mf">0.0</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="n">n_sparsity</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">coefs</span> <span class="o">!=</span> <span class="mf">0.0</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span> <span class="o">/</span> <span class="mi">2</span>
-    <span class="c1"># print(X_test_coefs.shape)</span>
-    <span class="c1"># raise ValueError</span>
-    <span class="c1"># print(y_train)</span>
-    <span class="c1"># raise ValueError</span>
     <span class="k">return</span> <span class="p">(</span>
         <span class="n">X_train_coefs</span><span class="p">,</span>
         <span class="n">X_test_coefs</span><span class="p">,</span>
-        <span class="n">transform_survival_preconditioning</span><span class="p">(</span><span class="n">time_train</span><span class="p">,</span> <span class="n">event_train</span><span class="p">,</span> <span class="n">y_train</span><span class="p">),</span>
-        <span class="n">transform_survival_preconditioning</span><span class="p">(</span><span class="n">time_test</span><span class="p">,</span> <span class="n">event_test</span><span class="p">,</span> <span class="n">y_test</span><span class="p">),</span>
+        <span class="n">transform_survival_kd</span><span class="p">(</span><span class="n">time_train</span><span class="p">,</span> <span class="n">event_train</span><span class="p">,</span> <span class="n">y_train</span><span class="p">),</span>
+        <span class="n">transform_survival_kd</span><span class="p">(</span><span class="n">time_test</span><span class="p">,</span> <span class="n">event_test</span><span class="p">,</span> <span class="n">y_test</span><span class="p">),</span>
         <span class="n">n_sparsity</span><span class="p">,</span>
     <span class="p">)</span>
 
 
 <div class="viewcode-block" id="gaussian_integrated_kernel"><a class="viewcode-back" href="../../sparsesurv_api/sparsesurv.utils.html#sparsesurv.utils.gaussian_integrated_kernel">[docs]</a><span class="nd">@jit</span><span class="p">(</span><span class="n">nopython</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">cache</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">fastmath</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-<span class="k">def</span> <span class="nf">gaussian_integrated_kernel</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+<span class="k">def</span> <span class="nf">gaussian_integrated_kernel</span><span class="p">(</span><span class="n">x</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
     <span class="sd">&quot;&quot;&quot;Obtain result of the integration of the Gaussian kernel.</span>
 
 <span class="sd">    Args:</span>
 <span class="sd">        x (float): Difference of hazard predictions.</span>
 
 <span class="sd">    Returns:</span>
-<span class="sd">        float: Integration value of Gaussian kernel.</span>
+<span class="sd">        float: Integrated value of Gaussian kernel.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">return</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="n">erf</span><span class="p">(</span><span class="n">x</span> <span class="o">/</span> <span class="n">SQRT_TWO</span><span class="p">))</span></div>
 
 
 <div class="viewcode-block" id="gaussian_kernel"><a class="viewcode-back" href="../../sparsesurv_api/sparsesurv.utils.html#sparsesurv.utils.gaussian_kernel">[docs]</a><span class="nd">@jit</span><span class="p">(</span><span class="n">nopython</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">cache</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">fastmath</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-<span class="k">def</span> <span class="nf">gaussian_kernel</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+<span class="k">def</span> <span class="nf">gaussian_kernel</span><span class="p">(</span><span class="n">x</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
     <span class="sd">&quot;&quot;&quot;Obtain result of Gaussian kernel.</span>
 
 <span class="sd">    Args:</span>
@@ -454,7 +456,9 @@
 
 
 <div class="viewcode-block" id="kernel"><a class="viewcode-back" href="../../sparsesurv_api/sparsesurv.utils.html#sparsesurv.utils.kernel">[docs]</a><span class="nd">@jit</span><span class="p">(</span><span class="n">nopython</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">cache</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">fastmath</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-<span class="k">def</span> <span class="nf">kernel</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">bandwidth</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]:</span>
+<span class="k">def</span> <span class="nf">kernel</span><span class="p">(</span>
+    <span class="n">a</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span> <span class="n">b</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span> <span class="n">bandwidth</span><span class="p">:</span> <span class="nb">float</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]:</span>
     <span class="sd">&quot;&quot;&quot;Subtract predictor values from each other and calculate Gaussian kernel.</span>
 
 <span class="sd">    Args:</span>
@@ -466,7 +470,7 @@
 <span class="sd">        npt.NDArray[np.float64]: Kernel matrix.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">kernel_matrix</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">b</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+    <span class="n">kernel_matrix</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">b</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
     <span class="k">for</span> <span class="n">ix</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]):</span>
         <span class="k">for</span> <span class="n">qx</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">b</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]):</span>
             <span class="n">kernel_matrix</span><span class="p">[</span><span class="n">ix</span><span class="p">,</span> <span class="n">qx</span><span class="p">]</span> <span class="o">=</span> <span class="n">gaussian_kernel</span><span class="p">((</span><span class="n">a</span><span class="p">[</span><span class="n">ix</span><span class="p">]</span> <span class="o">-</span> <span class="n">b</span><span class="p">[</span><span class="n">qx</span><span class="p">])</span> <span class="o">/</span> <span class="n">bandwidth</span><span class="p">)</span>
@@ -474,7 +478,9 @@
 
 
 <div class="viewcode-block" id="integrated_kernel"><a class="viewcode-back" href="../../sparsesurv_api/sparsesurv.utils.html#sparsesurv.utils.integrated_kernel">[docs]</a><span class="nd">@jit</span><span class="p">(</span><span class="n">nopython</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">cache</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">fastmath</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-<span class="k">def</span> <span class="nf">integrated_kernel</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">bandwidth</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]:</span>
+<span class="k">def</span> <span class="nf">integrated_kernel</span><span class="p">(</span>
+    <span class="n">a</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span> <span class="n">b</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span> <span class="n">bandwidth</span><span class="p">:</span> <span class="nb">float</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]:</span>
     <span class="sd">&quot;&quot;&quot;Subtract predictor values from each other and calculate integrated Gaussian kernel.</span>
 
 <span class="sd">    Args:</span>
@@ -485,7 +491,9 @@
 <span class="sd">    Returns:</span>
 <span class="sd">        npt.NDArray[np.float64]: Integrated kernel matrix.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">integrated_kernel_matrix</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">b</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+    <span class="n">integrated_kernel_matrix</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span>
+        <span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">b</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="p">)</span>
     <span class="k">for</span> <span class="n">ix</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]):</span>
         <span class="k">for</span> <span class="n">qx</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">b</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]):</span>
             <span class="n">integrated_kernel_matrix</span><span class="p">[</span><span class="n">ix</span><span class="p">,</span> <span class="n">qx</span><span class="p">]</span> <span class="o">=</span> <span class="n">gaussian_integrated_kernel</span><span class="p">(</span>
@@ -495,7 +503,9 @@
 
 
 <div class="viewcode-block" id="difference_kernels"><a class="viewcode-back" href="../../sparsesurv_api/sparsesurv.utils.html#sparsesurv.utils.difference_kernels">[docs]</a><span class="nd">@jit</span><span class="p">(</span><span class="n">nopython</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">cache</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">fastmath</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-<span class="k">def</span> <span class="nf">difference_kernels</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">bandwidth</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">:</span>
+<span class="k">def</span> <span class="nf">difference_kernels</span><span class="p">(</span>
+    <span class="n">a</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span> <span class="n">b</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span> <span class="n">bandwidth</span><span class="p">:</span> <span class="nb">float</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]]:</span>
     <span class="sd">&quot;&quot;&quot;Subtract predictor values from each other as well as calculate (integrated) Gaussian kernel.</span>
 
 <span class="sd">    Args:</span>
@@ -506,9 +516,11 @@
 <span class="sd">    Returns:</span>
 <span class="sd">        Tuple[npt.NDArray[np.float64],npt.NDArray[np.float64],npt.NDArray[np.float64]]: Predictor difference, kernel matrix, integrated kernel matrix</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">difference</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">b</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
-    <span class="n">kernel_matrix</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">b</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
-    <span class="n">integrated_kernel_matrix</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">b</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+    <span class="n">difference</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">b</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+    <span class="n">kernel_matrix</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">b</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+    <span class="n">integrated_kernel_matrix</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span>
+        <span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">b</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="p">)</span>
     <span class="k">for</span> <span class="n">ix</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]):</span>
         <span class="k">for</span> <span class="n">qx</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">b</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]):</span>
             <span class="n">difference</span><span class="p">[</span><span class="n">ix</span><span class="p">,</span> <span class="n">qx</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">a</span><span class="p">[</span><span class="n">ix</span><span class="p">]</span> <span class="o">-</span> <span class="n">b</span><span class="p">[</span><span class="n">qx</span><span class="p">])</span> <span class="o">/</span> <span class="n">bandwidth</span>
@@ -520,31 +532,17 @@
     <span class="k">return</span> <span class="n">difference</span><span class="p">,</span> <span class="n">kernel_matrix</span><span class="p">,</span> <span class="n">integrated_kernel_matrix</span></div>
 
 
-<span class="sd">&quot;&quot;&quot;</span>
-
-<span class="sd">    Args:</span>
-<span class="sd">        z_test (np.ndarray): 3-dimensional array of the linear predictors of all test folds.</span>
-<span class="sd">            The array is of shape (folds, samples, predictors).</span>
-<span class="sd">        y_test (np.ndarray): 3-dimensional array of survival time and event data</span>
-<span class="sd">            corresponding to samples in all test folds. The array is of shape</span>
-<span class="sd">            (folds, samples, target).</span>
-
-<span class="sd">    Returns:</span>
-<span class="sd">        float: </span>
-<span class="sd">    &quot;&quot;&quot;</span>
-
-
 <div class="viewcode-block" id="basic_cv_fold"><a class="viewcode-back" href="../../sparsesurv_api/sparsesurv.utils.html#sparsesurv.utils.basic_cv_fold">[docs]</a><span class="k">def</span> <span class="nf">basic_cv_fold</span><span class="p">(</span>
     <span class="n">test_linear_predictor</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
     <span class="n">test_time</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
-    <span class="n">test_event</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">],</span>
-    <span class="n">test_eta_hat</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
-    <span class="n">train_linear_predictor</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
-    <span class="n">train_time</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
-    <span class="n">train_event</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">],</span>
+    <span class="n">test_event</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
     <span class="n">score_function</span><span class="p">:</span> <span class="n">Callable</span><span class="p">,</span>
+    <span class="n">test_eta_hat</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">train_linear_predictor</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">train_time</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">train_event</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
-    <span class="sd">&quot;&quot;&quot;Basic CV scoring function based on the scoring function used.</span>
+    <span class="sd">&quot;&quot;&quot;Basic CV scoring function based on the scoring function used [1].</span>
 
 <span class="sd">    Args:</span>
 <span class="sd">        test_linear_predictor (np.array): Linear predictors of a given test fold. X@beta.</span>
@@ -558,6 +556,12 @@
 
 <span class="sd">    Returns:</span>
 <span class="sd">        float: Scalar value of the mean partial log-likelihood for a given test fold.</span>
+
+<span class="sd">    Notes:</span>
+<span class="sd">        All unused parameters kept for overall score function signature compatibility.</span>
+
+<span class="sd">    References:</span>
+<span class="sd">        [1] Dai, Biyue, and Patrick Breheny. &quot;Cross validation approaches for penalized Cox regression.&quot; arXiv preprint arXiv:1905.10432 (2019).</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="n">test_fold_likelihood</span> <span class="o">=</span> <span class="o">-</span><span class="n">score_function</span><span class="p">(</span><span class="n">test_linear_predictor</span><span class="p">,</span> <span class="n">test_time</span><span class="p">,</span> <span class="n">test_event</span><span class="p">)</span>
@@ -567,13 +571,13 @@
 
 <div class="viewcode-block" id="basic_mse"><a class="viewcode-back" href="../../sparsesurv_api/sparsesurv.utils.html#sparsesurv.utils.basic_mse">[docs]</a><span class="k">def</span> <span class="nf">basic_mse</span><span class="p">(</span>
     <span class="n">test_linear_predictor</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
-    <span class="n">test_time</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
-    <span class="n">test_event</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">],</span>
     <span class="n">test_eta_hat</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
-    <span class="n">train_linear_predictor</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
-    <span class="n">train_time</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
-    <span class="n">train_event</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">],</span>
-    <span class="n">score_function</span><span class="p">:</span> <span class="n">Callable</span><span class="p">,</span>
+    <span class="n">test_time</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">test_event</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">train_linear_predictor</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">train_time</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">train_event</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">score_function</span><span class="p">:</span> <span class="n">Callable</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
     <span class="sd">&quot;&quot;&quot;Mean-squared error based CV scoring function.</span>
 
@@ -589,9 +593,13 @@
 
 <span class="sd">    Returns:</span>
 <span class="sd">        float: Scalar value of the mean partial log-likelihood for a given test fold.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="n">test_negative_mse</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">negative</span><span class="p">(</span>
+<span class="sd">    Notes:</span>
+<span class="sd">        All unused parameters kept for overall score function signature compatibility.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Calculate negative MSE between teacher predictions and student</span>
+    <span class="c1"># predictions.</span>
+    <span class="n">test_negative_mse</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">negative</span><span class="p">(</span>
         <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">square</span><span class="p">(</span><span class="n">test_eta_hat</span> <span class="o">-</span> <span class="n">test_linear_predictor</span><span class="p">))</span>
     <span class="p">)</span>
 
@@ -601,14 +609,14 @@
 <div class="viewcode-block" id="vvh_cv_fold"><a class="viewcode-back" href="../../sparsesurv_api/sparsesurv.utils.html#sparsesurv.utils.vvh_cv_fold">[docs]</a><span class="k">def</span> <span class="nf">vvh_cv_fold</span><span class="p">(</span>
     <span class="n">test_linear_predictor</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
     <span class="n">test_time</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
-    <span class="n">test_event</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">],</span>
-    <span class="n">test_eta_hat</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
+    <span class="n">test_event</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
     <span class="n">train_linear_predictor</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
     <span class="n">train_time</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
-    <span class="n">train_event</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">],</span>
+    <span class="n">train_event</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
     <span class="n">score_function</span><span class="p">:</span> <span class="n">Callable</span><span class="p">,</span>
+    <span class="n">test_eta_hat</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
-    <span class="sd">&quot;&quot;&quot;Verweij and Van Houwelingen CV scoring function.</span>
+    <span class="sd">&quot;&quot;&quot;Verweij and Van Houwelingen CV scoring function [1, 2].</span>
 
 <span class="sd">    Args:</span>
 <span class="sd">        test_linear_predictor (np.array): Linear predictors of a given test fold. X@beta.</span>
@@ -622,38 +630,68 @@
 
 <span class="sd">    Returns:</span>
 <span class="sd">        float: Scalar value of the mean partial log-likelihood for a given test fold.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">z</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">train_linear_predictor</span><span class="p">,</span> <span class="n">test_linear_predictor</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
-    <span class="n">time</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">train_time</span><span class="p">,</span> <span class="n">test_time</span><span class="p">)</span>
-    <span class="n">event</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">train_event</span><span class="p">,</span> <span class="n">test_event</span><span class="p">)</span>
 
-    <span class="n">z_likelihood</span> <span class="o">=</span> <span class="o">-</span><span class="n">score_function</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="n">time</span><span class="p">,</span> <span class="n">event</span><span class="p">)</span>
-    <span class="n">z_train_likelihood</span> <span class="o">=</span> <span class="o">-</span><span class="n">score_function</span><span class="p">(</span>
+<span class="sd">    Notes:</span>
+<span class="sd">        All unused parameters kept for overall score function signature compatibility.</span>
+
+<span class="sd">    References:</span>
+<span class="sd">        [1] Verweij, Pierre JM, and Hans C. Van Houwelingen. &quot;Cross‐validation in survival analysis.&quot; Statistics in medicine 12.24 (1993): 2305-2314.</span>
+
+<span class="sd">        [2] Dai, Biyue, and Patrick Breheny. &quot;Cross validation approaches for penalized Cox regression.&quot; arXiv preprint arXiv:1905.10432 (2019).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Combine linear predictors of train and test sets, as well as</span>
+    <span class="c1"># respective time and event indicators.</span>
+    <span class="n">z</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+        <span class="n">train_linear_predictor</span><span class="p">,</span> <span class="n">test_linear_predictor</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span>
+    <span class="p">)</span>
+    <span class="n">time</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">train_time</span><span class="p">,</span> <span class="n">test_time</span><span class="p">)</span>
+    <span class="n">event</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">train_event</span><span class="p">,</span> <span class="n">test_event</span><span class="p">)</span>
+
+    <span class="c1"># Calculate total likelihood and subtract</span>
+    <span class="c1"># the train likelihood to yield the test likelihood.</span>
+    <span class="n">z_likelihood</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="o">-</span><span class="n">score_function</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="n">time</span><span class="p">,</span> <span class="n">event</span><span class="p">)</span>
+    <span class="n">z_train_likelihood</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="o">-</span><span class="n">score_function</span><span class="p">(</span>
         <span class="n">train_linear_predictor</span><span class="p">,</span> <span class="n">train_time</span><span class="p">,</span> <span class="n">train_event</span>
     <span class="p">)</span>
 
-    <span class="n">test_fold_likelihood</span> <span class="o">=</span> <span class="n">z_likelihood</span> <span class="o">-</span> <span class="n">z_train_likelihood</span>
+    <span class="n">test_fold_likelihood</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">z_likelihood</span> <span class="o">-</span> <span class="n">z_train_likelihood</span>
     <span class="k">return</span> <span class="n">test_fold_likelihood</span></div>
 
 
 <div class="viewcode-block" id="linear_cv"><a class="viewcode-back" href="../../sparsesurv_api/sparsesurv.utils.html#sparsesurv.utils.linear_cv">[docs]</a><span class="k">def</span> <span class="nf">linear_cv</span><span class="p">(</span>
     <span class="n">test_linear_predictor</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
     <span class="n">test_time</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
-    <span class="n">test_event</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">],</span>
+    <span class="n">test_event</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
     <span class="n">score_function</span><span class="p">:</span> <span class="n">Callable</span><span class="p">,</span>
+    <span class="n">test_eta_hat</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">train_linear_predictor</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">train_time</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">train_event</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
-    <span class="sd">&quot;&quot;&quot;CV score computation using linear predictors (Dai et. al. 2019).</span>
+    <span class="sd">&quot;&quot;&quot;CV score computation using linear predictors [1, 2].</span>
 
 <span class="sd">    Args:</span>
 <span class="sd">        test_linear_predictor (np.array): Linear predictors of a given test fold. X@beta.</span>
 <span class="sd">        test_time (np.array): Sorted time points of the test fold.</span>
 <span class="sd">        test_event (np.array): Event indicator of the test fold.</span>
+<span class="sd">        test_eta_hat (np.array): Predicted linear predictors of a given test fold.</span>
+<span class="sd">        train_linear_predictor (np.array): Linear predictors of the training fold.</span>
+<span class="sd">        train_time (np.array): Sorted time points of the training fold.</span>
+<span class="sd">        train_event (np.array): Event indicator of the training fold.</span>
 <span class="sd">        score_function (Callable): Scoring function used to compute the negative log-likelihood.</span>
 
 <span class="sd">    Returns:</span>
 <span class="sd">        float: Scalar value of the mean partial log-likelihood for a given test fold.</span>
+
+<span class="sd">    Notes:</span>
+<span class="sd">        All unused parameters kept for overall score function signature compatibility.</span>
+
+<span class="sd">    References:</span>
+<span class="sd">        [1] Dai, Biyue, and Patrick Breheny. &quot;Cross validation approaches for penalized Cox regression.&quot; arXiv preprint arXiv:1905.10432 (2019).</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">log_likelihood</span> <span class="o">=</span> <span class="o">-</span><span class="n">score_function</span><span class="p">(</span><span class="n">test_linear_predictor</span><span class="p">,</span> <span class="n">test_time</span><span class="p">,</span> <span class="n">test_event</span><span class="p">)</span>
+    <span class="n">log_likelihood</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="o">-</span><span class="n">score_function</span><span class="p">(</span>
+        <span class="n">test_linear_predictor</span><span class="p">,</span> <span class="n">test_time</span><span class="p">,</span> <span class="n">test_event</span>
+    <span class="p">)</span>
     <span class="k">return</span> <span class="n">log_likelihood</span></div>
 </pre></div>
 

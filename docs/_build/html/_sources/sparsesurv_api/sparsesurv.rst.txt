@@ -5,9 +5,7 @@ sparsesurv package
 ==================
 
 .. automodule:: sparsesurv
-    :members: BASELINE_HAZARD_FACTORY, CDF_ZERO, CVSCORERFACTORY, EPS, LOSS_FACTORY, PDF_PREFACTOR
-    :undoc-members:
-    :show-inheritance:
+    
 
 
     Submodules:
@@ -27,10 +25,5 @@ sparsesurv package
 
 
 
-    Summary
-    -------
 
 
-
-    Reference
-    ---------

@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html class="writer-html5" lang="en" >
 <head>
-  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>sparsesurv.loss module &mdash; sparsesurv  documentation</title>
@@ -16,6 +16,7 @@
         <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
         <script src="../_static/doctools.js"></script>
         <script src="../_static/sphinx_highlight.js"></script>
+        <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
     <script src="../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
@@ -70,9 +71,6 @@
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="sparsesurv.utils.html">sparsesurv.utils module</a></li>
-<li class="toctree-l2"><a class="reference internal" href="sparsesurv.tests.html">sparsesurv.tests package</a></li>
-<li class="toctree-l2"><a class="reference internal" href="sparsesurv.html#summary">Summary</a></li>
-<li class="toctree-l2"><a class="reference internal" href="sparsesurv.html#reference">Reference</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../references.html">References</a></li>
@@ -146,9 +144,9 @@
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>linear_predictor</strong> (<em>np.array</em>) – Linear predictor of the training data.</p></li>
-<li><p><strong>time</strong> (<em>np.array</em>) – Time of the training data of length n. Assumed to be sorted.</p></li>
-<li><p><strong>event</strong> (<em>np.array</em>) – Event indicator of the training data of length n.</p></li>
+<li><p><strong>linear_predictor</strong> (<em>npt.NDArray</em><em>[</em><em>np.float64</em><em>]</em>) – Linear predictor of the training data.</p></li>
+<li><p><strong>time</strong> (<em>npt.NDArray</em><em>[</em><em>np.float64</em><em>]</em>) – Time of the training data of length n. Assumed to be sorted.</p></li>
+<li><p><strong>event</strong> (<em>npt.NDArray</em><em>[</em><em>np.float64</em><em>]</em>) – Event indicator of the training data of length n.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Raises<span class="colon">:</span></dt>
@@ -159,7 +157,7 @@
 <dd class="field-odd"><p>Average negative log likelihood.</p>
 </dd>
 <dt class="field-even">Return type<span class="colon">:</span></dt>
-<dd class="field-even"><p>np.array</p>
+<dd class="field-even"><p>npt.NDArray[np.float64]</p>
 </dd>
 </dl>
 </dd></dl>
@@ -176,9 +174,9 @@
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>linear_predictor</strong> (<em>np.array</em>) – Linear predictor of the training data.</p></li>
-<li><p><strong>time</strong> (<em>np.array</em>) – Time of the training data of length n. Assumed to be sorted.</p></li>
-<li><p><strong>event</strong> (<em>np.array</em>) – Event indicator of the training data of length n.</p></li>
+<li><p><strong>linear_predictor</strong> (<em>npt.NDArray</em><em>[</em><em>np.float64</em><em>]</em>) – Linear predictor of the training data.</p></li>
+<li><p><strong>time</strong> (<em>npt.NDArray</em><em>[</em><em>np.float64</em><em>]</em>) – Time of the training data of length n. Assumed to be sorted.</p></li>
+<li><p><strong>event</strong> (<em>npt.NDArray</em><em>[</em><em>np.float64</em><em>]</em>) – Event indicator of the training data of length n.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Raises<span class="colon">:</span></dt>
@@ -189,7 +187,7 @@
 <dd class="field-odd"><p>Average negative log likelihood.</p>
 </dd>
 <dt class="field-even">Return type<span class="colon">:</span></dt>
-<dd class="field-even"><p>np.array</p>
+<dd class="field-even"><p>npt.NDArray[np.float64]</p>
 </dd>
 </dl>
 </dd></dl>
@@ -206,15 +204,15 @@
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>beta</strong> (<em>npt.NDArray</em><em>[</em><em>np.float64</em><em>]</em>) – Coefficient vector of length p.</p></li>
 <li><p><strong>X</strong> (<em>npt.NDArray</em><em>[</em><em>np.float64</em><em>]</em>) – Design matrix of the training data. N rows and p columns.</p></li>
-<li><p><strong>time</strong> (<em>np.array</em>) – Time of the training data of length n. Assumed to be sorted.</p></li>
-<li><p><strong>event</strong> (<em>np.array</em>) – Event indicator of the training data of length n.</p></li>
+<li><p><strong>time</strong> (<em>npt.NDArray</em><em>[</em><em>np.float64</em><em>]</em>) – Time of the training data of length n. Assumed to be sorted.</p></li>
+<li><p><strong>event</strong> (<em>npt.NDArray</em><em>[</em><em>np.float64</em><em>]</em>) – Event indicator of the training data of length n.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><p>Average negative log likelihood.</p>
 </dd>
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>np.array</p>
+<dd class="field-odd"><p>npt.NDArray[np.float64]</p>
 </dd>
 </dl>
 </dd></dl>
@@ -226,9 +224,9 @@
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>linear_predictor</strong> (<em>np.array</em>) – Linear predictor of the training data.</p></li>
-<li><p><strong>time</strong> (<em>np.array</em>) – Time of the training data of length n. Assumed to be sorted.</p></li>
-<li><p><strong>event</strong> (<em>np.array</em>) – Event indicator of the training data of length n.</p></li>
+<li><p><strong>linear_predictor</strong> (<em>npt.NDArray</em><em>[</em><em>np.float64</em><em>]</em>) – Linear predictor of the training data.</p></li>
+<li><p><strong>time</strong> (<em>npt.NDArray</em><em>[</em><em>np.float64</em><em>]</em>) – Time of the training data of length n. Assumed to be sorted.</p></li>
+<li><p><strong>event</strong> (<em>npt.NDArray</em><em>[</em><em>np.float64</em><em>]</em>) – Event indicator of the training data of length n.</p></li>
 <li><p><strong>bandwidth</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><em>float</em></a><em>, </em><em>optional</em>) – Bandwidth to kernel-smooth the profile likelihood.
 Will be estimated empirically if not specified. Defaults to None.</p></li>
 </ul>
@@ -241,7 +239,7 @@ Will be estimated empirically if not specified. Defaults to None.</p></li>
 <dd class="field-odd"><p>Average negative log-likelihood.</p>
 </dd>
 <dt class="field-even">Return type<span class="colon">:</span></dt>
-<dd class="field-even"><p>np.array</p>
+<dd class="field-even"><p>npt.NDArray[np.float64]</p>
 </dd>
 </dl>
 </dd></dl>
@@ -258,8 +256,8 @@ Will be estimated empirically if not specified. Defaults to None.</p></li>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>beta</strong> (<em>npt.NDArray</em><em>[</em><em>np.float64</em><em>]</em>) – Coefficient vector of length p.</p></li>
 <li><p><strong>X</strong> (<em>npt.NDArray</em><em>[</em><em>np.float64</em><em>]</em>) – Design matrix of the training data. N rows and p columns.</p></li>
-<li><p><strong>time</strong> (<em>np.array</em>) – Time of the training data of length n. Assumed to be sorted.</p></li>
-<li><p><strong>event</strong> (<em>np.array</em>) – Event indicator of the training data of length n.</p></li>
+<li><p><strong>time</strong> (<em>npt.NDArray</em><em>[</em><em>np.float64</em><em>]</em>) – Time of the training data of length n. Assumed to be sorted.</p></li>
+<li><p><strong>event</strong> (<em>npt.NDArray</em><em>[</em><em>np.float64</em><em>]</em>) – Event indicator of the training data of length n.</p></li>
 <li><p><strong>bandwidth</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><em>float</em></a><em>, </em><em>optional</em>) – Bandwidth to kernel-smooth the profile likelihood.
 Will be estimated empirically if not specified. Defaults to None.</p></li>
 </ul>
@@ -268,7 +266,7 @@ Will be estimated empirically if not specified. Defaults to None.</p></li>
 <dd class="field-even"><p>Average negative log-likelihood.</p>
 </dd>
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>np.array</p>
+<dd class="field-odd"><p>npt.NDArray[np.float64]</p>
 </dd>
 </dl>
 </dd></dl>
@@ -280,9 +278,9 @@ Will be estimated empirically if not specified. Defaults to None.</p></li>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>linear_predictor</strong> (<em>np.array</em>) – Linear predictor of the training data.</p></li>
-<li><p><strong>time</strong> (<em>np.array</em>) – Time points of the training data of length n. Assumed to be sorted.</p></li>
-<li><p><strong>event</strong> (<em>np.array</em>) – Event indicator of the training data of length n.</p></li>
+<li><p><strong>linear_predictor</strong> (<em>npt.NDArray</em><em>[</em><em>np.float64</em><em>]</em>) – Linear predictor of the training data.</p></li>
+<li><p><strong>time</strong> (<em>npt.NDArray</em><em>[</em><em>np.float64</em><em>]</em>) – Time points of the training data of length n. Assumed to be sorted.</p></li>
+<li><p><strong>event</strong> (<em>npt.NDArray</em><em>[</em><em>np.float64</em><em>]</em>) – Event indicator of the training data of length n.</p></li>
 <li><p><strong>bandwidth</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><em>float</em></a><em>, </em><em>optional</em>) – Bandwidth to kernel-smooth the profile likelihood.
 Will be estimated empirically if not specified. Defaults to None.</p></li>
 </ul>
@@ -295,7 +293,7 @@ Will be estimated empirically if not specified. Defaults to None.</p></li>
 <dd class="field-odd"><p>Average negative log-likelihood.</p>
 </dd>
 <dt class="field-even">Return type<span class="colon">:</span></dt>
-<dd class="field-even"><p>np.array</p>
+<dd class="field-even"><p>npt.NDArray[np.float64]</p>
 </dd>
 </dl>
 </dd></dl>
@@ -312,8 +310,8 @@ Will be estimated empirically if not specified. Defaults to None.</p></li>
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>beta</strong> (<em>npt.NDArray</em><em>[</em><em>np.float64</em><em>]</em>) – Coefficient vector of length p.</p></li>
 <li><p><strong>X</strong> (<em>npt.NDArray</em><em>[</em><em>np.float64</em><em>]</em>) – Design matrix of the training data. N rows and p columns.</p></li>
-<li><p><strong>time</strong> (<em>np.array</em>) – Time of the training data of length n. Assumed to be sorted.</p></li>
-<li><p><strong>event</strong> (<em>np.array</em>) – Event indicator of the training data of length n.</p></li>
+<li><p><strong>time</strong> (<em>npt.NDArray</em><em>[</em><em>np.float64</em><em>]</em>) – Time of the training data of length n. Assumed to be sorted.</p></li>
+<li><p><strong>event</strong> (<em>npt.NDArray</em><em>[</em><em>np.float64</em><em>]</em>) – Event indicator of the training data of length n.</p></li>
 <li><p><strong>bandwidth</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><em>float</em></a><em>, </em><em>optional</em>) – Bandwidth to kernel-smooth the profile likelihood.
 Will be estimated empirically if not specified. Defaults to None.</p></li>
 </ul>
@@ -322,7 +320,7 @@ Will be estimated empirically if not specified. Defaults to None.</p></li>
 <dd class="field-even"><p>Average negative log-likelihood.</p>
 </dd>
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>np.array</p>
+<dd class="field-odd"><p>npt.NDArray[np.float64]</p>
 </dd>
 </dl>
 </dd></dl>

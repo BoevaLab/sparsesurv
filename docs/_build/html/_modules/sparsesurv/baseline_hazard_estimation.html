@@ -15,6 +15,7 @@
         <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
         <script src="../../_static/doctools.js"></script>
         <script src="../../_static/sphinx_highlight.js"></script>
+        <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
     <script src="../../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../../genindex.html" />
     <link rel="search" title="Search" href="../../search.html" /> 
@@ -73,31 +74,34 @@
              
   <h1>Source code for sparsesurv.baseline_hazard_estimation</h1><div class="highlight"><pre>
 <span></span><span class="kn">from</span> <span class="nn">math</span> <span class="kn">import</span> <span class="n">log</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Tuple</span>
 
 <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">numpy.typing</span> <span class="k">as</span> <span class="nn">npt</span>
 <span class="kn">import</span> <span class="nn">pandas</span> <span class="k">as</span> <span class="nn">pd</span>
 <span class="kn">from</span> <span class="nn">numba</span> <span class="kn">import</span> <span class="n">jit</span>
 <span class="kn">from</span> <span class="nn">scipy.integrate</span> <span class="kn">import</span> <span class="n">quadrature</span>
-<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Tuple</span>
+
 <span class="kn">from</span> <span class="nn">.constants</span> <span class="kn">import</span> <span class="n">EPS</span>
 <span class="kn">from</span> <span class="nn">.utils</span> <span class="kn">import</span> <span class="n">gaussian_integrated_kernel</span><span class="p">,</span> <span class="n">gaussian_kernel</span>
 
 
 <div class="viewcode-block" id="breslow_estimator_breslow"><a class="viewcode-back" href="../../sparsesurv_api/sparsesurv.baseline_hazard_estimation.html#sparsesurv.baseline_hazard_estimation.breslow_estimator_breslow">[docs]</a><span class="nd">@jit</span><span class="p">(</span><span class="n">nopython</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">cache</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">fastmath</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 <span class="k">def</span> <span class="nf">breslow_estimator_breslow</span><span class="p">(</span>
-    <span class="n">time</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">,</span>
-    <span class="n">event</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">,</span>
-    <span class="n">eta</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">,</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">:</span>
+    <span class="n">time</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
+    <span class="n">event</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
+    <span class="n">eta</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]]:</span>
     <span class="sd">&quot;&quot;&quot;Breslow approximation of the hazard function with breslow tie-correction.</span>
 
 <span class="sd">    Args:</span>
-<span class="sd">        time (np.array): Event times.</span>
-<span class="sd">        event (np.array): Event states.</span>
-<span class="sd">        eta (np.array): Linear predictor of the samples.</span>
+<span class="sd">        time (npt.NDArray[np.float64]): Event times.</span>
+<span class="sd">        event (npt.NDArray[np.float64]): Event states.</span>
+<span class="sd">        eta (npt.NDArray[np.float64]): Linear predictor of the samples.</span>
 
 <span class="sd">    Returns:</span>
-<span class="sd">        Tuple: Tuple of unique and sorted time points, and the corresponding cumulative</span>
+<span class="sd">        Tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:</span>
+<span class="sd">            Tuple of unique and sorted time points, and the corresponding cumulative</span>
 <span class="sd">            hazard at that point as arrays.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">exp_eta</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">eta</span><span class="p">)</span>
@@ -142,26 +146,27 @@
 
 <div class="viewcode-block" id="breslow_estimator_efron"><a class="viewcode-back" href="../../sparsesurv_api/sparsesurv.baseline_hazard_estimation.html#sparsesurv.baseline_hazard_estimation.breslow_estimator_efron">[docs]</a><span class="nd">@jit</span><span class="p">(</span><span class="n">nopython</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">cache</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">fastmath</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 <span class="k">def</span> <span class="nf">breslow_estimator_efron</span><span class="p">(</span>
-    <span class="n">time</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">,</span>
-    <span class="n">event</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">,</span>
-    <span class="n">eta</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">,</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">:</span>
+    <span class="n">time</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
+    <span class="n">event</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
+    <span class="n">eta</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]]:</span>
     <span class="sd">&quot;&quot;&quot;Breslow approximation of the hazard function with efron tie-correction.</span>
 
 <span class="sd">    Args:</span>
-<span class="sd">        time (np.array): Event times.</span>
-<span class="sd">        event (np.array): Event states.</span>
-<span class="sd">        eta (np.array): Linear predictor of the samples.</span>
+<span class="sd">        time (npt.NDArray[np.float64]): Event times.</span>
+<span class="sd">        event (npt.NDArray[np.float64]): Event states.</span>
+<span class="sd">        eta (npt.NDArray[np.float64]): Linear predictor of the samples.</span>
 
 <span class="sd">    Returns:</span>
-<span class="sd">        Tuple: Tuple of unique and sorted time points, and the corresponding cumulative</span>
+<span class="sd">        Tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:</span>
+<span class="sd">            Tuple of unique and sorted time points, and the corresponding cumulative</span>
 <span class="sd">            hazard at that point as arrays.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">exp_eta</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">eta</span><span class="p">)</span>
+    <span class="n">exp_eta</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">eta</span><span class="p">)</span>
     <span class="n">local_risk_set</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">exp_eta</span><span class="p">)</span>
-    <span class="n">event_mask</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span> <span class="o">=</span> <span class="n">event</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">bool_</span><span class="p">)</span>
+    <span class="n">event_mask</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]</span> <span class="o">=</span> <span class="n">event</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">bool_</span><span class="p">)</span>
     <span class="n">n_unique_events</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">time</span><span class="p">[</span><span class="n">event_mask</span><span class="p">])</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
-    <span class="n">cumulative_baseline_hazards</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">n_unique_events</span><span class="p">)</span>
+    <span class="n">cumulative_baseline_hazards</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">n_unique_events</span><span class="p">)</span>
     <span class="n">n_events_counted</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
     <span class="n">local_death_set</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
     <span class="n">accumulated_risk_set</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">0</span>
@@ -205,18 +210,18 @@
 
 <div class="viewcode-block" id="aft_baseline_hazard_estimator"><a class="viewcode-back" href="../../sparsesurv_api/sparsesurv.baseline_hazard_estimation.html#sparsesurv.baseline_hazard_estimation.aft_baseline_hazard_estimator">[docs]</a><span class="nd">@jit</span><span class="p">(</span><span class="n">nopython</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">cache</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">fastmath</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 <span class="k">def</span> <span class="nf">aft_baseline_hazard_estimator</span><span class="p">(</span>
-    <span class="n">time</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">,</span>
-    <span class="n">time_train</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">,</span>
-    <span class="n">event_train</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">,</span>
-    <span class="n">eta_train</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">,</span>
+    <span class="n">time</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
+    <span class="n">time_train</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
+    <span class="n">event_train</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
+    <span class="n">eta_train</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
     <span class="sd">&quot;&quot;&quot;Accelerated Failure Time baseline hazard estimator function.</span>
 
 <span class="sd">    Args:</span>
-<span class="sd">        time (np.array): Event times.</span>
-<span class="sd">        time_train (np.array): Event times of training samples.</span>
-<span class="sd">        event_train (np.array): Event states of training samples.</span>
-<span class="sd">        eta_train (np.array): Linear predictor of training samples.</span>
+<span class="sd">        time (npt.NDArray[np.float64]): Event times.</span>
+<span class="sd">        time_train (npt.NDArray[np.float64]): Event times of training samples.</span>
+<span class="sd">        event_train (npt.NDArray[np.float64]): Event states of training samples.</span>
+<span class="sd">        eta_train (npt.NDArray[np.float64]): Linear predictor of training samples.</span>
 
 <span class="sd">    Returns:</span>
 <span class="sd">        float: Baseline hazard value.</span>
@@ -230,8 +235,8 @@
     <span class="p">)</span>
     <span class="n">log_time</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">log</span><span class="p">(</span><span class="n">time</span> <span class="o">+</span> <span class="n">EPS</span><span class="p">)</span>
 
-    <span class="n">R_lp</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">time_train</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">eta_train</span><span class="p">))</span>
-    <span class="n">difference_lp_log_time</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span> <span class="o">=</span> <span class="p">(</span><span class="n">R_lp</span> <span class="o">-</span> <span class="n">log_time</span><span class="p">)</span> <span class="o">/</span> <span class="n">bandwidth</span>
+    <span class="n">R_lp</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">time_train</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">eta_train</span><span class="p">))</span>
+    <span class="n">difference_lp_log_time</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">R_lp</span> <span class="o">-</span> <span class="n">log_time</span><span class="p">)</span> <span class="o">/</span> <span class="n">bandwidth</span>
     <span class="n">numerator</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>
     <span class="n">denominator</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>
     <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n_samples</span><span class="p">):</span>
@@ -247,38 +252,40 @@
         <span class="k">return</span> <span class="n">numerator</span> <span class="o">/</span> <span class="n">denominator</span></div>
 
 
-<span class="c1"># TODO DW: Rejit this later on.</span>
-<span class="c1"># @jit(nopython=True, cache=True, fastmath=True)</span>
 <div class="viewcode-block" id="get_cumulative_hazard_function_aft"><a class="viewcode-back" href="../../sparsesurv_api/sparsesurv.baseline_hazard_estimation.html#sparsesurv.baseline_hazard_estimation.get_cumulative_hazard_function_aft">[docs]</a><span class="k">def</span> <span class="nf">get_cumulative_hazard_function_aft</span><span class="p">(</span>
-    <span class="n">time_query</span><span class="p">,</span>
-    <span class="n">eta_query</span><span class="p">,</span>
-    <span class="n">time_train</span><span class="p">,</span>
-    <span class="n">event_train</span><span class="p">,</span>
-    <span class="n">eta_train</span><span class="p">,</span>
+    <span class="n">time_query</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
+    <span class="n">eta_query</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
+    <span class="n">time_train</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
+    <span class="n">event_train</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
+    <span class="n">eta_train</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">:</span>
     <span class="sd">&quot;&quot;&quot;Computes cumulative hazard for the accelerated failure time model.</span>
 
 <span class="sd">    Args:</span>
-<span class="sd">        time_query (_type_): _description_</span>
-<span class="sd">        eta_query (_type_): _description_</span>
-<span class="sd">        time_train (_type_): Event times of training samples.</span>
-<span class="sd">        event_train (_type_): Event states of training samples.</span>
-<span class="sd">        eta_train (_type_): Linear predictor of training samples.</span>
+<span class="sd">        time_query npt.NDArray[np.float64]: Times at which cumulative hazard function estimation is desired.</span>
+<span class="sd">        eta_query npt.NDArray[np.float64]: Linear predictor of query samples.</span>
+<span class="sd">        time_train npt.NDArray[np.float64]: Event times of training samples.</span>
+<span class="sd">        event_train npt.NDArray[np.float64]: Event states of training samples.</span>
+<span class="sd">        eta_train npt.NDArray[np.float64]: Linear predictor of training samples.</span>
 
 <span class="sd">    Returns:</span>
 <span class="sd">        pd.DataFrame: Cumulative hazard at each unique and sorted time step.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">time</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">time_query</span><span class="p">)</span>
-    <span class="n">theta</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">eta_query</span><span class="p">)</span>
+    <span class="n">time</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">time_query</span><span class="p">)</span>
+    <span class="n">theta</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">eta_query</span><span class="p">)</span>
     <span class="n">n_samples</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">eta_query</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
 
     <span class="n">zero_flag</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="k">if</span> <span class="mi">0</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">time</span><span class="p">:</span>
         <span class="n">zero_flag</span> <span class="o">=</span> <span class="kc">True</span>
         <span class="n">time</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">([</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">0</span><span class="p">]),</span> <span class="n">time</span><span class="p">])</span>
-        <span class="n">cumulative_hazard</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">n_samples</span><span class="p">,</span> <span class="n">time</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+        <span class="n">cumulative_hazard</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span>
+            <span class="p">(</span><span class="n">n_samples</span><span class="p">,</span> <span class="n">time</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
-        <span class="n">cumulative_hazard</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">n_samples</span><span class="p">,</span> <span class="n">time</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+        <span class="n">cumulative_hazard</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span>
+            <span class="p">(</span><span class="n">n_samples</span><span class="p">,</span> <span class="n">time</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">hazard_function_integrate</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
         <span class="k">return</span> <span class="n">aft_baseline_hazard_estimator</span><span class="p">(</span>
@@ -320,21 +327,21 @@
 
 <div class="viewcode-block" id="baseline_hazard_estimator_eh"><a class="viewcode-back" href="../../sparsesurv_api/sparsesurv.baseline_hazard_estimation.html#sparsesurv.baseline_hazard_estimation.baseline_hazard_estimator_eh">[docs]</a><span class="nd">@jit</span><span class="p">(</span><span class="n">nopython</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">cache</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">fastmath</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 <span class="k">def</span> <span class="nf">baseline_hazard_estimator_eh</span><span class="p">(</span>
-    <span class="n">time</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">,</span>
-    <span class="n">time_train</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">,</span>
-    <span class="n">event_train</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">,</span>
-    <span class="n">eta_train</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">,</span>
+    <span class="n">time</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
+    <span class="n">time_train</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
+    <span class="n">event_train</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
+    <span class="n">eta_train</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
-    <span class="sd">&quot;&quot;&quot;_summary_</span>
+    <span class="sd">&quot;&quot;&quot;Extended Hazards baseline hazard estimator function.</span>
 
 <span class="sd">    Args:</span>
-<span class="sd">        time (np.array): _description_</span>
-<span class="sd">        time_train (np.array): Event times of training samples.</span>
-<span class="sd">        event_train (np.array): Event states of training samples.</span>
-<span class="sd">        eta_train (np.array): Linear predictor of training samples.</span>
+<span class="sd">        time (npt.NDArray[np.float64]): Event times.</span>
+<span class="sd">        time_train (npt.NDArray[np.float64]): Event times of training samples.</span>
+<span class="sd">        event_train (npt.NDArray[np.float64]): Event states of training samples.</span>
+<span class="sd">        eta_train (npt.NDArray[np.float64]): Linear predictor of training samples.</span>
 
 <span class="sd">    Returns:</span>
-<span class="sd">        float: _description_</span>
+<span class="sd">        float: Baseline hazard value.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">n_samples</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">time_train</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
     <span class="n">bandwidth</span> <span class="o">=</span> <span class="mf">1.30</span> <span class="o">*</span> <span class="nb">pow</span><span class="p">(</span><span class="n">n_samples</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.2</span><span class="p">)</span>
@@ -345,7 +352,7 @@
     <span class="p">)</span>
     <span class="n">log_time</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">time</span> <span class="o">+</span> <span class="n">EPS</span><span class="p">)</span>
     <span class="n">theta_train</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">eta_train</span><span class="p">)</span>
-    <span class="n">R_lp</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">time_train</span> <span class="o">*</span> <span class="n">theta_train</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">])</span>
+    <span class="n">R_lp</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">time_train</span> <span class="o">*</span> <span class="n">theta_train</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">])</span>
     <span class="n">difference_lp_log_time</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span> <span class="o">=</span> <span class="p">(</span><span class="n">R_lp</span> <span class="o">-</span> <span class="n">log_time</span><span class="p">)</span> <span class="o">/</span> <span class="n">bandwidth</span>
     <span class="n">numerator</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>
     <span class="n">denominator</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>
@@ -368,37 +375,39 @@
         <span class="k">return</span> <span class="n">numerator</span> <span class="o">/</span> <span class="n">denominator</span></div>
 
 
-<span class="c1"># TODO DW: Rejit this later on.</span>
-<span class="c1"># @jit(nopython=True, cache=True, fastmath=True)</span>
 <div class="viewcode-block" id="get_cumulative_hazard_function_eh"><a class="viewcode-back" href="../../sparsesurv_api/sparsesurv.baseline_hazard_estimation.html#sparsesurv.baseline_hazard_estimation.get_cumulative_hazard_function_eh">[docs]</a><span class="k">def</span> <span class="nf">get_cumulative_hazard_function_eh</span><span class="p">(</span>
-    <span class="n">time_query</span><span class="p">,</span>
-    <span class="n">eta_query</span><span class="p">,</span>
-    <span class="n">time_train</span><span class="p">,</span>
-    <span class="n">event_train</span><span class="p">,</span>
-    <span class="n">eta_train</span><span class="p">,</span>
+    <span class="n">time_query</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
+    <span class="n">eta_query</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
+    <span class="n">time_train</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
+    <span class="n">event_train</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
+    <span class="n">eta_train</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">:</span>
-    <span class="sd">&quot;&quot;&quot;_summary_</span>
+    <span class="sd">&quot;&quot;&quot;Computes cumulative hazard for the extended hazards model.</span>
 
 <span class="sd">    Args:</span>
-<span class="sd">        time_query (_type_): _description_</span>
-<span class="sd">        eta_query (_type_): _description_</span>
-<span class="sd">        time_train (_type_): Event times of training samples.</span>
-<span class="sd">        event_train (_type_): Event states of training samples.</span>
-<span class="sd">        eta_train (_type_): Linear predictor of training samples.</span>
+<span class="sd">        time_query npt.NDArray[np.float64]: Times at which cumulative hazard function estimation is desired.</span>
+<span class="sd">        eta_query npt.NDArray[np.float64]: Linear predictor of query samples.</span>
+<span class="sd">        time_train npt.NDArray[np.float64]: Event times of training samples.</span>
+<span class="sd">        event_train npt.NDArray[np.float64]: Event states of training samples.</span>
+<span class="sd">        eta_train npt.NDArray[np.float64]: Linear predictor of training samples.</span>
 
 <span class="sd">    Returns:</span>
-<span class="sd">        pd.DataFrame: _description_</span>
+<span class="sd">        pd.DataFrame: Cumulative hazard at each unique and sorted time step.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">time</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">time_query</span><span class="p">)</span>
-    <span class="n">theta</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">eta_query</span><span class="p">)</span>
+    <span class="n">time</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">time_query</span><span class="p">)</span>
+    <span class="n">theta</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">eta_query</span><span class="p">)</span>
     <span class="n">n_samples</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">eta_query</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
     <span class="n">zero_flag</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="k">if</span> <span class="mi">0</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">time</span><span class="p">:</span>
         <span class="n">zero_flag</span> <span class="o">=</span> <span class="kc">True</span>
         <span class="n">time</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">([</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">0</span><span class="p">]),</span> <span class="n">time</span><span class="p">])</span>
-        <span class="n">cumulative_hazard</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">n_samples</span><span class="p">,</span> <span class="n">time</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+        <span class="n">cumulative_hazard</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span>
+            <span class="p">(</span><span class="n">n_samples</span><span class="p">,</span> <span class="n">time</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
-        <span class="n">cumulative_hazard</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">n_samples</span><span class="p">,</span> <span class="n">time</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+        <span class="n">cumulative_hazard</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span>
+            <span class="p">(</span><span class="n">n_samples</span><span class="p">,</span> <span class="n">time</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="p">)</span>
 
     <span class="k">def</span> <span class="nf">hazard_function_integrate</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
         <span class="k">return</span> <span class="n">baseline_hazard_estimator_eh</span><span class="p">(</span>

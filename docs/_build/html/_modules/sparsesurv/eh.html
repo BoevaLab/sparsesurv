@@ -15,6 +15,7 @@
         <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
         <script src="../../_static/doctools.js"></script>
         <script src="../../_static/sphinx_highlight.js"></script>
+        <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
     <script src="../../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../../genindex.html" />
     <link rel="search" title="Search" href="../../search.html" /> 
@@ -89,19 +90,22 @@
 
 
 <div class="viewcode-block" id="EH"><a class="viewcode-back" href="../../sparsesurv_api/sparsesurv.eh.html#sparsesurv.eh.EH">[docs]</a><span class="k">class</span> <span class="nc">EH</span><span class="p">(</span><span class="n">SurvivalMixin</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;Linear Extended Hazards (EH) model based on kernel-smoothed PL [1]_.</span>
+    <span class="sd">&quot;&quot;&quot;Linear Extended Hazards (EH) model based on kernel-smoothed PL [Tseng2011]_.</span>
 
 <span class="sd">    Fits a linear EH model based on the kernel smoothed profile likelihood</span>
 <span class="sd">    as proposed by [1]. Uses the `trust-ncg` algorithm implementation</span>
-<span class="sd">    from &#39;scipy.optimize.minimize` for optimization using a BFGS [2]_</span>
+<span class="sd">    from &#39;scipy.optimize.minimize` for optimization using a BFGS [Fletcher2000]_</span>
 <span class="sd">    quasi-Newton strategy. Gradients are JIT-compiled using numba</span>
 <span class="sd">    and implemented in an efficient manner (see `pcsurv.gradients`).</span>
 
 <span class="sd">    References:</span>
-<span class="sd">        [1] Tseng, Yi-Kuan, and Ken-Ning Shu. &quot;Efficient estimation for a semiparametric extended hazards model.&quot; Communications in Statistics—Simulation and Computation® 40.2 (2011): 258-273.</span>
-<span class="sd">        [2] Fletcher, Roger. Practical methods of optimization. John Wiley &amp; Sons, 2000.</span>
-<span class="sd">        [3] Sheather, Simon J., and Michael C. Jones. &quot;A reliable data‐based bandwidth selection method for kernel density estimation.&quot; Journal of the Royal Statistical Society: Series B (Methodological) 53.3 (1991): 683-690.</span>
-<span class="sd">        [4] Zhong, Qixian, Jonas W. Mueller, and Jane-Ling Wang. &quot;Deep extended hazard models for survival analysis.&quot; Advances in Neural Information Processing Systems 34 (2021): 15111-15124.</span>
+<span class="sd">        Tseng, Yi-Kuan, and Ken-Ning Shu. &quot;Efficient estimation for a semiparametric extended hazards model.&quot; Communications in Statistics—Simulation and Computation® 40.2 (2011): 258-273.</span>
+
+<span class="sd">        Fletcher, Roger. Practical methods of optimization. John Wiley &amp; Sons, 2000.</span>
+
+<span class="sd">        Sheather, Simon J., and Michael C. Jones. &quot;A reliable data‐based bandwidth selection method for kernel density estimation.&quot; Journal of the Royal Statistical Society: Series B (Methodological) 53.3 (1991): 683-690.</span>
+
+<span class="sd">        Zhong, Qixian, Jonas W. Mueller, and Jane-Ling Wang. &quot;Deep extended hazard models for survival analysis.&quot; Advances in Neural Information Processing Systems 34 (2021): 15111-15124.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
 <div class="viewcode-block" id="EH.__init__"><a class="viewcode-back" href="../../sparsesurv_api/sparsesurv.eh.html#sparsesurv.eh.EH.__init__">[docs]</a>    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
@@ -115,7 +119,7 @@
 <span class="sd">        Args:</span>
 <span class="sd">            bandwidth (Optional[float], optional): Bandwidth to be used for kernel</span>
 <span class="sd">                smoothing the profile likelihood. If left unspecified (i.e., `None`),</span>
-<span class="sd">                optimal bandwidth will be estimted empirically, similar to previous work [[3]_, [4]_].</span>
+<span class="sd">                optimal bandwidth will be estimted empirically, similar to previous work ([Sheather1991]_,[Zhong2021]_).</span>
 <span class="sd">                Defaults to None.</span>
 <span class="sd">            tol (float, optional): Tolerance for terminating the `trust-ncg`</span>
 <span class="sd">                algorithm in scipy. Defaults to None.</span>
@@ -144,27 +148,24 @@
         <span class="n">y</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">,</span>
         <span class="n">sample_weight</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="sd">&quot;&quot;&quot;Fits the linear EH model using quasi-Newton methods.</span>
+        <span class="sd">&quot;&quot;&quot;Fits the linear AFT model using the `trust-ncg` implementation from `scipy`.</span>
 
 <span class="sd">        Args:</span>
 <span class="sd">            X (npt.NDArray[np.float64]): Design matrix.</span>
 <span class="sd">            y (np.array): Structured array containing right-censored survival information.</span>
-<span class="sd">            sample_weight (npt.NDArray[np.float64], optional): Sample weight used</span>
-<span class="sd">                during model fitting. Currently unused and kept for sklearn compatibility.</span>
-<span class="sd">                Defaults to None.</span>
-
+<span class="sd">            sample_weight (npt.NDArray[np.float64], optional): Sample weight used during model fitting.</span>
+<span class="sd">                Currently unused and kept for sklearn compatibility. Defaults to None.</span>
+<span class="sd">            sample_weight (npt.NDArray[np.float64]): Kept for API compatibility.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
 
-        <span class="c1"># TODO DW: Add some additional arg checks here.</span>
         <span class="n">time</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]</span>
-        <span class="n">event</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">]</span>
+        <span class="n">event</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]</span>
         <span class="n">time</span><span class="p">,</span> <span class="n">event</span> <span class="o">=</span> <span class="n">inverse_transform_survival</span><span class="p">(</span><span class="n">y</span><span class="p">)</span>
         <span class="c1"># Since `minimize` works solely with vectors (i.e.,</span>
         <span class="c1"># one-dimensional) matrices, we stack the coefficients</span>
         <span class="c1"># into a vector. For this, we also duplicate X for easier</span>
         <span class="c1"># `sklearn`` compatability.</span>
         <span class="n">X</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">((</span><span class="n">X</span><span class="p">,</span> <span class="n">X</span><span class="p">),</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
-        <span class="c1"># TODO DW: Add correct typing here.</span>
         <span class="n">res</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="n">minimize</span><span class="p">(</span>
             <span class="n">fun</span><span class="o">=</span><span class="n">eh_negative_likelihood_beta</span><span class="p">,</span>
             <span class="n">x0</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">init_coefs</span><span class="p">(</span><span class="n">X</span><span class="o">=</span><span class="n">X</span><span class="p">),</span>
@@ -189,7 +190,7 @@
         <span class="c1"># the cumulative hazard (or, rather, survival) function later.</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">train_eta</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]</span> <span class="o">=</span> <span class="n">X</span> <span class="o">@</span> <span class="bp">self</span><span class="o">.</span><span class="n">coef_</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">train_time</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]</span> <span class="o">=</span> <span class="n">time</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">train_event</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">]</span> <span class="o">=</span> <span class="n">event</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">train_event</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]</span> <span class="o">=</span> <span class="n">event</span>
         <span class="k">return</span> <span class="kc">None</span></div>
 
 <div class="viewcode-block" id="EH.predict"><a class="viewcode-back" href="../../sparsesurv_api/sparsesurv.eh.html#sparsesurv.eh.EH.predict">[docs]</a>    <span class="k">def</span> <span class="nf">predict</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]:</span>
@@ -215,15 +216,14 @@
 <div class="viewcode-block" id="EH.predict_cumulative_hazard_function"><a class="viewcode-back" href="../../sparsesurv_api/sparsesurv.eh.html#sparsesurv.eh.EH.predict_cumulative_hazard_function">[docs]</a>    <span class="k">def</span> <span class="nf">predict_cumulative_hazard_function</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span> <span class="n">X</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span> <span class="n">time</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]</span>
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]:</span>
-        <span class="sd">&quot;&quot;&quot;Calculate cumulative hazard function for the EH model.</span>
+        <span class="sd">&quot;&quot;&quot;Predict cumulative hazard function for patients in `X` at times `time`.</span>
 
 <span class="sd">        Args:</span>
 <span class="sd">            X (npt.NDArray[np.float64]): Query design matrix with u rows and p columns.</span>
-<span class="sd">            time (npt.NDArray[np.float64]): Query times of dimension k.</span>
-<span class="sd">                Assumed to be unique and ordered.</span>
+<span class="sd">            time (npt.NDArray[np.float64]): Query times of dimension k. Assumed to be unique and ordered.</span>
 
 <span class="sd">        Raises:</span>
-<span class="sd">            ValueError: If time array is not unique and sorted.</span>
+<span class="sd">            ValueError: Raises ValueError when the event times are not unique and sorted in ascending order.</span>
 
 <span class="sd">        Returns:</span>
 <span class="sd">            npt.NDArray[np.float64]: Query cumulative hazard function for samples 1, ..., u</span>
@@ -231,7 +231,9 @@
 <span class="sd">        &quot;&quot;&quot;</span>
 
         <span class="k">if</span> <span class="ow">not</span> <span class="n">np</span><span class="o">.</span><span class="n">array_equal</span><span class="p">(</span><span class="n">time</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">time</span><span class="p">)):</span>
-            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Times passed are not unqiue and sorted.&quot;</span><span class="p">)</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">&quot;Expected `time` to be unique and sorted in ascending order.&quot;</span>
+            <span class="p">)</span>
         <span class="n">cumulative_hazard_function</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span>
             <span class="n">np</span><span class="o">.</span><span class="n">float64</span>
         <span class="p">]</span> <span class="o">=</span> <span class="n">get_cumulative_hazard_function_eh</span><span class="p">(</span>

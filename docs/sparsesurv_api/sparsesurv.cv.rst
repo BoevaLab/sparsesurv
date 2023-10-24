@@ -7,7 +7,7 @@ sparsesurv.cv module
 .. currentmodule:: sparsesurv.cv
 
 .. automodule:: sparsesurv.cv
-    :members: BASELINE_HAZARD_FACTORY, CVSCORERFACTORY, LOSS_FACTORY, PCAFTElasticNetCV, PCEHMultiTaskLassoCV, PCPHElasticNetCV, PCSurvCV, Self
+    :members: BASELINE_HAZARD_FACTORY, BaseKDSurv, CVSCORERFACTORY, KDAFTElasticNetCV, KDEHMultiTaskLassoCV, KDPHElasticNetCV, LOSS_FACTORY, Self
     :undoc-members:
     :show-inheritance:
     :member-order: bysource
@@ -20,10 +20,10 @@ sparsesurv.cv module
     .. autosummary::
         :nosignatures:
 
-        PCAFTElasticNetCV
-        PCEHMultiTaskLassoCV
-        PCPHElasticNetCV
-        PCSurvCV
+        BaseKDSurv
+        KDAFTElasticNetCV
+        KDEHMultiTaskLassoCV
+        KDPHElasticNetCV
 
 
 
