@@ -15,22 +15,22 @@ from .utils import inverse_transform_survival
 
 
 class EH(SurvivalMixin):
-    """Linear Extended Hazards (EH) model based on kernel-smoothed PL [1].
+    """Linear Extended Hazards (EH) model based on kernel-smoothed PL [Tseng2011]_.
 
     Fits a linear EH model based on the kernel smoothed profile likelihood
     as proposed by [1]. Uses the `trust-ncg` algorithm implementation
-    from 'scipy.optimize.minimize` for optimization using a BFGS [2]
+    from 'scipy.optimize.minimize` for optimization using a BFGS [Fletcher2000]_
     quasi-Newton strategy. Gradients are JIT-compiled using numba
     and implemented in an efficient manner (see `pcsurv.gradients`).
 
     References:
-        [1] Tseng, Yi-Kuan, and Ken-Ning Shu. "Efficient estimation for a semiparametric extended hazards model." Communications in Statistics—Simulation and Computation® 40.2 (2011): 258-273.
+        Tseng, Yi-Kuan, and Ken-Ning Shu. "Efficient estimation for a semiparametric extended hazards model." Communications in Statistics—Simulation and Computation® 40.2 (2011): 258-273.
 
-        [2] Fletcher, Roger. Practical methods of optimization. John Wiley & Sons, 2000.
+        Fletcher, Roger. Practical methods of optimization. John Wiley & Sons, 2000.
 
-        [3] Sheather, Simon J., and Michael C. Jones. "A reliable data‐based bandwidth selection method for kernel density estimation." Journal of the Royal Statistical Society: Series B (Methodological) 53.3 (1991): 683-690.
+        Sheather, Simon J., and Michael C. Jones. "A reliable data‐based bandwidth selection method for kernel density estimation." Journal of the Royal Statistical Society: Series B (Methodological) 53.3 (1991): 683-690.
 
-        [4] Zhong, Qixian, Jonas W. Mueller, and Jane-Ling Wang. "Deep extended hazard models for survival analysis." Advances in Neural Information Processing Systems 34 (2021): 15111-15124.
+        Zhong, Qixian, Jonas W. Mueller, and Jane-Ling Wang. "Deep extended hazard models for survival analysis." Advances in Neural Information Processing Systems 34 (2021): 15111-15124.
     """
 
     def __init__(
@@ -44,7 +44,7 @@ class EH(SurvivalMixin):
         Args:
             bandwidth (Optional[float], optional): Bandwidth to be used for kernel
                 smoothing the profile likelihood. If left unspecified (i.e., `None`),
-                optimal bandwidth will be estimted empirically, similar to previous work [[3]_, [4]_].
+                optimal bandwidth will be estimted empirically, similar to previous work ([Sheather1991]_,[Zhong2021]_).
                 Defaults to None.
             tol (float, optional): Tolerance for terminating the `trust-ncg`
                 algorithm in scipy. Defaults to None.
