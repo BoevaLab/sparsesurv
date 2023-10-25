@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Process FCS files and Create AnnData Object &mdash; sparsesurv  documentation</title>
+      <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="_static/jquery.js"></script>
+        <script src="_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
+        <script src="_static/doctools.js"></script>
+        <script src="_static/sphinx_highlight.js"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="sparsesurv package" href="sparsesurv_api/sparsesurv.html" />
+    <link rel="prev" title="Tutorials" href="tutorials.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            sparsesurv
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="overview.html">Overview</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="tutorials.html">Tutorials</a><ul class="current">
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Process FCS files and Create AnnData Object</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#introduction">Introduction</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#setup">Setup</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#define-the-python-interpreter-to-use">Define the python interpreter to use</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#request-for-figshare-api">Request for figshare api</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#helpers">Helpers</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#download-and-mappings">Download and mappings</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#process-the-fcs-files">Process the fcs files</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#load-anndata-object-in-python">Load AnnData object in python</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="sparsesurv_api/sparsesurv.html">API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="references.html">References</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">sparsesurv</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="tutorials.html">Tutorials</a></li>
+      <li class="breadcrumb-item active">Process FCS files and Create AnnData Object</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/process-fcs-files-and-create-annData-object.md.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="process-fcs-files-and-create-anndata-object">
+<h1>Process FCS files and Create AnnData Object<a class="headerlink" href="#process-fcs-files-and-create-anndata-object" title="Permalink to this heading"></a></h1>
+<section id="introduction">
+<h2>Introduction<a class="headerlink" href="#introduction" title="Permalink to this heading"></a></h2>
+<p>In this short tutorial we show how to process fcs files and create
+an <a class="reference external" href="https://anndata.readthedocs.io/en/latest/">anndata object</a>. The fcs
+files are from the publication <em>Data-driven phenotypic dissection of AML
+reveals progenitor-like cells that correlate with prognosis
+(10.1016/j.cell.2015.05.047)</em>. To facilitate this tutorial we deposited
+the required files on
+<a class="reference external" href="https://figshare.com/account/home#/projects/140062">figshare</a>.</p>
+</section>
+<section id="setup">
+<h2>Setup<a class="headerlink" href="#setup" title="Permalink to this heading"></a></h2>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>knitr::opts_chunk$set(message = FALSE, warning = FALSE)
+pkgs = c(&#39;flowCore&#39;, &#39;anndata&#39;, &#39;tidyverse&#39;, &#39;magrittr&#39;, &#39;httr&#39;, &#39;reticulate&#39;)
+for(i in pkgs){
+  suppressPackageStartupMessages(library(i, character.only = TRUE))
+}
+</pre></div>
+</div>
+</section>
+<section id="define-the-python-interpreter-to-use">
+<h2>Define the python interpreter to use<a class="headerlink" href="#define-the-python-interpreter-to-use" title="Permalink to this heading"></a></h2>
+<p>Since the AnnData object is a python data structure we need to setup our
+python interpreter first. Either you can setup a new environment or use
+the one we use for the scQUEST package (<a class="reference external" href="https://ai4scr.github.io/scQUEST/installation.html#package-installation">installation guide for
+scQUEST</a>).
+Important is, that the anndata versions of the environment you use here
+is the same as in the environment in which you want to use the created
+anndata object.</p>
+<p>To find the path to the python interpreter run the following snipped in
+the terminal</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>conda activate scQUEST
+which python
+# /usr/local/Caskroom/miniconda/base/envs/scQUEST/bin/python
+</pre></div>
+</div>
+<p>Now point <code class="docutils literal notranslate"><span class="pre">reticulate</span></code> to the interpreter you want to use.</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>reticulate::use_python(&#39;/usr/local/Caskroom/miniconda/base/envs/scQUEST/bin/python&#39;)
+</pre></div>
+</div>
+</section>
+<section id="request-for-figshare-api">
+<h2>Request for figshare api<a class="headerlink" href="#request-for-figshare-api" title="Permalink to this heading"></a></h2>
+<p>Here we setup the http request to download the fcs files</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span># request for figshare api
+project_id = 140062
+articel_id = 19867114
+PATH = &#39;~/.scQUEST/Levine_CyTOF_AML_AnnotatedCellTypes/&#39;
+REQUEST = paste0(&#39;https://api.figshare.com/v2/articles/&#39;, articel_id, &#39;/files&#39;)
+</pre></div>
+</div>
+</section>
+<section id="helpers">
+<h2>Helpers<a class="headerlink" href="#helpers" title="Permalink to this heading"></a></h2>
+<p>Here we define some helper functions that facilitate mapping of
+attributes and the download of the files.</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span># helpers
+mapper = function(key, df){
+  mapping= list()
+  cols = colnames(df)
+  cols = cols[cols != key]
+  for(i in cols){
+    m = map(df[[i]], ~ .x)
+    names(m) = df[[key]]
+    mapping[[i]] = m
+  }
+  return (mapping)
+}
+
+download_files = function(path = PATH, request = REQUEST){
+  path = path.expand(path)
+  dir.create(path, showWarnings = TRUE, recursive = TRUE, mode = &quot;0777&quot;)
+
+  resp = GET(request)
+  stop_for_status(resp)
+
+  files = content(resp, &#39;parsed&#39;)
+  files = map(files, function(x){
+    url = x$download_url
+    fpath = paste0(path, x$name)
+    if(!file.exists(fpath)){
+      download.file(url, fpath)
+      }
+    return(c(url, fpath))
+  })
+}
+</pre></div>
+</div>
+</section>
+<section id="download-and-mappings">
+<h2>Download and mappings<a class="headerlink" href="#download-and-mappings" title="Permalink to this heading"></a></h2>
+<p>In a next step we download the files form figshare to <code class="docutils literal notranslate"><span class="pre">PATH</span></code>.
+Furthermore, we provide some files that provide some more information
+regarding the channel names and the sample_ids. For example
+<code class="docutils literal notranslate"><span class="pre">rename.channel</span></code> indicates for what this channel was used and what kind
+of marker it represents.</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span># download files
+files = download_files(PATH, REQUEST)
+files = unlist(map(files, ~.x[2]))
+files.fcs = files[grepl(&#39;.fcs$&#39;, files)]
+files.csv = files[grepl(&#39;.csv$&#39;, files)]
+
+files.sampleID = files.csv[grepl(&#39;sampleID&#39;, files.csv)]
+files.channels = files.csv[grepl(&#39;channels&#39;, files.csv)]
+
+# mappings
+rename.sample = readr::read_csv(files.sampleID)
+map.sample = mapper(&#39;sample_id&#39;, rename.sample)
+
+rename.channel = readr::read_csv(files.channels)
+map.channel = mapper(&#39;channel&#39;, rename.channel)
+</pre></div>
+</div>
+</section>
+<section id="process-the-fcs-files">
+<h2>Process the fcs files<a class="headerlink" href="#process-the-fcs-files" title="Permalink to this heading"></a></h2>
+<p>Now we are ready to process the actuall FCS files. We loop over all fcs
+files and construct the attributes we later use to generated the anndata
+object (<code class="docutils literal notranslate"><span class="pre">X</span></code>, <code class="docutils literal notranslate"><span class="pre">OBS</span></code>, <code class="docutils literal notranslate"><span class="pre">VAR</span></code>).</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span># load FCS file
+X = NULL
+OBS = NULL
+VAR = NULL
+fcs.header = list()
+
+f.count = 0
+for(f in files.fcs){
+  f.count = f.count + 1
+  f.base =  basename(f)
+  cat(f.count, &#39;/&#39;, length(files.fcs), &#39; reading in file &#39;, f.base, &#39;\n&#39;)
+
+  header = read.FCSheader(f)
+  header.tbl = tibble(keyword = names(header[[1]]), value=header[[1]])
+
+  fcs &lt;- read.FCS(f)
+  x = exprs(fcs)
+
+  obs = list(fcs_file = f.base)
+  for(i in names(map.sample)){
+    obs[[i]] = map.sample[[i]][[f.base]]
+  }
+
+  obs = do.call(tibble, obs)
+  obs %&lt;&gt;% slice(rep(1, each = dim(x)[1]))
+
+  var = parameters(fcs)@data %&gt;% select(-range, -minRange, -maxRange)
+
+  X = rbind(X,x)
+  OBS = rbind(OBS, obs)
+
+  if(is.null(VAR)) VAR = var
+  else stopifnot(all(VAR == var))
+
+  stopifnot(!f %in% names(fcs.header))
+  fcs.header[[f.base]] = header.tbl
+}
+
+## 1 / 14  reading in file  2011-08-19-AML08-f.A_cct_subtracted_normalized_CD4 T cells_H1.fcs
+## 2 / 14  reading in file  2011-08-19-AML08-f.A_cct_subtracted_normalized_CD8 T cells_H1.fcs
+## 3 / 14  reading in file  2011-08-19-AML08-f.A_cct_subtracted_normalized_CD16- NK cells_H1.fcs
+## 4 / 14  reading in file  2011-08-19-AML08-f.A_cct_subtracted_normalized_CD16+ NK cells_H1.fcs
+## 5 / 14  reading in file  2011-08-19-AML08-f.A_cct_subtracted_normalized_Mature B cells_H1.fcs
+## 6 / 14  reading in file  2011-08-19-AML08-f.A_cct_subtracted_normalized_Monocytes_H1.fcs
+## 7 / 14  reading in file  2011-08-19-AML08-f.A_cct_subtracted_normalized_Pre B cells_H1.fcs
+## 8 / 14  reading in file  2011-08-25-AML09-a.A_cct_subtracted_normalized_CD4 T cells_H2.fcs
+## 9 / 14  reading in file  2011-08-25-AML09-a.A_cct_subtracted_normalized_CD8 T cells_H2.fcs
+## 10 / 14  reading in file  2011-08-25-AML09-a.A_cct_subtracted_normalized_CD16- NK cells_H2.fcs
+## 11 / 14  reading in file  2011-08-25-AML09-a.A_cct_subtracted_normalized_CD16+ NK cells_H2.fcs
+## 12 / 14  reading in file  2011-08-25-AML09-a.A_cct_subtracted_normalized_Mature B cells_H2.fcs
+## 13 / 14  reading in file  2011-08-25-AML09-a.A_cct_subtracted_normalized_Monocytes_H2.fcs
+## 14 / 14  reading in file  2011-08-25-AML09-a.A_cct_subtracted_normalized_Pre B cells_H2.fcs
+
+# tidy data
+VAR %&lt;&gt;% rename(channel = name, marker = desc)
+for(i in names(map.channel)){
+ VAR %&lt;&gt;% mutate(&quot;{i}&quot; := unlist(map.channel[[i]][channel]))
+}
+
+# create AnnData object
+ad = AnnData(
+  X = X,
+  var = VAR,
+  obs = OBS,
+  uns = list(
+    fcs_header = fcs.header
+  )
+)
+
+# save AnnData object
+path_output = path.expand(paste0(PATH, &#39;ad_annotated_cell_types.h5ad&#39;))
+anndata::write_h5ad(ad, path_output)
+</pre></div>
+</div>
+</section>
+<section id="load-anndata-object-in-python">
+<h2>Load AnnData object in python<a class="headerlink" href="#load-anndata-object-in-python" title="Permalink to this heading"></a></h2>
+<p>We now created the AnnData object and can use it in our python project</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>import anndata
+from pathlib import Path
+
+fpath = Path(r.path_output)
+assert fpath.is_file()
+ad = anndata.read_h5ad(fpath)
+print(ad)
+
+## AnnData object with n_obs × n_vars = 96381 × 39
+##     obs: &#39;fcs_file&#39;, &#39;celltype&#39;, &#39;complexcelltype&#39;, &#39;patient&#39;, &#39;ncells&#39;
+##     var: &#39;channel&#39;, &#39;marker&#39;, &#39;usedformanualannotation&#39;, &#39;usedforPhenoGraphclustering&#39;
+##     uns: &#39;fcs_header&#39;
+</pre></div>
+</div>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="tutorials.html" class="btn btn-neutral float-left" title="Tutorials" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="sparsesurv_api/sparsesurv.html" class="btn btn-neutral float-right" title="sparsesurv package" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright IBM Corp. 2022.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

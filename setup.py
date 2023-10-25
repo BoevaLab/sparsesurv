@@ -40,18 +40,17 @@ except FileNotFoundError:
 
 # TODO: Update these values according to the name of the module.
 setup(
-    name="survhive",
-    version=read_version("survhive/__init__.py"),  # single place for version
-    description="Installable survhive package. Modify as needed.",
+    name="sparsesurv",
+    version=read_version("sparsesurv/__init__.py"),  # single place for version
+    description="Installable sparsesurv package. Modify as needed.",
     long_description=open("README.md").read(),
-    url="https://github.com/BoevaLab/survhive",
-    author="Nikita Janakarajan, David Wissel",
-    author_email="jnikita@inf.ethz.ch",
+    url="https://github.com/BoevaLab/sparsesurv",
+    author="David Wissel, Nikita Janakarajan",
+    author_email="dwissel@inf.ethz.ch, jnikita@inf.ethz.ch",
     # the following exclusion is to prevent shipping of tests.
     # if you do include them, add pytest to the required packages.
     packages=find_packages(".", exclude=["*tests*"]),
-    package_data={"survhive": ["py.typed"]},
-
+    package_data={"sparsesurv": ["py.typed"]},
     extras_require={
         "vcs": VCS_REQUIREMENTS,
         "test": ["pytest", "pytest-cov"],
@@ -79,4 +78,3 @@ setup(
         "click",
     ],
 )
-

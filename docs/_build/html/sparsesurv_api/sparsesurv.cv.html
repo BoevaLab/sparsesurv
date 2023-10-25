@@ -1,0 +1,935 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.19: https://docutils.sourceforge.io/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>sparsesurv.cv module &mdash; sparsesurv  documentation</title>
+      <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/sphinx_highlight.js"></script>
+        <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="sparsesurv.eh module" href="sparsesurv.eh.html" />
+    <link rel="prev" title="sparsesurv.constants module" href="sparsesurv.constants.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            sparsesurv
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../overview.html">Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="sparsesurv.html">API</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="sparsesurv.aft.html">sparsesurv.aft module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="sparsesurv.baseline_hazard_estimation.html">sparsesurv.baseline_hazard_estimation module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="sparsesurv.compat.html">sparsesurv.compat module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="sparsesurv.constants.html">sparsesurv.constants module</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">sparsesurv.cv module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#summary">Summary</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#reference">Reference</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#sparsesurv.cv.BaseKDSurv"><code class="docutils literal notranslate"><span class="pre">BaseKDSurv</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sparsesurv.cv.KDPHElasticNetCV"><code class="docutils literal notranslate"><span class="pre">KDPHElasticNetCV</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sparsesurv.cv.KDAFTElasticNetCV"><code class="docutils literal notranslate"><span class="pre">KDAFTElasticNetCV</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#sparsesurv.cv.KDEHMultiTaskLassoCV"><code class="docutils literal notranslate"><span class="pre">KDEHMultiTaskLassoCV</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="sparsesurv.eh.html">sparsesurv.eh module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="sparsesurv.gradients.html">sparsesurv.gradients module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="sparsesurv.loss.html">sparsesurv.loss module</a></li>
+<li class="toctree-l2"><a class="reference internal" href="sparsesurv.utils.html">sparsesurv.utils module</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../references.html">References</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">sparsesurv</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="sparsesurv.html">sparsesurv package</a></li>
+      <li class="breadcrumb-item active">sparsesurv.cv module</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/sparsesurv_api/sparsesurv.cv.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="module-sparsesurv.cv">
+<span id="sparsesurv-cv-module"></span><h1>sparsesurv.cv module<a class="headerlink" href="#module-sparsesurv.cv" title="Permalink to this heading"></a></h1>
+<section id="summary">
+<h2>Summary<a class="headerlink" href="#summary" title="Permalink to this heading"></a></h2>
+<p>Classes:</p>
+<table class="autosummary longtable docutils align-default">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#sparsesurv.cv.BaseKDSurv" title="sparsesurv.cv.BaseKDSurv"><code class="xref py py-obj docutils literal notranslate"><span class="pre">BaseKDSurv</span></code></a></p></td>
+<td><p>Parent class to fit distilled sparse semi-parametric right-censored survival</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#sparsesurv.cv.KDAFTElasticNetCV" title="sparsesurv.cv.KDAFTElasticNetCV"><code class="xref py py-obj docutils literal notranslate"><span class="pre">KDAFTElasticNetCV</span></code></a></p></td>
+<td><p>Child-class of BaseKDSurv to perform knowledge distillation specifically for semiparametric AFT models.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#sparsesurv.cv.KDEHMultiTaskLassoCV" title="sparsesurv.cv.KDEHMultiTaskLassoCV"><code class="xref py py-obj docutils literal notranslate"><span class="pre">KDEHMultiTaskLassoCV</span></code></a></p></td>
+<td><p>Child-class of BaseKDSurv to perform knowledge distillation specifically for semiparametric EH models.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#sparsesurv.cv.KDPHElasticNetCV" title="sparsesurv.cv.KDPHElasticNetCV"><code class="xref py py-obj docutils literal notranslate"><span class="pre">KDPHElasticNetCV</span></code></a></p></td>
+<td><p>Child-class of BaseKDSurv to perform knowledge distillation specifically for Cox PH models.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="reference">
+<h2>Reference<a class="headerlink" href="#reference" title="Permalink to this heading"></a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="sparsesurv.cv.BaseKDSurv">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">BaseKDSurv</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">l1_ratio</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">eps</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.001</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_alphas</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">100</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_iter</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">100</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tol</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0001</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cv</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_epochs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">50000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">p0</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prune</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_jobs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stratify_cv</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">seed</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">42</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">shuffle_cv</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cv_score_method</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'linear_predictor'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_coef</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">inf</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha_type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'min'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/sparsesurv/cv.html#BaseKDSurv"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sparsesurv.cv.BaseKDSurv" title="Permalink to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">SurvivalMixin</span></code>, <code class="xref py py-class docutils literal notranslate"><span class="pre">ElasticNetCV</span></code></p>
+<dl class="simple">
+<dt>Parent class to fit distilled sparse semi-parametric right-censored survival</dt><dd><p>models using cross validation.</p>
+</dd>
+</dl>
+<p class="rubric">Notes</p>
+<p>This class is largely adapted from the <cite>ElasticNetCV</cite> implementations
+in <cite>sklearn</cite> and <cite>celer</cite>.</p>
+<div class="admonition seealso">
+<p class="admonition-title">See also</p>
+<p>sklearn.linear_model.ElasticNetCV
+celer.ElasticNetCV</p>
+</div>
+<dl class="py method">
+<dt class="sig sig-object py" id="sparsesurv.cv.BaseKDSurv.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">l1_ratio</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">eps</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.001</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_alphas</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">100</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_iter</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">100</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tol</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0001</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cv</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_epochs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">50000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">p0</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prune</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_jobs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stratify_cv</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">seed</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">42</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">shuffle_cv</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cv_score_method</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'linear_predictor'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_coef</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">inf</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha_type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'min'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/sparsesurv/cv.html#BaseKDSurv.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sparsesurv.cv.BaseKDSurv.__init__" title="Permalink to this definition"></a></dt>
+<dd><p>Constructor.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>l1_ratio</strong> (<em>Union</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><em>float</em></a><em>, </em><em>List</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><em>float</em></a><em>]</em><em>]</em><em>, </em><em>optional</em>) – Float between 0 and 1 passed
+to ElasticNet (scaling between l1 and l2 penalties). For <code class="docutils literal notranslate"><span class="pre">l1_ratio</span> <span class="pre">=</span> <span class="pre">0</span></code>
+the penalty is an L2 penalty. For <code class="docutils literal notranslate"><span class="pre">l1_ratio</span> <span class="pre">=</span> <span class="pre">1</span></code> it is an L1 penalty.
+For <code class="docutils literal notranslate"><span class="pre">0</span> <span class="pre">&lt;</span> <span class="pre">l1_ratio</span> <span class="pre">&lt;</span> <span class="pre">1</span></code>, the penalty is a combination of L1 and L2.
+This parameter can be a list, in which case the different values are tested
+by cross-validation and the one giving the best prediction score is used.
+Note that a good choice of list of values for l1_ratio is often to put more
+values close to 1 (i.e. Lasso) and less close to 0 (i.e. Ridge),
+as in <code class="docutils literal notranslate"><span class="pre">[.1,</span> <span class="pre">.5,</span> <span class="pre">.7,</span> <span class="pre">.9,</span> <span class="pre">.95,</span> <span class="pre">.99,</span> <span class="pre">1]</span></code>. Defaults to 1.0.</p></li>
+<li><p><strong>eps</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><em>float</em></a><em>, </em><em>optional</em>) – Length of the path. <code class="docutils literal notranslate"><span class="pre">eps=1e-3</span></code> means that
+<code class="docutils literal notranslate"><span class="pre">alpha_min</span> <span class="pre">/</span> <span class="pre">alpha_max</span> <span class="pre">=</span> <span class="pre">1e-3</span></code>. Defaults to 1e-3.</p></li>
+<li><p><strong>n_alphas</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><em>int</em></a><em>, </em><em>optional</em>) – Number of alphas along the regularization path,
+used for each l1_ratio. Defaults to 100.</p></li>
+<li><p><strong>max_iter</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><em>int</em></a><em>, </em><em>optional</em>) – The maximum number of iterations. Defaults to 100.</p></li>
+<li><p><strong>tol</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><em>float</em></a><em>, </em><em>optional</em>) – The tolerance for the optimization: if the updates are
+smaller than <code class="docutils literal notranslate"><span class="pre">tol</span></code>, the optimization code checks the dual gap for optimality
+and continues until it is smaller than <code class="docutils literal notranslate"><span class="pre">tol</span></code>. Defaults to 1e-4.</p></li>
+<li><p><strong>cv</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><em>int</em></a><em>, </em><em>optional</em>) – Number of folds to perform to select hyperparameters.
+Defaults to 5. See also <cite>stratify_cv</cite>.</p></li>
+<li><p><strong>verbose</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><em>int</em></a><em>, </em><em>optional</em>) – Degree of verbosity. Defaults to 0.</p></li>
+<li><p><strong>max_epochs</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><em>int</em></a><em>, </em><em>optional</em>) – Maximum number of coordinate descent epochs when
+solving a subproblem. Defaults to 50000.</p></li>
+<li><p><strong>p0</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><em>int</em></a><em>, </em><em>optional</em>) – Number of features in the first working set. Defaults to 10.</p></li>
+<li><p><strong>prune</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><em>bool</em></a><em>, </em><em>optional</em>) – Whether to use pruning when growing the working sets.
+Defaults to True.</p></li>
+<li><p><strong>n_jobs</strong> (<em>Optional</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><em>int</em></a><em>]</em><em>, </em><em>optional</em>) – Number of CPUs to use during the cross validation.
+<code class="docutils literal notranslate"><span class="pre">None</span></code> means 1 unless in a <code class="xref py py-obj docutils literal notranslate"><span class="pre">joblib.parallel_backend</span></code> context.
+<code class="docutils literal notranslate"><span class="pre">-1</span></code> means using all processors. See <span class="xref std std-term">Glossary</span>
+for more details. Defaults to None.</p></li>
+<li><p><strong>stratify_cv</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><em>bool</em></a><em>, </em><em>optional</em>) – Whether to perform the cross-validation stratified
+on the event indicator or not. Defaults to True.</p></li>
+<li><p><strong>seed</strong> (<em>Optional</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><em>int</em></a><em>]</em><em>, </em><em>optional</em>) – Random seed. Defaults to 42.</p></li>
+<li><p><strong>shuffle_cv</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><em>bool</em></a><em>, </em><em>optional</em>) – Whether to perform shuffling to generate
+CV fold indices. Defaults to False.</p></li>
+<li><p><strong>cv_score_method</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><em>str</em></a><em>, </em><em>optional</em>) – Which scoring method to use. Defaults to “linear_predictor”.
+Must be one of “linear_predictor”, “mse”, “basic” and “vvh”.
+See Notes.</p></li>
+<li><p><strong>max_coef</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><em>float</em></a><em>, </em><em>optional</em>) – Maximum number of non-zero covariates to be selected
+with chosen optimal regularization hyperparameter. Defaults to np.inf.
+See Notes.</p></li>
+<li><p><strong>alpha_type</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><em>str</em></a><em>, </em><em>optional</em>) – How to select the optimal regularization hyperparameter. Defaults to “min”.
+Must be one of “min”, “1se” and “pcvl”. See Notes.</p></li>
+</ul>
+</dd>
+</dl>
+<p class="rubric">Notes</p>
+<dl>
+<dt><cite>cv_score_method</cite>:</dt><dd><p>Decides how the score which is used to select the optimal
+regularization hyperparameter is selected. The <cite>basic</cite>
+approach may suffer from issues with small event sizes or
+for large number of folds [1]. Meanwhile, the <cite>mse</cite> approach
+may yield good teacher-student fidelity, but suboptimal
+survival predictions.</p>
+<ul class="simple">
+<li><p><cite>mse</cite>: Calculates the score as the mean squared error</p></li>
+</ul>
+<p>of the teacher predictions and the student predictions.
+The MSE is calculated per test fold and aggregated across
+folds using the arithmetic mean.
+- <cite>linear_predictor</cite>: Calculates out of sample predictions
+for each test fold and caches them. Once out of sample
+predictions are produced for each sample, an appropriate
+survival loss between student predictions and the observed
+time and censoring indactor is calculated once, using only
+the cached out of sample predictions. See [1].
+- <cite>basic</cite>: Calculates the score as an appropriate survival
+loss between student predictions and observed time
+and event indicators in each test fold. The overall
+loss is obtained as an arithmetic mean across all folds.
+- <cite>vvh</cite>: Calculates the test score in each test fold as the difference
+between the score across all samples in that fold and only
+the training samples in that fold.The overall loss
+is obtained as an arithmetic mean across all folds. See [1, 2].</p>
+</dd>
+<dt><cite>max_coef</cite>:</dt><dd><p>Places an upper bound on the number of non-zero coefficients
+the selected model returned after cross validation may have.</p>
+<p>In particular, if <cite>max_coef=k</cite>, during scoring, only models
+with a total number of non-zero coefficients less than k are
+considered.</p>
+<p>Currently, we still calculate the solutions for these
+models, we just disregard them at scoring time.</p>
+</dd>
+<dt><cite>alpha_type</cite>:</dt><dd><p>Decides how the regularization hyperparameter is selected.
+For a given <cite>cv_score_method</cite> and <cite>max_coef</cite>, we end up with
+a vector of length k &gt; 1, that contains numeric scores,
+where lower is better (i.e., losses). <cite>alpha_type</cite> decides
+how we choose among the regularization hyperparameters corresponding
+to this loss vector.</p>
+<ul class="simple">
+<li><p><cite>min</cite>: Selects the regularization hyperparameter that</p></li>
+</ul>
+<p>yields the minimum loss.</p>
+<ul class="simple">
+<li><p><cite>1se</cite>: Selects the highest regularization hyperparameter</p></li>
+</ul>
+<p>that is within one standard error of the mean loss of the
+regularization hyperparameter with minimum loss [3].</p>
+<ul class="simple">
+<li><p><cite>pcvl</cite>: Selects a hyperparameter inbetween <cite>min</cite> and</p></li>
+</ul>
+<p><cite>1se</cite> via a penalization term. See [4].</p>
+</dd>
+</dl>
+<p class="rubric">References</p>
+<p>[1] Dai, Biyue, and Patrick Breheny. “Cross validation approaches for penalized Cox regression.” arXiv preprint arXiv:1905.10432 (2019).</p>
+<p>[2] Verweij, Pierre JM, and Hans C. Van Houwelingen. “Cross‐validation in survival analysis.” Statistics in medicine 12.24 (1993): 2305-2314.</p>
+<p>[3] Hastie, Trevor, et al. The elements of statistical learning: data mining, inference, and prediction. Vol. 2. New York: Springer, 2009.</p>
+<p>[4] Ternès, Nils, Federico Rotolo, and Stefan Michiels. “Empirical extensions of the lasso penalty to reduce the false discovery rate in high‐dimensional Cox regression models.” Statistics in medicine 35.15 (2016): 2561-2573.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sparsesurv.cv.BaseKDSurv.fit">
+<span class="sig-name descname"><span class="pre">fit</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">y</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sample_weight</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/sparsesurv/cv.html#BaseKDSurv.fit"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sparsesurv.cv.BaseKDSurv.fit" title="Permalink to this definition"></a></dt>
+<dd><p>Fit knowledge distilled semi-parametric survival model to given data.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>X</strong> (<em>npt.NDArray</em><em>[</em><em>np.float64</em><em>]</em>) – Design matrix.</p></li>
+<li><p><strong>y</strong> (<em>npt.NDArray</em><em>[</em><em>np.float64</em><em>]</em>) – Linear predictor as returned by the teacher.</p></li>
+<li><p><strong>sample_weight</strong> (<em>npt.NDArray</em><em>[</em><em>np.float64</em><em>]</em><em>, </em><em>optional</em>) – Sample weight used during model fitting.
+Currently unused and kept for sklearn compatibility. Defaults to None.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.12)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">None</span></code></a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sparsesurv.cv.BaseKDSurv._is_multitask">
+<span class="sig-name descname"><span class="pre">_is_multitask</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/sparsesurv/cv.html#BaseKDSurv._is_multitask"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sparsesurv.cv.BaseKDSurv._is_multitask" title="Permalink to this definition"></a></dt>
+<dd><p>Return whether the model instance in question is a multitask model.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sparsesurv.cv.BaseKDSurv.predict">
+<span class="sig-name descname"><span class="pre">predict</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/sparsesurv/cv.html#BaseKDSurv.predict"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sparsesurv.cv.BaseKDSurv.predict" title="Permalink to this definition"></a></dt>
+<dd><p>Calculate linear predictor corresponding to query design matrix X.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>X</strong> (<em>npt.NDArray</em><em>[</em><em>np.float64</em><em>]</em>) – Query design matrix.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Linear predictor of the samples.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>npt.NDArray[np.float64]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sparsesurv.cv.BaseKDSurv.__abstractmethods__">
+<span class="sig-name descname"><span class="pre">__abstractmethods__</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">frozenset({})</span></em><a class="headerlink" href="#sparsesurv.cv.BaseKDSurv.__abstractmethods__" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sparsesurv.cv.BaseKDSurv.__doc__">
+<span class="sig-name descname"><span class="pre">__doc__</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'Parent</span> <span class="pre">class</span> <span class="pre">to</span> <span class="pre">fit</span> <span class="pre">distilled</span> <span class="pre">sparse</span> <span class="pre">semi-parametric</span> <span class="pre">right-censored</span> <span class="pre">survival\n</span>&#160;&#160;&#160;&#160;&#160;&#160;&#160; <span class="pre">models</span> <span class="pre">using</span> <span class="pre">cross</span> <span class="pre">validation.\n\n</span>&#160;&#160;&#160; <span class="pre">Notes:\n</span>&#160;&#160;&#160;&#160;&#160;&#160;&#160; <span class="pre">This</span> <span class="pre">class</span> <span class="pre">is</span> <span class="pre">largely</span> <span class="pre">adapted</span> <span class="pre">from</span> <span class="pre">the</span> <span class="pre">`ElasticNetCV`</span> <span class="pre">implementations\n</span>&#160;&#160;&#160;&#160;&#160;&#160;&#160; <span class="pre">in</span> <span class="pre">`sklearn`</span> <span class="pre">and</span> <span class="pre">`celer`.\n\n</span>&#160;&#160;&#160; <span class="pre">See</span> <span class="pre">Also:\n</span>&#160;&#160;&#160;&#160;&#160;&#160;&#160; <span class="pre">sklearn.linear_model.ElasticNetCV\n</span>&#160;&#160;&#160;&#160;&#160;&#160;&#160; <span class="pre">celer.ElasticNetCV\n</span>&#160;&#160;&#160; <span class="pre">'</span></em><a class="headerlink" href="#sparsesurv.cv.BaseKDSurv.__doc__" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sparsesurv.cv.BaseKDSurv.__module__">
+<span class="sig-name descname"><span class="pre">__module__</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'sparsesurv.cv'</span></em><a class="headerlink" href="#sparsesurv.cv.BaseKDSurv.__module__" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sparsesurv.cv.BaseKDSurv._abc_impl">
+<span class="sig-name descname"><span class="pre">_abc_impl</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">&lt;_abc._abc_data</span> <span class="pre">object&gt;</span></em><a class="headerlink" href="#sparsesurv.cv.BaseKDSurv._abc_impl" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="sparsesurv.cv.KDPHElasticNetCV">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">KDPHElasticNetCV</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">tie_correction</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'efron'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">l1_ratio</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">eps</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.001</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_alphas</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">100</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_iter</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">100</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tol</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0001</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cv</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_epochs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">50000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">p0</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prune</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_jobs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stratify_cv</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">seed</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">42</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">shuffle_cv</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cv_score_method</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'linear_predictor'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_coef</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">inf</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha_type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'min'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/sparsesurv/cv.html#KDPHElasticNetCV"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sparsesurv.cv.KDPHElasticNetCV" title="Permalink to this definition"></a></dt>
+<dd><p>Bases: <a class="reference internal" href="#sparsesurv.cv.BaseKDSurv" title="sparsesurv.cv.BaseKDSurv"><code class="xref py py-class docutils literal notranslate"><span class="pre">BaseKDSurv</span></code></a></p>
+<p>Child-class of BaseKDSurv to perform knowledge distillation specifically for Cox PH models.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="sparsesurv.cv.KDPHElasticNetCV.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">tie_correction</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'efron'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">l1_ratio</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">eps</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.001</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_alphas</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">100</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_iter</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">100</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tol</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0001</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cv</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_epochs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">50000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">p0</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prune</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_jobs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stratify_cv</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">seed</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">42</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">shuffle_cv</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cv_score_method</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'linear_predictor'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_coef</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">inf</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha_type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'min'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/sparsesurv/cv.html#KDPHElasticNetCV.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sparsesurv.cv.KDPHElasticNetCV.__init__" title="Permalink to this definition"></a></dt>
+<dd><p>Constructor.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>tie_correction</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><em>str</em></a>) – Which method to use to correct for ties</p></li>
+<li><p><strong>&quot;efron&quot;.</strong> (<em>in observed survival times. Must be one</em><em> of </em><em>&quot;breslow&quot; or</em>) – </p></li>
+<li><p><strong>l1_ratio</strong> (<em>Union</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><em>float</em></a><em>, </em><em>List</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><em>float</em></a><em>]</em><em>]</em><em>, </em><em>optional</em>) – Float between 0 and 1 passed
+to ElasticNet (scaling between l1 and l2 penalties). For <code class="docutils literal notranslate"><span class="pre">l1_ratio</span> <span class="pre">=</span> <span class="pre">0</span></code>
+the penalty is an L2 penalty. For <code class="docutils literal notranslate"><span class="pre">l1_ratio</span> <span class="pre">=</span> <span class="pre">1</span></code> it is an L1 penalty.
+For <code class="docutils literal notranslate"><span class="pre">0</span> <span class="pre">&lt;</span> <span class="pre">l1_ratio</span> <span class="pre">&lt;</span> <span class="pre">1</span></code>, the penalty is a combination of L1 and L2.
+This parameter can be a list, in which case the different values are tested
+by cross-validation and the one giving the best prediction score is used.
+Note that a good choice of list of values for l1_ratio is often to put more
+values close to 1 (i.e. Lasso) and less close to 0 (i.e. Ridge),
+as in <code class="docutils literal notranslate"><span class="pre">[.1,</span> <span class="pre">.5,</span> <span class="pre">.7,</span> <span class="pre">.9,</span> <span class="pre">.95,</span> <span class="pre">.99,</span> <span class="pre">1]</span></code>. Defaults to 1.0.</p></li>
+<li><p><strong>eps</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><em>float</em></a><em>, </em><em>optional</em>) – Length of the path. <code class="docutils literal notranslate"><span class="pre">eps=1e-3</span></code> means that
+<code class="docutils literal notranslate"><span class="pre">alpha_min</span> <span class="pre">/</span> <span class="pre">alpha_max</span> <span class="pre">=</span> <span class="pre">1e-3</span></code>. Defaults to 1e-3.</p></li>
+<li><p><strong>n_alphas</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><em>int</em></a><em>, </em><em>optional</em>) – Number of alphas along the regularization path,
+used for each l1_ratio. Defaults to 100.</p></li>
+<li><p><strong>max_iter</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><em>int</em></a><em>, </em><em>optional</em>) – The maximum number of iterations. Defaults to 100.</p></li>
+<li><p><strong>tol</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><em>float</em></a><em>, </em><em>optional</em>) – The tolerance for the optimization: if the updates are
+smaller than <code class="docutils literal notranslate"><span class="pre">tol</span></code>, the optimization code checks the dual gap for optimality
+and continues until it is smaller than <code class="docutils literal notranslate"><span class="pre">tol</span></code>. Defaults to 1e-4.</p></li>
+<li><p><strong>cv</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><em>int</em></a><em>, </em><em>optional</em>) – Number of folds to perform to select hyperparameters.
+Defaults to 5. See also <cite>stratify_cv</cite>.</p></li>
+<li><p><strong>verbose</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><em>int</em></a><em>, </em><em>optional</em>) – Degree of verbosity. Defaults to 0.</p></li>
+<li><p><strong>max_epochs</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><em>int</em></a><em>, </em><em>optional</em>) – Maximum number of coordinate descent epochs when
+solving a subproblem. Defaults to 50000.</p></li>
+<li><p><strong>p0</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><em>int</em></a><em>, </em><em>optional</em>) – Number of features in the first working set. Defaults to 10.</p></li>
+<li><p><strong>prune</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><em>bool</em></a><em>, </em><em>optional</em>) – Whether to use pruning when growing the working sets.
+Defaults to True.</p></li>
+<li><p><strong>n_jobs</strong> (<em>Optional</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><em>int</em></a><em>]</em><em>, </em><em>optional</em>) – Number of CPUs to use during the cross validation.
+<code class="docutils literal notranslate"><span class="pre">None</span></code> means 1 unless in a <code class="xref py py-obj docutils literal notranslate"><span class="pre">joblib.parallel_backend</span></code> context.
+<code class="docutils literal notranslate"><span class="pre">-1</span></code> means using all processors. See <span class="xref std std-term">Glossary</span>
+for more details. Defaults to None.</p></li>
+<li><p><strong>stratify_cv</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><em>bool</em></a><em>, </em><em>optional</em>) – Whether to perform the cross-validation stratified
+on the event indicator or not. Defaults to True.</p></li>
+<li><p><strong>seed</strong> (<em>Optional</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><em>int</em></a><em>]</em><em>, </em><em>optional</em>) – Random seed. Defaults to 42.</p></li>
+<li><p><strong>shuffle_cv</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><em>bool</em></a><em>, </em><em>optional</em>) – Whether to perform shuffling to generate
+CV fold indices. Defaults to False.</p></li>
+<li><p><strong>cv_score_method</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><em>str</em></a><em>, </em><em>optional</em>) – Which scoring method to use. Defaults to “linear_predictor”.
+Must be one of “linear_predictor”, “mse”, “basic” and “vvh”.
+See Notes.</p></li>
+<li><p><strong>max_coef</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><em>float</em></a><em>, </em><em>optional</em>) – Maximum number of non-zero covariates to be selected
+with chosen optimal regularization hyperparameter. Defaults to np.inf.
+See Notes.</p></li>
+<li><p><strong>alpha_type</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><em>str</em></a><em>, </em><em>optional</em>) – How to select the optimal regularization hyperparameter. Defaults to “min”.
+Must be one of “min”, “1se” and “pcvl”. See Notes.</p></li>
+</ul>
+</dd>
+</dl>
+<p class="rubric">Notes</p>
+<dl>
+<dt><cite>cv_score_method</cite>:</dt><dd><p>Decides how the score which is used to select the optimal
+regularization hyperparameter is selected. The <cite>basic</cite>
+approach may suffer from issues with small event sizes or
+for large number of folds [1]. Meanwhile, the <cite>mse</cite> approach
+may yield good teacher-student fidelity, but suboptimal
+survival predictions.</p>
+<ul class="simple">
+<li><p><cite>mse</cite>: Calculates the score as the mean squared error</p></li>
+</ul>
+<p>of the teacher predictions and the student predictions.
+The MSE is calculated per test fold and aggregated across
+folds using the arithmetic mean.
+- <cite>linear_predictor</cite>: Calculates out of sample predictions
+for each test fold and caches them. Once out of sample
+predictions are produced for each sample, an appropriate
+survival loss between student predictions and the observed
+time and censoring indactor is calculated once, using only
+the cached out of sample predictions. See [1].
+- <cite>basic</cite>: Calculates the score as an appropriate survival
+loss between student predictions and observed time
+and event indicators in each test fold. The overall
+loss is obtained as an arithmetic mean across all folds.
+- <cite>vvh</cite>: Calculates the test score in each test fold as the difference
+between the score across all samples in that fold and only
+the training samples in that fold.The overall loss
+is obtained as an arithmetic mean across all folds. See [1, 2].</p>
+</dd>
+<dt><cite>max_coef</cite>:</dt><dd><p>Places an upper bound on the number of non-zero coefficients
+the selected model returned after cross validation may have.</p>
+<p>In particular, if <cite>max_coef=k</cite>, during scoring, only models
+with a total number of non-zero coefficients less than k are
+considered.</p>
+<p>Currently, we still calculate the solutions for these
+models, we just disregard them at scoring time.</p>
+</dd>
+<dt><cite>alpha_type</cite>:</dt><dd><p>Decides how the regularization hyperparameter is selected.
+For a given <cite>cv_score_method</cite> and <cite>max_coef</cite>, we end up with
+a vector of length k &gt; 1, that contains numeric scores,
+where lower is better (i.e., losses). <cite>alpha_type</cite> decides
+how we choose among the regularization hyperparameters corresponding
+to this loss vector.</p>
+<ul class="simple">
+<li><p><cite>min</cite>: Selects the regularization hyperparameter that</p></li>
+</ul>
+<p>yields the minimum loss.</p>
+<ul class="simple">
+<li><p><cite>1se</cite>: Selects the highest regularization hyperparameter</p></li>
+</ul>
+<p>that is within one standard error of the mean loss of the
+regularization hyperparameter with minimum loss [3].</p>
+<ul class="simple">
+<li><p><cite>pcvl</cite>: Selects a hyperparameter inbetween <cite>min</cite> and</p></li>
+</ul>
+<p><cite>1se</cite> via a penalization term. See [4].</p>
+</dd>
+</dl>
+<p class="rubric">References</p>
+<p>[1] Dai, Biyue, and Patrick Breheny. “Cross validation approaches for penalized Cox regression.” arXiv preprint arXiv:1905.10432 (2019).</p>
+<p>[2] Verweij, Pierre JM, and Hans C. Van Houwelingen. “Cross‐validation in survival analysis.” Statistics in medicine 12.24 (1993): 2305-2314.</p>
+<p>[3] Hastie, Trevor, et al. The elements of statistical learning: data mining, inference, and prediction. Vol. 2. New York: Springer, 2009.</p>
+<p>[4] Ternès, Nils, Federico Rotolo, and Stefan Michiels. “Empirical extensions of the lasso penalty to reduce the false discovery rate in high‐dimensional Cox regression models.” Statistics in medicine 35.15 (2016): 2561-2573.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sparsesurv.cv.KDPHElasticNetCV.predict_cumulative_hazard_function">
+<span class="sig-name descname"><span class="pre">predict_cumulative_hazard_function</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/sparsesurv/cv.html#KDPHElasticNetCV.predict_cumulative_hazard_function"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sparsesurv.cv.KDPHElasticNetCV.predict_cumulative_hazard_function" title="Permalink to this definition"></a></dt>
+<dd><p>Predict cumulative hazard function for patients in <cite>X</cite> at times <cite>time</cite>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>X</strong> (<em>npt.NDArray</em><em>[</em><em>np.float64</em><em>]</em>) – Query design matrix with u rows and p columns.</p></li>
+<li><p><strong>time</strong> (<em>npt.NDArray</em><em>[</em><em>np.float64</em><em>]</em>) – Query times of dimension k. Assumed to be unique and ordered.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.12)"><strong>ValueError</strong></a> – Raises ValueError when the event times are not unique and sorted in ascending order.</p>
+</dd>
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p><dl class="simple">
+<dt>Query cumulative hazard function for samples 1, …, u</dt><dd><p>and times 1, …, k. Thus, has u rows and k columns.</p>
+</dd>
+</dl>
+</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>npt.NDArray[np.float64]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sparsesurv.cv.KDPHElasticNetCV.__abstractmethods__">
+<span class="sig-name descname"><span class="pre">__abstractmethods__</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">frozenset({})</span></em><a class="headerlink" href="#sparsesurv.cv.KDPHElasticNetCV.__abstractmethods__" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sparsesurv.cv.KDPHElasticNetCV.__doc__">
+<span class="sig-name descname"><span class="pre">__doc__</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'Child-class</span> <span class="pre">of</span> <span class="pre">BaseKDSurv</span> <span class="pre">to</span> <span class="pre">perform</span> <span class="pre">knowledge</span> <span class="pre">distillation</span> <span class="pre">specifically</span> <span class="pre">for</span> <span class="pre">Cox</span> <span class="pre">PH</span> <span class="pre">models.'</span></em><a class="headerlink" href="#sparsesurv.cv.KDPHElasticNetCV.__doc__" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sparsesurv.cv.KDPHElasticNetCV.__module__">
+<span class="sig-name descname"><span class="pre">__module__</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'sparsesurv.cv'</span></em><a class="headerlink" href="#sparsesurv.cv.KDPHElasticNetCV.__module__" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sparsesurv.cv.KDPHElasticNetCV._abc_impl">
+<span class="sig-name descname"><span class="pre">_abc_impl</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">&lt;_abc._abc_data</span> <span class="pre">object&gt;</span></em><a class="headerlink" href="#sparsesurv.cv.KDPHElasticNetCV._abc_impl" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="sparsesurv.cv.KDAFTElasticNetCV">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">KDAFTElasticNetCV</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">bandwidth</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">l1_ratio</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">eps</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.001</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_alphas</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">100</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_iter</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">100</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tol</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0001</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cv</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_epochs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">50000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">p0</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prune</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_jobs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stratify_cv</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">seed</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">42</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">shuffle_cv</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cv_score_method</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'linear_predictor'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_coef</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">inf</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha_type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'min'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/sparsesurv/cv.html#KDAFTElasticNetCV"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sparsesurv.cv.KDAFTElasticNetCV" title="Permalink to this definition"></a></dt>
+<dd><p>Bases: <a class="reference internal" href="#sparsesurv.cv.BaseKDSurv" title="sparsesurv.cv.BaseKDSurv"><code class="xref py py-class docutils literal notranslate"><span class="pre">BaseKDSurv</span></code></a></p>
+<p>Child-class of BaseKDSurv to perform knowledge distillation specifically for semiparametric AFT models.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="sparsesurv.cv.KDAFTElasticNetCV.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">bandwidth</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">l1_ratio</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">eps</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.001</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_alphas</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">100</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_iter</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">100</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tol</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0001</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cv</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_epochs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">50000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">p0</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prune</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_jobs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stratify_cv</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">seed</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">42</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">shuffle_cv</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cv_score_method</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'linear_predictor'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_coef</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">inf</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha_type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'min'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/sparsesurv/cv.html#KDAFTElasticNetCV.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sparsesurv.cv.KDAFTElasticNetCV.__init__" title="Permalink to this definition"></a></dt>
+<dd><p>Constructor.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>bandwidth</strong> (<em>Optional</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><em>float</em></a><em>]</em>) – Bandwidth to use for kernel-smoothing
+the profile likelihood. If not provided, a theoretically
+motivated profile likelihood is estimated based on the data.</p></li>
+<li><p><strong>&quot;efron&quot;.</strong> (<em>in observed survival times. Must be one</em><em> of </em><em>&quot;breslow&quot; or</em>) – </p></li>
+<li><p><strong>l1_ratio</strong> (<em>Union</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><em>float</em></a><em>, </em><em>List</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><em>float</em></a><em>]</em><em>]</em><em>, </em><em>optional</em>) – Float between 0 and 1 passed
+to ElasticNet (scaling between l1 and l2 penalties). For <code class="docutils literal notranslate"><span class="pre">l1_ratio</span> <span class="pre">=</span> <span class="pre">0</span></code>
+the penalty is an L2 penalty. For <code class="docutils literal notranslate"><span class="pre">l1_ratio</span> <span class="pre">=</span> <span class="pre">1</span></code> it is an L1 penalty.
+For <code class="docutils literal notranslate"><span class="pre">0</span> <span class="pre">&lt;</span> <span class="pre">l1_ratio</span> <span class="pre">&lt;</span> <span class="pre">1</span></code>, the penalty is a combination of L1 and L2.
+This parameter can be a list, in which case the different values are tested
+by cross-validation and the one giving the best prediction score is used.
+Note that a good choice of list of values for l1_ratio is often to put more
+values close to 1 (i.e. Lasso) and less close to 0 (i.e. Ridge),
+as in <code class="docutils literal notranslate"><span class="pre">[.1,</span> <span class="pre">.5,</span> <span class="pre">.7,</span> <span class="pre">.9,</span> <span class="pre">.95,</span> <span class="pre">.99,</span> <span class="pre">1]</span></code>. Defaults to 1.0.</p></li>
+<li><p><strong>eps</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><em>float</em></a><em>, </em><em>optional</em>) – Length of the path. <code class="docutils literal notranslate"><span class="pre">eps=1e-3</span></code> means that
+<code class="docutils literal notranslate"><span class="pre">alpha_min</span> <span class="pre">/</span> <span class="pre">alpha_max</span> <span class="pre">=</span> <span class="pre">1e-3</span></code>. Defaults to 1e-3.</p></li>
+<li><p><strong>n_alphas</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><em>int</em></a><em>, </em><em>optional</em>) – Number of alphas along the regularization path,
+used for each l1_ratio. Defaults to 100.</p></li>
+<li><p><strong>max_iter</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><em>int</em></a><em>, </em><em>optional</em>) – The maximum number of iterations. Defaults to 100.</p></li>
+<li><p><strong>tol</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><em>float</em></a><em>, </em><em>optional</em>) – The tolerance for the optimization: if the updates are
+smaller than <code class="docutils literal notranslate"><span class="pre">tol</span></code>, the optimization code checks the dual gap for optimality
+and continues until it is smaller than <code class="docutils literal notranslate"><span class="pre">tol</span></code>. Defaults to 1e-4.</p></li>
+<li><p><strong>cv</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><em>int</em></a><em>, </em><em>optional</em>) – Number of folds to perform to select hyperparameters.
+Defaults to 5. See also <cite>stratify_cv</cite>.</p></li>
+<li><p><strong>verbose</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><em>int</em></a><em>, </em><em>optional</em>) – Degree of verbosity. Defaults to 0.</p></li>
+<li><p><strong>max_epochs</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><em>int</em></a><em>, </em><em>optional</em>) – Maximum number of coordinate descent epochs when
+solving a subproblem. Defaults to 50000.</p></li>
+<li><p><strong>p0</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><em>int</em></a><em>, </em><em>optional</em>) – Number of features in the first working set. Defaults to 10.</p></li>
+<li><p><strong>prune</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><em>bool</em></a><em>, </em><em>optional</em>) – Whether to use pruning when growing the working sets.
+Defaults to True.</p></li>
+<li><p><strong>n_jobs</strong> (<em>Optional</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><em>int</em></a><em>]</em><em>, </em><em>optional</em>) – Number of CPUs to use during the cross validation.
+<code class="docutils literal notranslate"><span class="pre">None</span></code> means 1 unless in a <code class="xref py py-obj docutils literal notranslate"><span class="pre">joblib.parallel_backend</span></code> context.
+<code class="docutils literal notranslate"><span class="pre">-1</span></code> means using all processors. See <span class="xref std std-term">Glossary</span>
+for more details. Defaults to None.</p></li>
+<li><p><strong>stratify_cv</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><em>bool</em></a><em>, </em><em>optional</em>) – Whether to perform the cross-validation stratified
+on the event indicator or not. Defaults to True.</p></li>
+<li><p><strong>seed</strong> (<em>Optional</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><em>int</em></a><em>]</em><em>, </em><em>optional</em>) – Random seed. Defaults to 42.</p></li>
+<li><p><strong>shuffle_cv</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><em>bool</em></a><em>, </em><em>optional</em>) – Whether to perform shuffling to generate
+CV fold indices. Defaults to False.</p></li>
+<li><p><strong>cv_score_method</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><em>str</em></a><em>, </em><em>optional</em>) – Which scoring method to use. Defaults to “linear_predictor”.
+Must be one of “linear_predictor”, “mse”, “basic” and “vvh”.
+See Notes.</p></li>
+<li><p><strong>max_coef</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><em>float</em></a><em>, </em><em>optional</em>) – Maximum number of non-zero covariates to be selected
+with chosen optimal regularization hyperparameter. Defaults to np.inf.
+See Notes.</p></li>
+<li><p><strong>alpha_type</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><em>str</em></a><em>, </em><em>optional</em>) – How to select the optimal regularization hyperparameter. Defaults to “min”.
+Must be one of “min”, “1se” and “pcvl”. See Notes.</p></li>
+</ul>
+</dd>
+</dl>
+<p class="rubric">Notes</p>
+<dl>
+<dt><cite>cv_score_method</cite>:</dt><dd><p>Decides how the score which is used to select the optimal
+regularization hyperparameter is selected. The <cite>basic</cite>
+approach may suffer from issues with small event sizes or
+for large number of folds [1]. Meanwhile, the <cite>mse</cite> approach
+may yield good teacher-student fidelity, but suboptimal
+survival predictions.</p>
+<ul class="simple">
+<li><p><cite>mse</cite>: Calculates the score as the mean squared error</p></li>
+</ul>
+<p>of the teacher predictions and the student predictions.
+The MSE is calculated per test fold and aggregated across
+folds using the arithmetic mean.
+- <cite>linear_predictor</cite>: Calculates out of sample predictions
+for each test fold and caches them. Once out of sample
+predictions are produced for each sample, an appropriate
+survival loss between student predictions and the observed
+time and censoring indactor is calculated once, using only
+the cached out of sample predictions. See [1].
+- <cite>basic</cite>: Calculates the score as an appropriate survival
+loss between student predictions and observed time
+and event indicators in each test fold. The overall
+loss is obtained as an arithmetic mean across all folds.
+- <cite>vvh</cite>: Calculates the test score in each test fold as the difference
+between the score across all samples in that fold and only
+the training samples in that fold.The overall loss
+is obtained as an arithmetic mean across all folds. See [1, 2].</p>
+</dd>
+<dt><cite>max_coef</cite>:</dt><dd><p>Places an upper bound on the number of non-zero coefficients
+the selected model returned after cross validation may have.</p>
+<p>In particular, if <cite>max_coef=k</cite>, during scoring, only models
+with a total number of non-zero coefficients less than k are
+considered.</p>
+<p>Currently, we still calculate the solutions for these
+models, we just disregard them at scoring time.</p>
+</dd>
+<dt><cite>alpha_type</cite>:</dt><dd><p>Decides how the regularization hyperparameter is selected.
+For a given <cite>cv_score_method</cite> and <cite>max_coef</cite>, we end up with
+a vector of length k &gt; 1, that contains numeric scores,
+where lower is better (i.e., losses). <cite>alpha_type</cite> decides
+how we choose among the regularization hyperparameters corresponding
+to this loss vector.</p>
+<ul class="simple">
+<li><p><cite>min</cite>: Selects the regularization hyperparameter that</p></li>
+</ul>
+<p>yields the minimum loss.</p>
+<ul class="simple">
+<li><p><cite>1se</cite>: Selects the highest regularization hyperparameter</p></li>
+</ul>
+<p>that is within one standard error of the mean loss of the
+regularization hyperparameter with minimum loss [3].</p>
+<ul class="simple">
+<li><p><cite>pcvl</cite>: Selects a hyperparameter inbetween <cite>min</cite> and</p></li>
+</ul>
+<p><cite>1se</cite> via a penalization term. See [4].</p>
+</dd>
+</dl>
+<p class="rubric">References</p>
+<p>[1] Dai, Biyue, and Patrick Breheny. “Cross validation approaches for penalized Cox regression.” arXiv preprint arXiv:1905.10432 (2019).</p>
+<p>[2] Verweij, Pierre JM, and Hans C. Van Houwelingen. “Cross‐validation in survival analysis.” Statistics in medicine 12.24 (1993): 2305-2314.</p>
+<p>[3] Hastie, Trevor, et al. The elements of statistical learning: data mining, inference, and prediction. Vol. 2. New York: Springer, 2009.</p>
+<p>[4] Ternès, Nils, Federico Rotolo, and Stefan Michiels. “Empirical extensions of the lasso penalty to reduce the false discovery rate in high‐dimensional Cox regression models.” Statistics in medicine 35.15 (2016): 2561-2573.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sparsesurv.cv.KDAFTElasticNetCV.predict_cumulative_hazard_function">
+<span class="sig-name descname"><span class="pre">predict_cumulative_hazard_function</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/sparsesurv/cv.html#KDAFTElasticNetCV.predict_cumulative_hazard_function"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sparsesurv.cv.KDAFTElasticNetCV.predict_cumulative_hazard_function" title="Permalink to this definition"></a></dt>
+<dd><p>Predict cumulative hazard function for patients in <cite>X</cite> at times <cite>time</cite>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>X</strong> (<em>npt.NDArray</em><em>[</em><em>np.float64</em><em>]</em>) – Query design matrix with u rows and p columns.</p></li>
+<li><p><strong>time</strong> (<em>npt.NDArray</em><em>[</em><em>np.float64</em><em>]</em>) – Query times of dimension k. Assumed to be unique and ordered.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.12)"><strong>ValueError</strong></a> – Raises ValueError when the event times are not unique and sorted in ascending order.</p>
+</dd>
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p><dl class="simple">
+<dt>Query cumulative hazard function for samples 1, …, u</dt><dd><p>and times 1, …, k. Thus, has u rows and k columns.</p>
+</dd>
+</dl>
+</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>npt.NDArray[np.float64]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sparsesurv.cv.KDAFTElasticNetCV.__abstractmethods__">
+<span class="sig-name descname"><span class="pre">__abstractmethods__</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">frozenset({})</span></em><a class="headerlink" href="#sparsesurv.cv.KDAFTElasticNetCV.__abstractmethods__" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sparsesurv.cv.KDAFTElasticNetCV.__doc__">
+<span class="sig-name descname"><span class="pre">__doc__</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'Child-class</span> <span class="pre">of</span> <span class="pre">BaseKDSurv</span> <span class="pre">to</span> <span class="pre">perform</span> <span class="pre">knowledge</span> <span class="pre">distillation</span> <span class="pre">specifically</span> <span class="pre">for</span> <span class="pre">semiparametric</span> <span class="pre">AFT</span> <span class="pre">models.'</span></em><a class="headerlink" href="#sparsesurv.cv.KDAFTElasticNetCV.__doc__" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sparsesurv.cv.KDAFTElasticNetCV.__module__">
+<span class="sig-name descname"><span class="pre">__module__</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'sparsesurv.cv'</span></em><a class="headerlink" href="#sparsesurv.cv.KDAFTElasticNetCV.__module__" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sparsesurv.cv.KDAFTElasticNetCV._abc_impl">
+<span class="sig-name descname"><span class="pre">_abc_impl</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">&lt;_abc._abc_data</span> <span class="pre">object&gt;</span></em><a class="headerlink" href="#sparsesurv.cv.KDAFTElasticNetCV._abc_impl" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="sparsesurv.cv.KDEHMultiTaskLassoCV">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">KDEHMultiTaskLassoCV</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">bandwidth</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">eps</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.001</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_alphas</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">100</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_iter</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">100</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tol</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0001</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cv</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_epochs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">50000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">p0</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prune</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_jobs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stratify_cv</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">seed</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">42</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">shuffle_cv</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cv_score_method</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'linear_predictor'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_coef</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">inf</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha_type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'min'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/sparsesurv/cv.html#KDEHMultiTaskLassoCV"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sparsesurv.cv.KDEHMultiTaskLassoCV" title="Permalink to this definition"></a></dt>
+<dd><p>Bases: <a class="reference internal" href="#sparsesurv.cv.BaseKDSurv" title="sparsesurv.cv.BaseKDSurv"><code class="xref py py-class docutils literal notranslate"><span class="pre">BaseKDSurv</span></code></a></p>
+<p>Child-class of BaseKDSurv to perform knowledge distillation specifically for semiparametric EH models.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="sparsesurv.cv.KDEHMultiTaskLassoCV.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">bandwidth</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">eps</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.001</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_alphas</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">100</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_iter</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">100</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tol</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0001</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cv</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_epochs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">50000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">p0</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">prune</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_jobs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stratify_cv</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">seed</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">42</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">shuffle_cv</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cv_score_method</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'linear_predictor'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_coef</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">inf</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha_type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'min'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/sparsesurv/cv.html#KDEHMultiTaskLassoCV.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sparsesurv.cv.KDEHMultiTaskLassoCV.__init__" title="Permalink to this definition"></a></dt>
+<dd><p>Constructor.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>bandwidth</strong> (<em>Optional</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><em>float</em></a><em>]</em>) – Bandwidth to use for kernel-smoothing
+the profile likelihood. If not provided, a theoretically
+motivated profile likelihood is estimated based on the data.</p></li>
+<li><p><strong>&quot;efron&quot;.</strong> (<em>in observed survival times. Must be one</em><em> of </em><em>&quot;breslow&quot; or</em>) – </p></li>
+<li><p><strong>l1_ratio</strong> (<em>Union</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><em>float</em></a><em>, </em><em>List</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><em>float</em></a><em>]</em><em>]</em><em>, </em><em>optional</em>) – Float between 0 and 1 passed
+to ElasticNet (scaling between l1 and l2 penalties). For <code class="docutils literal notranslate"><span class="pre">l1_ratio</span> <span class="pre">=</span> <span class="pre">0</span></code>
+the penalty is an L2 penalty. For <code class="docutils literal notranslate"><span class="pre">l1_ratio</span> <span class="pre">=</span> <span class="pre">1</span></code> it is an L1 penalty.
+For <code class="docutils literal notranslate"><span class="pre">0</span> <span class="pre">&lt;</span> <span class="pre">l1_ratio</span> <span class="pre">&lt;</span> <span class="pre">1</span></code>, the penalty is a combination of L1 and L2.
+This parameter can be a list, in which case the different values are tested
+by cross-validation and the one giving the best prediction score is used.
+Note that a good choice of list of values for l1_ratio is often to put more
+values close to 1 (i.e. Lasso) and less close to 0 (i.e. Ridge),
+as in <code class="docutils literal notranslate"><span class="pre">[.1,</span> <span class="pre">.5,</span> <span class="pre">.7,</span> <span class="pre">.9,</span> <span class="pre">.95,</span> <span class="pre">.99,</span> <span class="pre">1]</span></code>. Defaults to 1.0.</p></li>
+<li><p><strong>eps</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><em>float</em></a><em>, </em><em>optional</em>) – Length of the path. <code class="docutils literal notranslate"><span class="pre">eps=1e-3</span></code> means that
+<code class="docutils literal notranslate"><span class="pre">alpha_min</span> <span class="pre">/</span> <span class="pre">alpha_max</span> <span class="pre">=</span> <span class="pre">1e-3</span></code>. Defaults to 1e-3.</p></li>
+<li><p><strong>n_alphas</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><em>int</em></a><em>, </em><em>optional</em>) – Number of alphas along the regularization path,
+used for each l1_ratio. Defaults to 100.</p></li>
+<li><p><strong>max_iter</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><em>int</em></a><em>, </em><em>optional</em>) – The maximum number of iterations. Defaults to 100.</p></li>
+<li><p><strong>tol</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><em>float</em></a><em>, </em><em>optional</em>) – The tolerance for the optimization: if the updates are
+smaller than <code class="docutils literal notranslate"><span class="pre">tol</span></code>, the optimization code checks the dual gap for optimality
+and continues until it is smaller than <code class="docutils literal notranslate"><span class="pre">tol</span></code>. Defaults to 1e-4.</p></li>
+<li><p><strong>cv</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><em>int</em></a><em>, </em><em>optional</em>) – Number of folds to perform to select hyperparameters.
+Defaults to 5. See also <cite>stratify_cv</cite>.</p></li>
+<li><p><strong>verbose</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><em>int</em></a><em>, </em><em>optional</em>) – Degree of verbosity. Defaults to 0.</p></li>
+<li><p><strong>max_epochs</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><em>int</em></a><em>, </em><em>optional</em>) – Maximum number of coordinate descent epochs when
+solving a subproblem. Defaults to 50000.</p></li>
+<li><p><strong>p0</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><em>int</em></a><em>, </em><em>optional</em>) – Number of features in the first working set. Defaults to 10.</p></li>
+<li><p><strong>prune</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><em>bool</em></a><em>, </em><em>optional</em>) – Whether to use pruning when growing the working sets.
+Defaults to True.</p></li>
+<li><p><strong>n_jobs</strong> (<em>Optional</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><em>int</em></a><em>]</em><em>, </em><em>optional</em>) – Number of CPUs to use during the cross validation.
+<code class="docutils literal notranslate"><span class="pre">None</span></code> means 1 unless in a <code class="xref py py-obj docutils literal notranslate"><span class="pre">joblib.parallel_backend</span></code> context.
+<code class="docutils literal notranslate"><span class="pre">-1</span></code> means using all processors. See <span class="xref std std-term">Glossary</span>
+for more details. Defaults to None.</p></li>
+<li><p><strong>stratify_cv</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><em>bool</em></a><em>, </em><em>optional</em>) – Whether to perform the cross-validation stratified
+on the event indicator or not. Defaults to True.</p></li>
+<li><p><strong>seed</strong> (<em>Optional</em><em>[</em><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.12)"><em>int</em></a><em>]</em><em>, </em><em>optional</em>) – Random seed. Defaults to 42.</p></li>
+<li><p><strong>shuffle_cv</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><em>bool</em></a><em>, </em><em>optional</em>) – Whether to perform shuffling to generate
+CV fold indices. Defaults to False.</p></li>
+<li><p><strong>cv_score_method</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><em>str</em></a><em>, </em><em>optional</em>) – Which scoring method to use. Defaults to “linear_predictor”.
+Must be one of “linear_predictor”, “mse”, “basic” and “vvh”.
+See Notes.</p></li>
+<li><p><strong>max_coef</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.12)"><em>float</em></a><em>, </em><em>optional</em>) – Maximum number of non-zero covariates to be selected
+with chosen optimal regularization hyperparameter. Defaults to np.inf.
+See Notes.</p></li>
+<li><p><strong>alpha_type</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.12)"><em>str</em></a><em>, </em><em>optional</em>) – How to select the optimal regularization hyperparameter. Defaults to “min”.
+Must be one of “min”, “1se” and “pcvl”. See Notes.</p></li>
+</ul>
+</dd>
+</dl>
+<p class="rubric">Notes</p>
+<dl>
+<dt><cite>cv_score_method</cite>:</dt><dd><p>Decides how the score which is used to select the optimal
+regularization hyperparameter is selected. The <cite>basic</cite>
+approach may suffer from issues with small event sizes or
+for large number of folds [1]. Meanwhile, the <cite>mse</cite> approach
+may yield good teacher-student fidelity, but suboptimal
+survival predictions.</p>
+<ul class="simple">
+<li><p><cite>mse</cite>: Calculates the score as the mean squared error</p></li>
+</ul>
+<p>of the teacher predictions and the student predictions.
+The MSE is calculated per test fold and aggregated across
+folds using the arithmetic mean.
+- <cite>linear_predictor</cite>: Calculates out of sample predictions
+for each test fold and caches them. Once out of sample
+predictions are produced for each sample, an appropriate
+survival loss between student predictions and the observed
+time and censoring indactor is calculated once, using only
+the cached out of sample predictions. See [1].
+- <cite>basic</cite>: Calculates the score as an appropriate survival
+loss between student predictions and observed time
+and event indicators in each test fold. The overall
+loss is obtained as an arithmetic mean across all folds.
+- <cite>vvh</cite>: Calculates the test score in each test fold as the difference
+between the score across all samples in that fold and only
+the training samples in that fold.The overall loss
+is obtained as an arithmetic mean across all folds. See [1, 2].</p>
+</dd>
+<dt><cite>max_coef</cite>:</dt><dd><p>Places an upper bound on the number of non-zero coefficients
+the selected model returned after cross validation may have.</p>
+<p>In particular, if <cite>max_coef=k</cite>, during scoring, only models
+with a total number of non-zero coefficients less than k are
+considered.</p>
+<p>Currently, we still calculate the solutions for these
+models, we just disregard them at scoring time.</p>
+</dd>
+<dt><cite>alpha_type</cite>:</dt><dd><p>Decides how the regularization hyperparameter is selected.
+For a given <cite>cv_score_method</cite> and <cite>max_coef</cite>, we end up with
+a vector of length k &gt; 1, that contains numeric scores,
+where lower is better (i.e., losses). <cite>alpha_type</cite> decides
+how we choose among the regularization hyperparameters corresponding
+to this loss vector.</p>
+<ul class="simple">
+<li><p><cite>min</cite>: Selects the regularization hyperparameter that</p></li>
+</ul>
+<p>yields the minimum loss.</p>
+<ul class="simple">
+<li><p><cite>1se</cite>: Selects the highest regularization hyperparameter</p></li>
+</ul>
+<p>that is within one standard error of the mean loss of the
+regularization hyperparameter with minimum loss [3].</p>
+<ul class="simple">
+<li><p><cite>pcvl</cite>: Selects a hyperparameter inbetween <cite>min</cite> and</p></li>
+</ul>
+<p><cite>1se</cite> via a penalization term. See [4].</p>
+</dd>
+</dl>
+<p class="rubric">References</p>
+<p>[1] Dai, Biyue, and Patrick Breheny. “Cross validation approaches for penalized Cox regression.” arXiv preprint arXiv:1905.10432 (2019).</p>
+<p>[2] Verweij, Pierre JM, and Hans C. Van Houwelingen. “Cross‐validation in survival analysis.” Statistics in medicine 12.24 (1993): 2305-2314.</p>
+<p>[3] Hastie, Trevor, et al. The elements of statistical learning: data mining, inference, and prediction. Vol. 2. New York: Springer, 2009.</p>
+<p>[4] Ternès, Nils, Federico Rotolo, and Stefan Michiels. “Empirical extensions of the lasso penalty to reduce the false discovery rate in high‐dimensional Cox regression models.” Statistics in medicine 35.15 (2016): 2561-2573.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sparsesurv.cv.KDEHMultiTaskLassoCV.path">
+<span class="sig-name descname"><span class="pre">path</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">y</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alphas</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">coef_init</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/sparsesurv/cv.html#KDEHMultiTaskLassoCV.path"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sparsesurv.cv.KDEHMultiTaskLassoCV.path" title="Permalink to this definition"></a></dt>
+<dd><dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Tuple" title="(in Python v3.12)"><code class="xref py py-data docutils literal notranslate"><span class="pre">Tuple</span></code></a></p>
+</dd>
+</dl>
+<dl class="simple">
+<dt>Compute Lasso path with Celer. Function taken as-is from celer for compatibility</dt><dd><p>with parent class.</p>
+</dd>
+</dl>
+<div class="admonition seealso">
+<p class="admonition-title">See also</p>
+<p>celer.homotopy.mtl_path
+celer.dropin_sklearn.MultiTaskLassoCV</p>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sparsesurv.cv.KDEHMultiTaskLassoCV.predict">
+<span class="sig-name descname"><span class="pre">predict</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/sparsesurv/cv.html#KDEHMultiTaskLassoCV.predict"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sparsesurv.cv.KDEHMultiTaskLassoCV.predict" title="Permalink to this definition"></a></dt>
+<dd><p>Calculate linear predictor corresponding to query design matrix X.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>X</strong> (<em>npt.NDArray</em><em>[</em><em>np.float64</em><em>]</em>) – Query design matrix.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Linear predictor of the samples.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>npt.NDArray[np.float64]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sparsesurv.cv.KDEHMultiTaskLassoCV._is_multitask">
+<span class="sig-name descname"><span class="pre">_is_multitask</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/sparsesurv/cv.html#KDEHMultiTaskLassoCV._is_multitask"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sparsesurv.cv.KDEHMultiTaskLassoCV._is_multitask" title="Permalink to this definition"></a></dt>
+<dd><p>Return whether the model instance in question is a multitask model.</p>
+<p>Needed for scikit-learn/celer compatability.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.12)"><code class="xref py py-class docutils literal notranslate"><span class="pre">bool</span></code></a></p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>bool</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sparsesurv.cv.KDEHMultiTaskLassoCV._get_estimator">
+<span class="sig-name descname"><span class="pre">_get_estimator</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/sparsesurv/cv.html#KDEHMultiTaskLassoCV._get_estimator"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sparsesurv.cv.KDEHMultiTaskLassoCV._get_estimator" title="Permalink to this definition"></a></dt>
+<dd><p>Model to be fitted after the best alpha has been determined.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="sparsesurv.cv.KDEHMultiTaskLassoCV.predict_cumulative_hazard_function">
+<span class="sig-name descname"><span class="pre">predict_cumulative_hazard_function</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/sparsesurv/cv.html#KDEHMultiTaskLassoCV.predict_cumulative_hazard_function"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#sparsesurv.cv.KDEHMultiTaskLassoCV.predict_cumulative_hazard_function" title="Permalink to this definition"></a></dt>
+<dd><p>Predict cumulative hazard function for patients in <cite>X</cite> at times <cite>time</cite>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>X</strong> (<em>npt.NDArray</em><em>[</em><em>np.float64</em><em>]</em>) – Query design matrix with u rows and p columns.</p></li>
+<li><p><strong>time</strong> (<em>npt.NDArray</em><em>[</em><em>np.float64</em><em>]</em>) – Query times of dimension k. Assumed to be unique and ordered.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.12)"><strong>ValueError</strong></a> – Raises ValueError when the event times are not unique and sorted in ascending order.</p>
+</dd>
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p><dl class="simple">
+<dt>Query cumulative hazard function for samples 1, …, u</dt><dd><p>and times 1, …, k. Thus, has u rows and k columns.</p>
+</dd>
+</dl>
+</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>npt.NDArray[np.float64]</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sparsesurv.cv.KDEHMultiTaskLassoCV.__abstractmethods__">
+<span class="sig-name descname"><span class="pre">__abstractmethods__</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">frozenset({})</span></em><a class="headerlink" href="#sparsesurv.cv.KDEHMultiTaskLassoCV.__abstractmethods__" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sparsesurv.cv.KDEHMultiTaskLassoCV.__doc__">
+<span class="sig-name descname"><span class="pre">__doc__</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'Child-class</span> <span class="pre">of</span> <span class="pre">BaseKDSurv</span> <span class="pre">to</span> <span class="pre">perform</span> <span class="pre">knowledge</span> <span class="pre">distillation</span> <span class="pre">specifically</span> <span class="pre">for</span> <span class="pre">semiparametric</span> <span class="pre">EH</span> <span class="pre">models.'</span></em><a class="headerlink" href="#sparsesurv.cv.KDEHMultiTaskLassoCV.__doc__" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sparsesurv.cv.KDEHMultiTaskLassoCV.__module__">
+<span class="sig-name descname"><span class="pre">__module__</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'sparsesurv.cv'</span></em><a class="headerlink" href="#sparsesurv.cv.KDEHMultiTaskLassoCV.__module__" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="sparsesurv.cv.KDEHMultiTaskLassoCV._abc_impl">
+<span class="sig-name descname"><span class="pre">_abc_impl</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">&lt;_abc._abc_data</span> <span class="pre">object&gt;</span></em><a class="headerlink" href="#sparsesurv.cv.KDEHMultiTaskLassoCV._abc_impl" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="sparsesurv.constants.html" class="btn btn-neutral float-left" title="sparsesurv.constants module" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="sparsesurv.eh.html" class="btn btn-neutral float-right" title="sparsesurv.eh module" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright BoevaLab 2023.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
