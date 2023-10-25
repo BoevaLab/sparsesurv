@@ -42,8 +42,13 @@ We always welcome new contributors to `sparsesurv`. If you're interested in cont
 
 [David Wissel](dwissel@ethz.ch)
 
+## Citation
+If you use any or part of this package, please cite our work.
+[TODO - add bibtext]
+
+
 ## References
-[1] Our manuscript is still under review.
+[1] David Wissel, Nikita Janakarajan, Daniel Rowson, Julius Schulte, Xintian Yuan, Valentina Boeva. "sparsesurv: Sparse survival models via knowledge distillation." (2023, under review).
 
 [2] Paul, Debashis, et al. "“Preconditioning” for feature selection and regression in high-dimensional problems." (2008): 1595-1618.
 
