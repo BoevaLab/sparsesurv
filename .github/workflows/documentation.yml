@@ -6,15 +6,10 @@ permissions:
   contents: write
 
 jobs:
-  convert_via_pandoc:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: docker://pandoc/core:2.9
-        with:
-          args: "--help" # gets appended to pandoc command
   docs:
     runs-on: ubuntu-latest
     steps:
+      - uses: docker://pandoc/core:2.9
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v3
         with:
