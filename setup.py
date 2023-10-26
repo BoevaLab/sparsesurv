@@ -47,7 +47,7 @@ setup(
     long_description=open("README.md").read(),
     long_description_content_type="text/markdown",
     url="https://github.com/BoevaLab/sparsesurv",
-    authors="David Wissel, Nikita Janakarajan",
+    author="David Wissel, Nikita Janakarajan",
     author_email="dwissel@inf.ethz.ch, jnikita@inf.ethz.ch",
     # the following exclusion is to prevent shipping of tests.
     # if you do include them, add pytest to the required packages.
