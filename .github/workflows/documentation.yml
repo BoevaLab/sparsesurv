@@ -6,6 +6,12 @@ permissions:
   contents: write
 
 jobs:
+  convert_via_pandoc:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: docker://pandoc/core:2.9
+        with:
+          args: "--help" # gets appended to pandoc command
   docs:
     runs-on: ubuntu-latest
     steps:
@@ -15,8 +21,7 @@ jobs:
           python-version: '3.9'
       - name: Install dependencies
         run: |
-          pip install sparsesurv sphinx sphinx_rtd_theme myst_parser sphinx-autodoc-typehints nbsphinx better_apidoc;
-          conda install pandoc
+          pip install sparsesurv sphinx sphinx_rtd_theme myst_parser sphinx-autodoc-typehints nbsphinx better_apidoc
       - name: Sphinx build
         run: |
           cd docs; sphinx-build . _build
