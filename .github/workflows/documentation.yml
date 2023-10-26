@@ -15,7 +15,8 @@ jobs:
           python-version: '3.9'
       - name: Install dependencies
         run: |
-          pip install sparsesurv sphinx sphinx_rtd_theme myst_parser sphinx-autodoc-typehints nbsphinx better_apidoc
+          pip install sparsesurv sphinx sphinx_rtd_theme myst_parser sphinx-autodoc-typehints nbsphinx better_apidoc;
+          conda install pandoc
       - name: Sphinx build
         run: |
           # sphinx-build docs docs/_build
