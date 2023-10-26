@@ -75,7 +75,7 @@ setup(
     },
     classifiers=[
         'Topic :: Software Development :: Libraries :: Python Modules',
-        'License :: OSI Approved :: BSD-3-Clause License',
+        'License :: OSI Approved :: BSD License',
 	'Development Status :: 5 - Production/Stable',
         'Intended Audience :: Science/Research',
 	'Operating System :: OS Independent',
