@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Regularization hyperparameter choice in sparsesurv &mdash; sparsesurv  documentation</title>
+      <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/nbsphinx-code-cells.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="../_static/jquery.js?v=5d32c60e"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script src="../_static/documentation_options.js?v=5929fcd5"></script>
+        <script src="../_static/doctools.js?v=888ff710"></script>
+        <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+        <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+        <script>window.MathJax = {"tex": {"inlineMath": [["$", "$"], ["\\(", "\\)"]], "processEscapes": true}, "options": {"ignoreHtmlClass": "tex2jax_ignore|mathjax_ignore|document", "processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
+        <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="sparsesurv package" href="../sparsesurv_api/sparsesurv.html" />
+    <link rel="prev" title="Basic usage of sparsesurv" href="02_basic_usage.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            sparsesurv
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../overview.html">Overview</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../tutorials.html">Tutorials</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../tutorials.html#basic-usage">Basic Usage</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="../tutorials.html#regularization-hyperparameter-choice">Regularization Hyperparameter Choice</a><ul class="current">
+<li class="toctree-l3 current"><a class="current reference internal" href="#">Regularization hyperparameter choice in <code class="docutils literal notranslate"><span class="pre">sparsesurv</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#Baseline">Baseline</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#Explicitly-limiting-the-number-of-non-zero-coefficients">Explicitly limiting the number of non-zero coefficients</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#Automatically-trading-off-between-sparsity-and-performance">Automatically trading-off between sparsity and performance</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#References">References</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../sparsesurv_api/sparsesurv.html">API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../references.html">References</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">sparsesurv</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../tutorials.html">Tutorials</a></li>
+      <li class="breadcrumb-item active">Regularization hyperparameter choice in <code class="docutils literal notranslate"><span class="pre">sparsesurv</span></code></li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/notebooks/03_regularization_hyperparameter.ipynb.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="Regularization-hyperparameter-choice-in-sparsesurv">
+<h1>Regularization hyperparameter choice in <code class="docutils literal notranslate"><span class="pre">sparsesurv</span></code><a class="headerlink" href="#Regularization-hyperparameter-choice-in-sparsesurv" title="Link to this heading"></a></h1>
+<p>We established before that sparsity and performance of a distilled model can be affected significantly by the choice of the teacher model class. In non-distilled sparse models, such as the Lasso, performance is also highly dependent on the degree of sparsity. In distilled models this seems to be much less the case [1, 2].</p>
+<p>Still, there are situations in which one may wish to choose a specific sparsity level, or err on the side of choosing a higher/lower level of sparsity.</p>
+<section id="Baseline">
+<h2>Baseline<a class="headerlink" href="#Baseline" title="Link to this heading"></a></h2>
+<div class="nbinput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[3]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span>import pandas as pd
+from sparsesurv.utils import transform_survival
+from sklearn.decomposition import PCA
+from sparsesurv._base import KDSurv
+from sparsesurv.cv import KDPHElasticNetCV, KDEHMultiTaskLassoCV, KDAFTElasticNetCV
+from sparsesurv.utils import transform_survival
+from sklearn.pipeline import make_pipeline
+from sksurv.linear_model import CoxPHSurvivalAnalysis
+from sparsesurv.aft import AFT
+from sparsesurv.eh import EH
+from sklearn.preprocessing import StandardScaler
+
+df = pd.read_csv(&quot;https://zenodo.org/records/10027434/files/OV_data_preprocessed.csv?download=1&quot;)
+X = df.iloc[:, 3:].to_numpy()
+y = transform_survival(time=df.OS_days.values, event=df.OS.values)
+
+X_train = X[:200]
+X_test = X[200:]
+y_train = y[:200]
+y_test = y[200:]
+
+pipe_cox_efron = KDSurv(
+            teacher=make_pipeline(
+                StandardScaler(),
+                PCA(n_components=16),
+                CoxPHSurvivalAnalysis(ties=&quot;efron&quot;),
+            ),
+            student=make_pipeline(
+                StandardScaler(),
+                KDPHElasticNetCV(
+                    tie_correction=&quot;efron&quot;,
+                    l1_ratio=0.9,
+                    eps=0.01,
+                    n_alphas=100,
+                    cv=5,
+                    stratify_cv=True,
+                    seed=None,
+                    shuffle_cv=False,
+                    cv_score_method=&quot;linear_predictor&quot;,
+                    n_jobs=1,
+                    alpha_type=&quot;min&quot;,
+                ),
+            ),
+        )
+
+pipe_cox_efron.fit(X_train, y_train)
+</pre></div>
+</div>
+</div>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[4]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span>import numpy as np
+np.sum(pipe_cox_efron.student[1].coef_ != 0.0)
+</pre></div>
+</div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[4]:
+</pre></div>
+</div>
+<div class="output_area docutils container">
+<div class="highlight"><pre>
+169
+</pre></div></div>
+</div>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[5]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span>from sksurv.metrics import concordance_index_censored
+concordance_index_censored(y_test[&quot;event&quot;], y_test[&quot;time&quot;], pipe_cox_efron.predict(X_test))[0]
+</pre></div>
+</div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[5]:
+</pre></div>
+</div>
+<div class="output_area docutils container">
+<div class="highlight"><pre>
+0.5244498777506112
+</pre></div></div>
+</div>
+<p>By default, <code class="docutils literal notranslate"><span class="pre">sparsesurv</span></code> fits models with no limit on the number of non-zero coefficients, beyond what is implied by the regularizers. In addition, <code class="docutils literal notranslate"><span class="pre">sparsesurv</span></code> uses <code class="docutils literal notranslate"><span class="pre">alpha_type=&quot;min&quot;</span></code> by default, thus choosing the regularization hyperparameter which maximizes the score, which will often be rather high (as evidenced by 168 non-zero coefficients in the ovarian cancer example above).</p>
+</section>
+<section id="Explicitly-limiting-the-number-of-non-zero-coefficients">
+<h2>Explicitly limiting the number of non-zero coefficients<a class="headerlink" href="#Explicitly-limiting-the-number-of-non-zero-coefficients" title="Link to this heading"></a></h2>
+<p>One alternative is explicitly limiting the number of non-zero coefficients. Below, we select the regularization hyperparameter with the maximum that score that has 50 non-zero coefficients or less.</p>
+<div class="nbinput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[6]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span>pipe_cox_efron = KDSurv(
+            teacher=make_pipeline(
+                StandardScaler(),
+                PCA(n_components=16),
+                CoxPHSurvivalAnalysis(ties=&quot;efron&quot;),
+            ),
+            student=make_pipeline(
+                StandardScaler(),
+                KDPHElasticNetCV(
+                    tie_correction=&quot;efron&quot;,
+                    l1_ratio=0.9,
+                    eps=0.01,
+                    n_alphas=100,
+                    cv=5,
+                    stratify_cv=True,
+                    seed=None,
+                    shuffle_cv=False,
+                    cv_score_method=&quot;linear_predictor&quot;,
+                    n_jobs=1,
+                    alpha_type=&quot;min&quot;,
+                    max_coef=50
+                ),
+            ),
+        )
+
+pipe_cox_efron.fit(X_train, y_train)
+</pre></div>
+</div>
+</div>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[7]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span>np.sum(pipe_cox_efron.student[1].coef_ != 0.0)
+</pre></div>
+</div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[7]:
+</pre></div>
+</div>
+<div class="output_area docutils container">
+<div class="highlight"><pre>
+47
+</pre></div></div>
+</div>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[8]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span>concordance_index_censored(y_test[&quot;event&quot;], y_test[&quot;time&quot;], pipe_cox_efron.predict(X_test))[0]
+</pre></div>
+</div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[8]:
+</pre></div>
+</div>
+<div class="output_area docutils container">
+<div class="highlight"><pre>
+0.5138549307253464
+</pre></div></div>
+</div>
+<p>While explicitly setting the desired degree of sparsity can work well, one may also want a degree of sparsity to be chosen that finds a good trade-off between performance and sparsity.</p>
+</section>
+<section id="Automatically-trading-off-between-sparsity-and-performance">
+<h2>Automatically trading-off between sparsity and performance<a class="headerlink" href="#Automatically-trading-off-between-sparsity-and-performance" title="Link to this heading"></a></h2>
+<p>For this purpose, <code class="docutils literal notranslate"><span class="pre">sparsesurv</span></code> implements two alternative rules, instead of choosing the regularization hyperparameter that maximizes the score:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>1. alpha_type=&quot;1se&quot; chooses the highest regularization hyperparameter that is within one standard error of the
+mean of the best score [3].
+
+2. alpha_type=&quot;pcvl&quot; chooses a regularization hyperparameter less sparse than &quot;1se&quot; but more sparse than &quot;min&quot;
+via a penalization approach [4].
+</pre></div>
+</div>
+<p>Importantly, <code class="docutils literal notranslate"><span class="pre">alpha_type=1se</span></code> requires <code class="docutils literal notranslate"><span class="pre">cv_score_method</span> <span class="pre">!=</span> <span class="pre">linear_predictor</span></code>, since otherwise calculating a mean score is impossible.</p>
+<div class="nbinput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[13]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span>pipe_cox_efron = KDSurv(
+            teacher=make_pipeline(
+                StandardScaler(),
+                PCA(n_components=16),
+                CoxPHSurvivalAnalysis(ties=&quot;efron&quot;),
+            ),
+            student=make_pipeline(
+                StandardScaler(),
+                KDPHElasticNetCV(
+                    tie_correction=&quot;efron&quot;,
+                    l1_ratio=0.9,
+                    eps=0.01,
+                    n_alphas=100,
+                    cv=5,
+                    stratify_cv=True,
+                    seed=None,
+                    shuffle_cv=False,
+                    cv_score_method=&quot;vvh&quot;,
+                    n_jobs=1,
+                    alpha_type=&quot;1se&quot;
+                ),
+            ),
+        )
+
+pipe_cox_efron.fit(X_train, y_train)
+</pre></div>
+</div>
+</div>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[14]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span>np.sum(pipe_cox_efron.student[1].coef_ != 0.0)
+</pre></div>
+</div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[14]:
+</pre></div>
+</div>
+<div class="output_area docutils container">
+<div class="highlight"><pre>
+0
+</pre></div></div>
+</div>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[15]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span>concordance_index_censored(y_test[&quot;event&quot;], y_test[&quot;time&quot;], pipe_cox_efron.predict(X_test))[0]
+</pre></div>
+</div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[15]:
+</pre></div>
+</div>
+<div class="output_area docutils container">
+<div class="highlight"><pre>
+0.5
+</pre></div></div>
+</div>
+<div class="nbinput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[16]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span>pipe_cox_efron = KDSurv(
+            teacher=make_pipeline(
+                StandardScaler(),
+                PCA(n_components=16),
+                CoxPHSurvivalAnalysis(ties=&quot;efron&quot;),
+            ),
+            student=make_pipeline(
+                StandardScaler(),
+                KDPHElasticNetCV(
+                    tie_correction=&quot;efron&quot;,
+                    l1_ratio=0.9,
+                    eps=0.01,
+                    n_alphas=100,
+                    cv=5,
+                    stratify_cv=True,
+                    seed=None,
+                    shuffle_cv=False,
+                    cv_score_method=&quot;linear_predictor&quot;,
+                    n_jobs=1,
+                    alpha_type=&quot;pcvl&quot;
+                ),
+            ),
+        )
+
+pipe_cox_efron.fit(X_train, y_train)
+</pre></div>
+</div>
+</div>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[17]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span>np.sum(pipe_cox_efron.student[1].coef_ != 0.0)
+</pre></div>
+</div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[17]:
+</pre></div>
+</div>
+<div class="output_area docutils container">
+<div class="highlight"><pre>
+51
+</pre></div></div>
+</div>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[18]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span>concordance_index_censored(y_test[&quot;event&quot;], y_test[&quot;time&quot;], pipe_cox_efron.predict(X_test))[0]
+</pre></div>
+</div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[18]:
+</pre></div>
+</div>
+<div class="output_area docutils container">
+<div class="highlight"><pre>
+0.5142624286878565
+</pre></div></div>
+</div>
+<p>As seen above, the downside of automatic selection methods, is that they may select completely sparse models if the prediction is not much better than chance, as is the case here.</p>
+</section>
+<section id="References">
+<h2>References<a class="headerlink" href="#References" title="Link to this heading"></a></h2>
+<p>[1] David Wissel, Nikita Janakarajan, Daniel Rowson, Julius Schulte, Xintian Yuan, Valentina Boeva. “sparsesurv: Sparse survival models via knowledge distillation.” (2023, under review).</p>
+<p>[2] Paul, Debashis, et al. ““Preconditioning” for feature selection and regression in high-dimensional problems.” (2008): 1595-1618.</p>
+<p>[3] Hastie, Trevor, et al. The elements of statistical learning: data mining, inference, and prediction. Vol. 2. New York: Springer, 2009.</p>
+<p>[4] Ternès, Nils, Federico Rotolo, and Stefan Michiels. “Empirical extensions of the lasso penalty to reduce the false discovery rate in high‐dimensional Cox regression models.” Statistics in medicine 35.15 (2016): 2561-2573.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="02_basic_usage.html" class="btn btn-neutral float-left" title="Basic usage of sparsesurv" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="../sparsesurv_api/sparsesurv.html" class="btn btn-neutral float-right" title="sparsesurv package" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright BoevaLab 2023.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>sparsesurv.loss &mdash; sparsesurv  documentation</title>
+      <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="../../_static/jquery.js?v=5d32c60e"></script>
+        <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script src="../../_static/documentation_options.js?v=5929fcd5"></script>
+        <script src="../../_static/doctools.js?v=888ff710"></script>
+        <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+        <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            sparsesurv
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../overview.html">Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../sparsesurv_api/sparsesurv.html">API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../references.html">References</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">sparsesurv</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">sparsesurv.loss</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for sparsesurv.loss</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">math</span> <span class="kn">import</span> <span class="n">log</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">numpy.typing</span> <span class="k">as</span> <span class="nn">npt</span>
+<span class="kn">from</span> <span class="nn">numba</span> <span class="kn">import</span> <span class="n">jit</span>
+
+<span class="kn">from</span> <span class="nn">.utils</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">difference_kernels</span><span class="p">,</span>
+    <span class="n">logaddexp</span><span class="p">,</span>
+    <span class="n">logsubstractexp</span><span class="p">,</span>
+    <span class="n">numba_logsumexp_stable</span><span class="p">,</span>
+<span class="p">)</span>
+
+
+<div class="viewcode-block" id="breslow_negative_likelihood">
+<a class="viewcode-back" href="../../sparsesurv_api/sparsesurv.loss.html#sparsesurv.loss.breslow_negative_likelihood">[docs]</a>
+<span class="nd">@jit</span><span class="p">(</span><span class="n">nopython</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">cache</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">fastmath</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">breslow_negative_likelihood</span><span class="p">(</span>
+    <span class="n">linear_predictor</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
+    <span class="n">time</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
+    <span class="n">event</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Negative log-likelihood function with Breslow tie-correction.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        linear_predictor (npt.NDArray[np.float64]): Linear predictor of the training data.</span>
+<span class="sd">        time (npt.NDArray[np.float64]): Time of the training data of length n. Assumed to be sorted.</span>
+<span class="sd">        event (npt.NDArray[np.float64]): Event indicator of the training data of length n.</span>
+
+<span class="sd">    Raises:</span>
+<span class="sd">        RuntimeError: Raises runtime error when there are no deaths/events in the given</span>
+<span class="sd">            batch of samples.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        npt.NDArray[np.float64]: Average negative log likelihood.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">event</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;No events detected!&quot;</span><span class="p">)</span>
+    <span class="n">samples</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">previous_time</span> <span class="o">=</span> <span class="n">time</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">likelihood</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">set_count</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">accumulated_sum</span> <span class="o">=</span> <span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">inf</span>
+    <span class="n">log_risk_set_sum</span> <span class="o">=</span> <span class="n">numba_logsumexp_stable</span><span class="p">(</span><span class="n">linear_predictor</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">samples</span><span class="p">):</span>
+        <span class="n">current_time</span> <span class="o">=</span> <span class="n">time</span><span class="p">[</span><span class="n">k</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">current_time</span> <span class="o">&gt;</span> <span class="n">previous_time</span><span class="p">:</span>
+            <span class="n">likelihood</span> <span class="o">-=</span> <span class="n">set_count</span> <span class="o">*</span> <span class="n">log_risk_set_sum</span>
+            <span class="n">log_risk_set_sum</span> <span class="o">=</span> <span class="n">logsubstractexp</span><span class="p">(</span><span class="n">log_risk_set_sum</span><span class="p">,</span> <span class="n">accumulated_sum</span><span class="p">)</span>
+            <span class="n">set_count</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="n">accumulated_sum</span> <span class="o">=</span> <span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">inf</span>
+
+        <span class="k">if</span> <span class="n">event</span><span class="p">[</span><span class="n">k</span><span class="p">]:</span>
+            <span class="n">set_count</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="n">likelihood</span> <span class="o">+=</span> <span class="n">linear_predictor</span><span class="p">[</span><span class="n">k</span><span class="p">]</span>
+
+        <span class="n">previous_time</span> <span class="o">=</span> <span class="n">current_time</span>
+        <span class="n">accumulated_sum</span> <span class="o">=</span> <span class="n">logaddexp</span><span class="p">(</span><span class="n">accumulated_sum</span><span class="p">,</span> <span class="n">linear_predictor</span><span class="p">[</span><span class="n">k</span><span class="p">])</span>
+
+    <span class="n">likelihood</span> <span class="o">-=</span> <span class="n">set_count</span> <span class="o">*</span> <span class="n">log_risk_set_sum</span>
+    <span class="k">return</span> <span class="o">-</span><span class="n">likelihood</span> <span class="o">/</span> <span class="n">samples</span></div>
+
+
+
+<div class="viewcode-block" id="breslow_negative_likelihood_beta">
+<a class="viewcode-back" href="../../sparsesurv_api/sparsesurv.loss.html#sparsesurv.loss.breslow_negative_likelihood_beta">[docs]</a>
+<span class="k">def</span> <span class="nf">breslow_negative_likelihood_beta</span><span class="p">(</span><span class="n">beta</span><span class="p">,</span> <span class="n">X</span><span class="p">,</span> <span class="n">time</span><span class="p">,</span> <span class="n">event</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">breslow_negative_likelihood</span><span class="p">(</span>
+        <span class="n">linear_predictor</span><span class="o">=</span><span class="n">X</span> <span class="o">@</span> <span class="n">beta</span><span class="p">,</span> <span class="n">time</span><span class="o">=</span><span class="n">time</span><span class="p">,</span> <span class="n">event</span><span class="o">=</span><span class="n">event</span>
+    <span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="efron_negative_likelihood">
+<a class="viewcode-back" href="../../sparsesurv_api/sparsesurv.loss.html#sparsesurv.loss.efron_negative_likelihood">[docs]</a>
+<span class="nd">@jit</span><span class="p">(</span><span class="n">nopython</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">cache</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">fastmath</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">efron_negative_likelihood</span><span class="p">(</span>
+    <span class="n">linear_predictor</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
+    <span class="n">time</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
+    <span class="n">event</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Negative log-likelihood function with Efron tie-correction.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        linear_predictor (npt.NDArray[np.float64]): Linear predictor of the training data.</span>
+<span class="sd">        time (npt.NDArray[np.float64]): Time of the training data of length n. Assumed to be sorted.</span>
+<span class="sd">        event (npt.NDArray[np.float64]): Event indicator of the training data of length n.</span>
+
+<span class="sd">    Raises:</span>
+<span class="sd">        RuntimeError: Raises runtime error when there are no deaths/events in the given</span>
+<span class="sd">            batch of samples.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        npt.NDArray[np.float64]: Average negative log likelihood.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">event</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;No events detected!&quot;</span><span class="p">)</span>
+    <span class="n">time_ix</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argsort</span><span class="p">(</span><span class="n">time</span><span class="p">)</span>
+    <span class="n">linear_predictor</span> <span class="o">=</span> <span class="n">linear_predictor</span><span class="p">[</span><span class="n">time_ix</span><span class="p">]</span>
+    <span class="n">time</span> <span class="o">=</span> <span class="n">time</span><span class="p">[</span><span class="n">time_ix</span><span class="p">]</span>
+    <span class="n">event</span> <span class="o">=</span> <span class="n">event</span><span class="p">[</span><span class="n">time_ix</span><span class="p">]</span>
+    <span class="n">samples</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">previous_time</span> <span class="o">=</span> <span class="n">time</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">accumulated_sum</span> <span class="o">=</span> <span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">inf</span>
+    <span class="n">death_set_count</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">log_death_set_risk</span> <span class="o">=</span> <span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">inf</span>
+    <span class="n">likelihood</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">log_risk_set_sum</span> <span class="o">=</span> <span class="n">numba_logsumexp_stable</span><span class="p">(</span><span class="n">linear_predictor</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">samples</span><span class="p">):</span>
+        <span class="n">sample_time</span> <span class="o">=</span> <span class="n">time</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+        <span class="n">sample_event</span> <span class="o">=</span> <span class="n">event</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+        <span class="n">sample_partial_log_hazard</span> <span class="o">=</span> <span class="n">linear_predictor</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+
+        <span class="k">if</span> <span class="n">previous_time</span> <span class="o">&lt;</span> <span class="n">sample_time</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">ell</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">death_set_count</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">ell</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="n">likelihood</span> <span class="o">-=</span> <span class="n">logsubstractexp</span><span class="p">(</span>
+                        <span class="n">log_risk_set_sum</span><span class="p">,</span>
+                        <span class="n">log</span><span class="p">(</span><span class="n">ell</span><span class="p">)</span> <span class="o">-</span> <span class="n">log</span><span class="p">(</span><span class="n">death_set_count</span><span class="p">)</span> <span class="o">+</span> <span class="n">log_death_set_risk</span><span class="p">,</span>
+                    <span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">likelihood</span> <span class="o">-=</span> <span class="n">log_risk_set_sum</span>
+
+            <span class="n">log_risk_set_sum</span> <span class="o">=</span> <span class="n">logsubstractexp</span><span class="p">(</span><span class="n">log_risk_set_sum</span><span class="p">,</span> <span class="n">accumulated_sum</span><span class="p">)</span>
+            <span class="n">accumulated_sum</span> <span class="o">=</span> <span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">inf</span>
+            <span class="n">death_set_count</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="n">log_death_set_risk</span> <span class="o">=</span> <span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">inf</span>
+
+        <span class="k">if</span> <span class="n">sample_event</span><span class="p">:</span>
+            <span class="n">death_set_count</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="n">log_death_set_risk</span> <span class="o">=</span> <span class="n">logaddexp</span><span class="p">(</span>
+                <span class="n">log_death_set_risk</span><span class="p">,</span> <span class="n">sample_partial_log_hazard</span>
+            <span class="p">)</span>
+            <span class="n">likelihood</span> <span class="o">+=</span> <span class="n">sample_partial_log_hazard</span>
+        <span class="n">accumulated_sum</span> <span class="o">=</span> <span class="n">logaddexp</span><span class="p">(</span><span class="n">accumulated_sum</span><span class="p">,</span> <span class="n">sample_partial_log_hazard</span><span class="p">)</span>
+        <span class="n">previous_time</span> <span class="o">=</span> <span class="n">sample_time</span>
+
+    <span class="k">for</span> <span class="n">ell</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">death_set_count</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">ell</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">likelihood</span> <span class="o">-=</span> <span class="n">logsubstractexp</span><span class="p">(</span>
+                <span class="n">log_risk_set_sum</span><span class="p">,</span>
+                <span class="n">log</span><span class="p">(</span><span class="n">ell</span><span class="p">)</span> <span class="o">-</span> <span class="n">log</span><span class="p">(</span><span class="n">death_set_count</span><span class="p">)</span> <span class="o">+</span> <span class="n">log_death_set_risk</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">likelihood</span> <span class="o">-=</span> <span class="n">log_risk_set_sum</span>
+    <span class="k">return</span> <span class="o">-</span><span class="n">likelihood</span> <span class="o">/</span> <span class="n">samples</span></div>
+
+
+
+<div class="viewcode-block" id="efron_negative_likelihood_beta">
+<a class="viewcode-back" href="../../sparsesurv_api/sparsesurv.loss.html#sparsesurv.loss.efron_negative_likelihood_beta">[docs]</a>
+<span class="k">def</span> <span class="nf">efron_negative_likelihood_beta</span><span class="p">(</span>
+    <span class="n">beta</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
+    <span class="n">X</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
+    <span class="n">time</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
+    <span class="n">event</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Negative log-likelihood function with Efron tie-correction when the design matrix</span>
+<span class="sd">        and the coefficients beta are provided instead of the linear predictor directly.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        beta (npt.NDArray[np.float64]): Coefficient vector of length p.</span>
+<span class="sd">        X (npt.NDArray[np.float64]): Design matrix of the training data. N rows and p columns.</span>
+<span class="sd">        time (npt.NDArray[np.float64]): Time of the training data of length n. Assumed to be sorted.</span>
+<span class="sd">        event (npt.NDArray[np.float64]): Event indicator of the training data of length n.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        npt.NDArray[np.float64]: Average negative log likelihood.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">efron_negative_likelihood</span><span class="p">(</span><span class="n">linear_predictor</span><span class="o">=</span><span class="n">X</span> <span class="o">@</span> <span class="n">beta</span><span class="p">,</span> <span class="n">time</span><span class="o">=</span><span class="n">time</span><span class="p">,</span> <span class="n">event</span><span class="o">=</span><span class="n">event</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="aft_negative_likelihood">
+<a class="viewcode-back" href="../../sparsesurv_api/sparsesurv.loss.html#sparsesurv.loss.aft_negative_likelihood">[docs]</a>
+<span class="nd">@jit</span><span class="p">(</span><span class="n">nopython</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">cache</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">fastmath</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">aft_negative_likelihood</span><span class="p">(</span>
+    <span class="n">linear_predictor</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
+    <span class="n">time</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
+    <span class="n">event</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
+    <span class="n">bandwidth</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Negative log-likelihood function for accelerated failure time model.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        linear_predictor (npt.NDArray[np.float64]): Linear predictor of the training data.</span>
+<span class="sd">        time (npt.NDArray[np.float64]): Time of the training data of length n. Assumed to be sorted.</span>
+<span class="sd">        event (npt.NDArray[np.float64]): Event indicator of the training data of length n.</span>
+<span class="sd">        bandwidth (float, optional): Bandwidth to kernel-smooth the profile likelihood.</span>
+<span class="sd">            Will be estimated empirically if not specified. Defaults to None.</span>
+
+<span class="sd">    Raises:</span>
+<span class="sd">        RuntimeError: Raises runtime error when there are no deaths/events in the given</span>
+<span class="sd">            batch of samples.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        npt.NDArray[np.float64]: Average negative log-likelihood.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">event</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;No events detected!&quot;</span><span class="p">)</span>
+    <span class="n">n_samples</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">bandwidth</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="c1"># TODO #XXX.</span>
+        <span class="n">bandwidth</span> <span class="o">=</span> <span class="mf">1.30</span> <span class="o">*</span> <span class="nb">pow</span><span class="p">(</span><span class="n">n_samples</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.2</span><span class="p">)</span>
+    <span class="n">linear_predictor</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]</span> <span class="o">=</span> <span class="n">linear_predictor</span>
+    <span class="n">R_linear_predictor</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span>
+        <span class="n">time</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">linear_predictor</span><span class="p">)</span>
+    <span class="p">)</span>
+    <span class="n">inverse_sample_size_bandwidth</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">1</span> <span class="o">/</span> <span class="p">(</span><span class="n">n_samples</span> <span class="o">*</span> <span class="n">bandwidth</span><span class="p">)</span>
+    <span class="n">event_mask</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]</span> <span class="o">=</span> <span class="n">event</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">bool_</span><span class="p">)</span>
+
+    <span class="n">_</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]</span>
+    <span class="n">kernel_matrix</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]</span>
+    <span class="n">integrated_kernel_matrix</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]</span>
+
+    <span class="p">(</span>
+        <span class="n">_</span><span class="p">,</span>
+        <span class="n">kernel_matrix</span><span class="p">,</span>
+        <span class="n">integrated_kernel_matrix</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">=</span> <span class="n">difference_kernels</span><span class="p">(</span>
+        <span class="n">a</span><span class="o">=</span><span class="n">R_linear_predictor</span><span class="p">,</span>
+        <span class="n">b</span><span class="o">=</span><span class="n">R_linear_predictor</span><span class="p">[</span><span class="n">event_mask</span><span class="p">],</span>
+        <span class="n">bandwidth</span><span class="o">=</span><span class="n">bandwidth</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="n">kernel_matrix</span> <span class="o">=</span> <span class="n">kernel_matrix</span><span class="p">[</span><span class="n">event_mask</span><span class="p">,</span> <span class="p">:]</span>
+
+    <span class="n">inverse_sample_size</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">1</span> <span class="o">/</span> <span class="n">n_samples</span>
+    <span class="n">kernel_sum</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]</span> <span class="o">=</span> <span class="n">kernel_matrix</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+    <span class="n">integrated_kernel_sum</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]</span> <span class="o">=</span> <span class="n">integrated_kernel_matrix</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+
+    <span class="n">likelihood</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]</span> <span class="o">=</span> <span class="n">inverse_sample_size</span> <span class="o">*</span> <span class="p">(</span>
+        <span class="n">linear_predictor</span><span class="p">[</span><span class="n">event_mask</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+        <span class="o">-</span> <span class="n">R_linear_predictor</span><span class="p">[</span><span class="n">event_mask</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+        <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">inverse_sample_size_bandwidth</span> <span class="o">*</span> <span class="n">kernel_sum</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+        <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">inverse_sample_size</span> <span class="o">*</span> <span class="n">integrated_kernel_sum</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="o">-</span><span class="n">likelihood</span></div>
+
+
+
+<div class="viewcode-block" id="aft_negative_likelihood_beta">
+<a class="viewcode-back" href="../../sparsesurv_api/sparsesurv.loss.html#sparsesurv.loss.aft_negative_likelihood_beta">[docs]</a>
+<span class="k">def</span> <span class="nf">aft_negative_likelihood_beta</span><span class="p">(</span>
+    <span class="n">beta</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
+    <span class="n">X</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
+    <span class="n">time</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
+    <span class="n">event</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
+    <span class="n">bandwidth</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Negative log-likelihood function for accelerated failure time model when the design matrix</span>
+<span class="sd">        and the coefficients beta are provided instead of the linear predictor directly.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        beta (npt.NDArray[np.float64]): Coefficient vector of length p.</span>
+<span class="sd">        X (npt.NDArray[np.float64]): Design matrix of the training data. N rows and p columns.</span>
+<span class="sd">        time (npt.NDArray[np.float64]): Time of the training data of length n. Assumed to be sorted.</span>
+<span class="sd">        event (npt.NDArray[np.float64]): Event indicator of the training data of length n.</span>
+<span class="sd">        bandwidth (float, optional): Bandwidth to kernel-smooth the profile likelihood.</span>
+<span class="sd">            Will be estimated empirically if not specified. Defaults to None.</span>
+
+
+<span class="sd">    Returns:</span>
+<span class="sd">        npt.NDArray[np.float64]: Average negative log-likelihood.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="nb">float</span><span class="p">(</span>
+        <span class="n">aft_negative_likelihood</span><span class="p">(</span>
+            <span class="n">linear_predictor</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">matmul</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">beta</span><span class="p">),</span>
+            <span class="n">time</span><span class="o">=</span><span class="n">time</span><span class="p">,</span>
+            <span class="n">event</span><span class="o">=</span><span class="n">event</span><span class="p">,</span>
+            <span class="n">bandwidth</span><span class="o">=</span><span class="n">bandwidth</span><span class="p">,</span>
+        <span class="p">)</span>
+    <span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="eh_negative_likelihood">
+<a class="viewcode-back" href="../../sparsesurv_api/sparsesurv.loss.html#sparsesurv.loss.eh_negative_likelihood">[docs]</a>
+<span class="nd">@jit</span><span class="p">(</span><span class="n">nopython</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">cache</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">fastmath</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">def</span> <span class="nf">eh_negative_likelihood</span><span class="p">(</span>
+    <span class="n">linear_predictor</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
+    <span class="n">time</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
+    <span class="n">event</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
+    <span class="n">bandwidth</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Negative log-likelihood function for extended hazards model.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        linear_predictor (npt.NDArray[np.float64]): Linear predictor of the training data.</span>
+<span class="sd">        time (npt.NDArray[np.float64]): Time points of the training data of length n. Assumed to be sorted.</span>
+<span class="sd">        event (npt.NDArray[np.float64]): Event indicator of the training data of length n.</span>
+<span class="sd">        bandwidth (float, optional): Bandwidth to kernel-smooth the profile likelihood.</span>
+<span class="sd">            Will be estimated empirically if not specified. Defaults to None.</span>
+
+<span class="sd">    Raises:</span>
+<span class="sd">        RuntimeError: Raises runtime error when there are no deaths/events in the given</span>
+<span class="sd">            batch of samples.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        npt.NDArray[np.float64]: Average negative log-likelihood.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">event</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;No events detected!&quot;</span><span class="p">)</span>
+    <span class="n">theta</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">linear_predictor</span><span class="p">)</span>
+    <span class="n">n_samples</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">bandwidth</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">bandwidth</span> <span class="o">=</span> <span class="mf">1.30</span> <span class="o">*</span> <span class="nb">pow</span><span class="p">(</span><span class="n">n_samples</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.2</span><span class="p">)</span>
+    <span class="n">R_linear_predictor</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">time</span> <span class="o">*</span> <span class="n">theta</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">])</span>
+    <span class="n">inverse_sample_size_bandwidth</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">1</span> <span class="o">/</span> <span class="p">(</span><span class="n">n_samples</span> <span class="o">*</span> <span class="n">bandwidth</span><span class="p">)</span>
+    <span class="n">event_mask</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]</span> <span class="o">=</span> <span class="n">event</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">bool_</span><span class="p">)</span>
+
+    <span class="n">_</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]</span>
+    <span class="n">kernel_matrix</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]</span>
+    <span class="n">integrated_kernel_matrix</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]</span>
+
+    <span class="p">(</span>
+        <span class="n">_</span><span class="p">,</span>
+        <span class="n">kernel_matrix</span><span class="p">,</span>
+        <span class="n">integrated_kernel_matrix</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">=</span> <span class="n">difference_kernels</span><span class="p">(</span>
+        <span class="n">a</span><span class="o">=</span><span class="n">R_linear_predictor</span><span class="p">,</span>
+        <span class="n">b</span><span class="o">=</span><span class="n">R_linear_predictor</span><span class="p">[</span><span class="n">event_mask</span><span class="p">],</span>
+        <span class="n">bandwidth</span><span class="o">=</span><span class="n">bandwidth</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="n">kernel_matrix</span> <span class="o">=</span> <span class="n">kernel_matrix</span><span class="p">[</span><span class="n">event_mask</span><span class="p">,</span> <span class="p">:]</span>
+
+    <span class="n">inverse_sample_size</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">1</span> <span class="o">/</span> <span class="n">n_samples</span>
+
+    <span class="n">kernel_sum</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]</span> <span class="o">=</span> <span class="n">kernel_matrix</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+    <span class="n">integrated_kernel_sum</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">integrated_kernel_matrix</span>
+        <span class="o">*</span> <span class="p">(</span><span class="n">theta</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">/</span> <span class="n">theta</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">])</span>
+        <span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">event</span><span class="p">)))</span>
+        <span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="nb">int</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">event</span><span class="p">)))</span>
+    <span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+    <span class="n">likelihood</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]</span> <span class="o">=</span> <span class="n">inverse_sample_size</span> <span class="o">*</span> <span class="p">(</span>
+        <span class="n">linear_predictor</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">][</span><span class="n">event_mask</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+        <span class="o">-</span> <span class="n">R_linear_predictor</span><span class="p">[</span><span class="n">event_mask</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+        <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">inverse_sample_size_bandwidth</span> <span class="o">*</span> <span class="n">kernel_sum</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+        <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">inverse_sample_size</span> <span class="o">*</span> <span class="n">integrated_kernel_sum</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="o">-</span><span class="n">likelihood</span></div>
+
+
+
+<div class="viewcode-block" id="eh_negative_likelihood_beta">
+<a class="viewcode-back" href="../../sparsesurv_api/sparsesurv.loss.html#sparsesurv.loss.eh_negative_likelihood_beta">[docs]</a>
+<span class="k">def</span> <span class="nf">eh_negative_likelihood_beta</span><span class="p">(</span>
+    <span class="n">beta</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
+    <span class="n">X</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
+    <span class="n">time</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
+    <span class="n">event</span><span class="p">:</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">],</span>
+    <span class="n">bandwidth</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">npt</span><span class="o">.</span><span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Negative log-likelihood function for extended hazards model when the design matrix</span>
+<span class="sd">        and the coefficients beta are provided instead of the linear predictor directly.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        beta (npt.NDArray[np.float64]): Coefficient vector of length p.</span>
+<span class="sd">        X (npt.NDArray[np.float64]): Design matrix of the training data. N rows and p columns.</span>
+<span class="sd">        time (npt.NDArray[np.float64]): Time of the training data of length n. Assumed to be sorted.</span>
+<span class="sd">        event (npt.NDArray[np.float64]): Event indicator of the training data of length n.</span>
+<span class="sd">        bandwidth (float, optional): Bandwidth to kernel-smooth the profile likelihood.</span>
+<span class="sd">            Will be estimated empirically if not specified. Defaults to None.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        npt.NDArray[np.float64]: Average negative log-likelihood.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">size</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">X</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">/</span> <span class="mi">2</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">eh_negative_likelihood</span><span class="p">(</span>
+        <span class="n">linear_predictor</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">stack</span><span class="p">(</span>
+            <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">matmul</span><span class="p">(</span><span class="n">X</span><span class="p">[:,</span> <span class="p">:</span><span class="n">size</span><span class="p">],</span> <span class="n">beta</span><span class="p">[:</span><span class="n">size</span><span class="p">]),</span> <span class="n">np</span><span class="o">.</span><span class="n">matmul</span><span class="p">(</span><span class="n">X</span><span class="p">[:,</span> <span class="n">size</span><span class="p">:],</span> <span class="n">beta</span><span class="p">[</span><span class="n">size</span><span class="p">:]))</span>
+        <span class="p">)</span><span class="o">.</span><span class="n">T</span><span class="p">,</span>
+        <span class="n">time</span><span class="o">=</span><span class="n">time</span><span class="p">,</span>
+        <span class="n">event</span><span class="o">=</span><span class="n">event</span><span class="p">,</span>
+        <span class="n">bandwidth</span><span class="o">=</span><span class="n">bandwidth</span><span class="p">,</span>
+    <span class="p">)</span></div>
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright BoevaLab 2023.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
