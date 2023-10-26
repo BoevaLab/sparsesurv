@@ -2,7 +2,7 @@
 [![GitHub Pages](https://img.shields.io/badge/docs-sphinx-blue)](https://boevalab.github.io/sparsesurv/)
 [![PyPI version](https://badge.fury.io/py/sparsesurv.svg)](https://badge.fury.io/py/sparsesurv)
 ![PyPI - Downloads](https://img.shields.io/pypi/dm/sparsesurv)
-
+[![codecov](https://codecov.io/gh/BoevaLab/sparsesurv/graph/badge.svg?token=VPS9VFG0VJ)](https://codecov.io/gh/BoevaLab/sparsesurv)
 
 # sparsesurv
 `sparsesurv` [1] is a toolbox for high-dimensional survival analysis. Currently, the package is focused exclusively on knowledge distillation for sparse survival analysis, sometimes also called preconditoning [2, 3]. In the future, we plan to also extend `sparsesurv` to other techniques useful for (high-dimensional) survival analysis that are not commonly available in Python.
