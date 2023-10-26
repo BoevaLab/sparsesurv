@@ -43,7 +43,7 @@ setup(
     name="sparsesurv",
     version=read_version("sparsesurv/__init__.py"),  # single place for version
     license="BSD-3-Clause",
-    description="Installable sparsesurv package via pip or source. Modify as needed.",
+    description="Toolkit for sparse survival analysis.",
     long_description=open("README.md").read(),
     long_description_content_type="text/markdown",
     url="https://github.com/BoevaLab/sparsesurv",
