@@ -18,7 +18,8 @@ jobs:
           pip install sparsesurv sphinx sphinx_rtd_theme myst_parser sphinx-autodoc-typehints nbsphinx better_apidoc
       - name: Sphinx build
         run: |
-          sphinx-build docs docs/_build
+          # sphinx-build docs docs/_build
+          cd docs; make html
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
