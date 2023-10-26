@@ -21,4 +21,6 @@ or
 PyPI Installation
 ______________________
 .. code-block:: bash
+
+    .. pip install sparsesurv
     
