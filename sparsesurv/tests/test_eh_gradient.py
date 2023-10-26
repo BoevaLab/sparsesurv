@@ -1,11 +1,11 @@
 import numpy as np
-import pandas as pd
+
 import torch
-from .get_data_arrays import get_2d_array
+from sparsesurv.tests.get_data_arrays import get_2d_array
 
 from sparsesurv.gradients import eh_gradient
 
-from .test_eh import eh_calculation
+from sparsesurv.tests.test_eh import eh_calculation
 
 
 def get_eh_gradient(case="default"):

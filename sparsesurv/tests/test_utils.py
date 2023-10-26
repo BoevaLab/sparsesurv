@@ -1,6 +1,6 @@
 import torch
 
-from ..constants import PDF_PREFACTOR
+from sparsesurv.constants import PDF_PREFACTOR
 
 
 def normal_density(x: torch.Tensor) -> torch.Tensor:
