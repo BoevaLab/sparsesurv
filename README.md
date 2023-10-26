@@ -32,7 +32,7 @@ If you have a bug report to make or a feature request for something you would li
 If you have general __questions__, meaning you are unsure about the usage of `sparsesurv`, or have other questions about the package that do not seem like a bug or feature request, please use [Github discussions](https://github.com/BoevaLab/sparsesurv/discussions/).
 
 ## Documentation and user guides
-Documentation and user guides are available on [Github pages](TODO ADD LINK).
+Documentation and user guides are available on [Github pages](https://boevalab.github.io/sparsesurv/index.html).
 
 ## Contributing
 We always welcome new contributors to `sparsesurv`. If you're interested in contributing, get in touch with us (see Contact) or have a look at the open issues.
