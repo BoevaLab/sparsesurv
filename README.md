@@ -1,4 +1,5 @@
 [![License: BSD3](https://img.shields.io/badge/License-BSD_3--Clause-blue.svg)](https://opensource.org/licenses/BSD-3-Clause)
+[![GitHub Pages](https://img.shields.io/badge/docs-sphinx-blue)](https://boevalab.github.io/sparsesurv/)
 ![GitHub all releases](https://img.shields.io/github/downloads/niklexical/sparsesurv/total)
 
 # sparsesurv
