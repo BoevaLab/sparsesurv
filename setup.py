@@ -42,10 +42,12 @@ except FileNotFoundError:
 setup(
     name="sparsesurv",
     version=read_version("sparsesurv/__init__.py"),  # single place for version
+    license='BSD-3-Clause'
     description="Installable sparsesurv package. Modify as needed.",
     long_description=open("README.md").read(),
+    long_description_content_type='text/markdown',
     url="https://github.com/BoevaLab/sparsesurv",
-    author="David Wissel, Nikita Janakarajan",
+    authors="David Wissel, Nikita Janakarajan",
     author_email="dwissel@inf.ethz.ch, jnikita@inf.ethz.ch",
     # the following exclusion is to prevent shipping of tests.
     # if you do include them, add pytest to the required packages.
@@ -71,10 +73,22 @@ setup(
             "myst-parser",
         ],
     },
-    install_requires=[
-        # versions should be very loose here, just exclude unsuitable versions
-        # because your dependencies also have dependencies and so on ...
-        # being too strict here will make dependency resolution harder
-        "click",
+    classifiers=[
+        'Topic :: Software Development :: Libraries :: Python Modules',
+        'License :: OSI Approved :: BSD-3-Clause License',
+	'Development Status :: 5 - Production/Stable',
+        'Intended Audience :: Science/Research',
+	'Operating System :: OS Independent',
+	'Programming Language :: Python :: 3.8',
+        'Programming Language :: Python :: 3.9',
+        'Programming Language :: Python :: 3.10',
     ],
+    install_requires=[
+        "numpy>=1.23.4",
+	"pandas>=1.5.1",
+	"celer>=0.7.2",
+	"numba>=0.56.4",
+	"scikit-learn>=1.2.1",
+    ],
+    keywords=['Survival', 'Knowledge Distillation',  'Sparse Survival', 'High Dimensional Data']
 )
