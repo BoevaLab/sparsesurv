@@ -19,8 +19,8 @@ jobs:
           conda install pandoc
       - name: Sphinx build
         run: |
-          # sphinx-build docs docs/_build
-          cd docs; make html
+          cd docs; sphinx-build . _build
+          #cd docs; make html
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
