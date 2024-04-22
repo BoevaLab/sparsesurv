@@ -359,11 +359,13 @@ class BaseKDSurv(SurvivalMixin, celer.ElasticNetCV):
 
         # init cross-validation generator
         cv = check_cv(
-            cv=StratifiedKFold(
-                n_splits=5, shuffle=self.shuffle_cv, random_state=self.seed
-            )
-            if self.stratify_cv
-            else KFold(n_splits=5, shuffle=self.shuffle_cv, random_state=self.seed),
+            cv=(
+                StratifiedKFold(
+                    n_splits=5, shuffle=self.shuffle_cv, random_state=self.seed
+                )
+                if self.stratify_cv
+                else KFold(n_splits=5, shuffle=self.shuffle_cv, random_state=self.seed)
+            ),
             y=event,
             classifier=self.stratify_cv,
         )
@@ -407,14 +409,14 @@ class BaseKDSurv(SurvivalMixin, celer.ElasticNetCV):
         ) = zip(*predictions_paths)
         n_folds = int(len(test_eta_folds) / len(l1_ratios))
 
-        mean_cv_score_l1 = []
         mean_cv_score = []
-        mean_sd_score_l1 = []
         mean_sd_score = []
-        mean_sparsity_l1 = []
         mean_sparsity = []
 
         for i in range(len(l1_ratios)):
+            mean_cv_score_l1 = []
+            mean_sd_score_l1 = []
+            mean_sparsity_l1 = []
             train_eta = train_eta_folds[n_folds * i : n_folds * (i + 1)]
             test_eta = test_eta_folds[n_folds * i : n_folds * (i + 1)]
             train_y = train_y_folds[n_folds * i : n_folds * (i + 1)]
@@ -496,9 +498,17 @@ class BaseKDSurv(SurvivalMixin, celer.ElasticNetCV):
         self.pl_path_ = mean_cv_score
         if self.alpha_type == "min":
             for l1_ratio, l1_alphas, pl_alphas, n_coefs in zip(
-                l1_ratios, alphas, mean_cv_score, mean_sparsity
+                l1_ratios,
+                [alpha_array.tolist() for alpha_array in alphas],
+                mean_cv_score,
+                mean_sparsity,
             ):
-                i_best_alpha = np.argmax(
+                n_viable = np.array(pl_alphas)[
+                    np.where(np.array(n_coefs) <= self.max_coef)[0]
+                ]
+                if n_viable.shape[0] == 0:
+                    continue
+                i_best_alpha = np.nanargmax(
                     np.array(pl_alphas)[np.where(np.array(n_coefs) <= self.max_coef)[0]]
                 )
                 this_best_pl = pl_alphas[i_best_alpha]
@@ -509,9 +519,12 @@ class BaseKDSurv(SurvivalMixin, celer.ElasticNetCV):
         elif self.alpha_type == "1se":
             n_best_coef = np.inf
             for l1_ratio, l1_alphas, pl_alphas, n_coefs, sd_alphas in zip(
-                l1_ratios, alphas, mean_cv_score, mean_sparsity, mean_sd_score
+                l1_ratios,
+                [alpha_array.tolist() for alpha_array in alphas],
+                mean_cv_score,
+                mean_sparsity,
             ):
-                i_best_alpha = np.argmax(
+                i_best_alpha = np.nanargmax(
                     np.array(pl_alphas)[np.where(np.array(n_coefs) <= self.max_coef)[0]]
                 )
                 this_best_pl = pl_alphas[i_best_alpha]
@@ -520,9 +533,12 @@ class BaseKDSurv(SurvivalMixin, celer.ElasticNetCV):
                         sd_alphas[i_best_alpha] / np.sqrt(n_folds)
                     )
             for l1_ratio, l1_alphas, pl_alphas, n_coefs, sd_alphas in zip(
-                l1_ratios, alphas, mean_cv_score, mean_sparsity, mean_sd_score
+                l1_ratios,
+                [alpha_array.tolist() for alpha_array in alphas],
+                mean_cv_score,
+                mean_sparsity,
             ):
-                i_best_alpha = np.argmin(
+                i_best_alpha = np.nanargmin(
                     np.array(np.array(n_coefs))[
                         np.where(
                             np.logical_and(
@@ -544,21 +560,26 @@ class BaseKDSurv(SurvivalMixin, celer.ElasticNetCV):
             ):
                 pl_alphas = np.array(pl_alphas)
                 n_coefs = np.array(n_coefs)
-                i_best_alpha = np.argmax(
+                i_best_alpha = np.nanargmax(
                     np.array(pl_alphas)[np.where(np.array(n_coefs) <= self.max_coef)[0]]
                 )
                 sparsity_best_alpha = np.array(n_coefs)[i_best_alpha]
                 pl_best_alpha = pl_alphas[i_best_alpha]
                 pl_alpha_max = pl_alphas[0]
-                transformed_range = np.arange(i_best_alpha)
-                transformed_pl_alphas = pl_alphas[transformed_range] - (
-                    ((pl_best_alpha - pl_alpha_max) / sparsity_best_alpha)
-                    * n_coefs[transformed_range]
-                )
-                transformed_i_best_alpha = np.argmax(transformed_pl_alphas)
-                this_best_pl_transformed = transformed_pl_alphas[
-                    transformed_i_best_alpha
-                ]
+                if i_best_alpha == 0:
+                    this_best_pl_transformed = pl_alphas[0]
+                    transformed_i_best_alpha = 0
+
+                else:
+                    transformed_range = np.arange(i_best_alpha)
+                    transformed_pl_alphas = pl_alphas[transformed_range] - (
+                        ((pl_best_alpha - pl_alpha_max) / sparsity_best_alpha)
+                        * n_coefs[transformed_range]
+                    )
+                    transformed_i_best_alpha = np.nanargmax(transformed_pl_alphas)
+                    this_best_pl_transformed = transformed_pl_alphas[
+                        transformed_i_best_alpha
+                    ]
                 if this_best_pl_transformed > best_pl_score:
                     best_alpha = l1_alphas[transformed_i_best_alpha]
                     best_l1_ratio = l1_ratio
