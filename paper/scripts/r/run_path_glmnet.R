@@ -6,6 +6,7 @@ library(pec)
 library(readr)
 library(vroom)
 library(dplyr)
+library(splitTools)
 
 
 glmnet::glmnet.control(
@@ -71,6 +72,7 @@ for (cancer in config$datasets) {
     X_test <- data[test_ix, -(1:2)]
     y_train <- Surv(data$OS_days[train_ix], data$OS[train_ix])
     y_test <- Surv(data$OS_days[test_ix], data$OS[test_ix])
+
     result <- tryCatch(
       {
         fit <- glmnet(
@@ -80,14 +82,14 @@ for (cancer in config$datasets) {
           alpha = config$l1_ratio,
           lambda.min.ratio = config$eps,
           standardize = TRUE,
-          nlambda = 100
+          nlambda = config$n_alphas
         )
         pred <- predict(fit, as.matrix(X_test))
         path_coefs <- coef(fit)
-        if (ncol(path_coefs) < 100) {
+        if (ncol(path_coefs) < config$n_alphas) {
           stop()
         }
-        for (z in 1:100) {
+        for (z in 1:config$n_alphas) {
           if (z > ncol(path_coefs)) {
             result_sparsity[[split]] <- c(result_sparsity[[split]], 0)
             times <- sort(unique(y_test[, 1]))

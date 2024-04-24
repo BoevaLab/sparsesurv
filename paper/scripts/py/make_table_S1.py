@@ -2,7 +2,6 @@ import json
 
 import numpy as np
 import pandas as pd
-
 from sparsesurv.utils import transform_survival
 
 with open("./config.json") as f:
@@ -71,4 +70,4 @@ pd.DataFrame(
         "max_event_time": max_event_time,
         "median_event_time": median_event_time,
     }
-).to_csv("./results/metrics/dataset_overview.csv", index=False)
+).to_csv("./tables/table_S1.csv", index=False)

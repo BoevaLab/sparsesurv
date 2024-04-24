@@ -1,3 +1,5 @@
+#!/bin/bash
+
 Rscript scripts/r/time_glmnet.R
 python scripts/py/time_sparsesurv.py
 

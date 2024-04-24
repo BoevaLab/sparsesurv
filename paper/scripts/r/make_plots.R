@@ -13,7 +13,6 @@ config <- rjson::fromJSON(
 )
 
 metrics <- vroom::vroom(here::here("/", "Volumes", "Backup", "cr",  "sparsesurv", "results", "metrics", "metrics_overall.csv"))
-#metrics_old <- vroom::vroom(here::here("~", "Downloads", "sparsesurv_final", "plots", "metrics_overall.csv"))
 
 
 fig_1_ab <- metrics %>% filter(model %in% c("efron", "breslow")) %>% filter(lambda %in% c("min", "lambda.min")) %>% filter(metric %in% c("Harrell's C", "Uno's C"))
@@ -229,9 +228,6 @@ timing_summarised <- timing %>% group_by(cancer, model) %>% summarise(mean=mean(
 
 cancer_ordering <- timing %>% group_by(cancer) %>% summarise(mean=mean(time)) %>% arrange(desc(`mean`)) %>% pull(cancer)
 
-#timing %>% ggplot(aes(x = cancer, y = time, color = model)) + geom_path(group=1)  + scale_y_log10()
-
-
 
 f <- ggplot(timing_summarised, aes(x = cancer, group = model)) + 
   geom_line(aes(y = mean, color = model), linewidth = 1) + 
@@ -319,20 +315,13 @@ g <- ggplot(path_data_summarised, aes(x = as.numeric(lambda), group = model_type
   scale_color_manual(values=ggpubfigs::friendly_pals$ito_seven[1:3]) + 
   scale_fill_manual(values=ggpubfigs::friendly_pals$ito_seven[1:3]) + 
   geom_hline(data = teacher_line, aes(yintercept = mean, linetype = "Efron teacher"), color = "red", lwd = 0.5, linetype = 2, show.legend = FALSE, alpha=0.75) +
-  #geom_segment(data = teacher_line, aes(x=0,xend=100,y=mean,yend=mean)) +
   facet_wrap(~cancer, scales = "free_y", nrow = 2) +
   theme_simple() + 
   labs(x = "Lambda index", y = "Antolini's C", fill = "", color = "") 
 
- #%>% ggplot(aes(x = lambda, y = value)) +geom_boxplot() + facet_wrap(~cancer)
-
 
 p <- ggplot(mtcars, aes(x = wt, y=mpg)) + geom_point()
 teacher_legend <- p + geom_hline(aes(lty="Efron teacher",yintercept=20), linewidth = 1, color = "red", show_guide=TRUE) + scale_linetype_manual(name="",values=2) + theme_big_simple() + guides(color = guide_legend(override.aes = list(linetype = c("dashed")))) + theme(legend.key.width = unit(2,"cm"))
-
-#+
-#+ 
-  #scale_linewidth_manual(values = 10) + scale_color_manual(values = "red") + theme_simple()
 
 
 
@@ -364,32 +353,20 @@ h  <- ggplot(path_data_summarised, aes(x = as.numeric(lambda), group = model_typ
   geom_hline(data = teacher_line, aes(yintercept = mean, linetype = "Efron teacher"), color = "red", lwd = 0.5, linetype = 2, show.legend = FALSE, alpha=0.75) +
   facet_wrap(~cancer, scales = "free_y", nrow = 2) +
   theme_simple() + labs(x = "Lambda index", y = "Integrated Brier Score", fill = "", color = "")
-#%>% ggplot(aes(x = lambda, y = value)) +geom_boxplot() + facet_wrap(~cancer)
 
-
-# A, B, C in one plot with shared legend
-
-# D, E in one plot with shared legend
-# F with own legend
-
-# G with own legend
 
 first_row <- cowplot::plot_grid(a + theme(legend.position = "none"), b + theme(legend.position = "none"), c + theme(legend.position = "none"), labels = "AUTO", nrow = 1, ncol = 3)
 boxplot_legend <- get_legend(
-  # create some space to the left of the legend
   c_legend + theme(legend.box.margin = margin(0, 0, 0, 0))
 )
-#top_row_full <- plot_grid(a_plots, legend, nrow = 2, rel_heights = c(0.95, 0.05))
 
 second_row <- cowplot::plot_grid(d + theme(legend.position = "none"), e + theme(legend.position = "none"), f + theme(legend.position = "none"), labels = c("D", "E", "F"), nrow = 1, rel_widths = c(0.25, 0.25, 0.5))
 
 line_legend <- get_legend(
-  # create some space to the left of the legend
   f_legend + theme(legend.box.margin = margin(0, 0, 0, 0))
 )
 
 teacher_legend <- get_legend(
-  # create some space to the left of the legend
   teacher_legend + theme(legend.box.margin = margin(0, 0, 0, 0))
 )
 
@@ -419,15 +396,10 @@ dataset_overview <- vroom::vroom(here::here("~", "Downloads", "sparsesurv_final"
 
 knitr::kable(dataset_overview, "latex", booktabs = TRUE, digits = 3)
 
-#knitr::kableEx
-
-
-### Supplementary
 
 
 
 metrics <- vroom::vroom(here::here("/", "Volumes", "Backup", "cr",  "sparsesurv", "results", "metrics", "metrics_overall.csv"))
-#metrics_old <- vroom::vroom(here::here("~", "Downloads", "sparsesurv_final", "plots", "metrics_overall.csv"))
 
 
 fig_1_ab <- metrics %>% filter(model %in% c("efron", "breslow")) %>% filter(lambda %in% c("pcvl", "lambda.min")) %>% filter(metric %in% c("Harrell's C", "Uno's C"))
@@ -621,7 +593,6 @@ s1_panels <- plot_grid(
 s1_complete <- plot_grid(
   s1_panels,
   get_legend(
-    # create some space to the left of the legend
     c_legend + theme(legend.box.margin = margin(0, 0, 0, 0))
   ),
   nrow = 2,

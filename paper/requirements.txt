@@ -5,4 +5,6 @@ pandas==1.5.3
 numba==0.57.1
 numpy==1.23.4
 pycox==0.2.3
-sparsesurv==0.1
+sparsesurv @ https://github.com/BoevaLab/sparsesurv@paper
+skorch==0.15.0
+torch==2.1.2

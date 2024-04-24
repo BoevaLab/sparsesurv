@@ -33,7 +33,7 @@ bash reproduce.sh
 ```
 
 ### Results
-All of our results, including preprocessed data, computed performance metrics and predicted survival functions for all models and experiments are available on [Zenodo](https://zenodo.org/record/8280015).
+All of our results, including preprocessed data, computed performance metrics and predicted survival functions for all models and experiments are available on [Zenodo](https://zenodo.org/records/11058330).
 
 ## Questions
 In case of any questions, please reach out to david.wissel@inf.ethz.ch or open an issue in this repo.
