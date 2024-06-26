@@ -1,0 +1,517 @@
+from snakemake.utils import min_version
+
+
+configfile: "config/config.yaml"
+
+
+min_version(config["snakemake_min_version"])
+
+
+container: f"docker://condaforge/mambaforge:{config['mambaforge_version']}"
+
+
+datasets = config["datasets"]
+
+
+rule all:
+    input:
+        "results/figures/fig-1_finalized.svg",
+        "results/figures/fig-1_finalized.png",
+        "results/figures/fig-S1_finalized.svg",
+        "results/figures/fig-S1_finalized.pdf",
+        "results/figures/fig-S2_finalized.svg",
+        "results/figures/fig-S2_finalized.pdf",
+        "results/figures/fig-S3_finalized.svg",
+        "results/figures/fig-S3_finalized.pdf",
+        "results/tables/table_S1.csv",
+        "results/tables/table_S2.csv",
+        "results/tables/table_S3.csv",
+        "results/tables/table_S4.csv",
+
+
+rule download_data:
+    output:
+        gex="results/download_data/gex.tsv",
+        cdr="results/download_data/cdr.xlsx",
+        followup="results/download_data/followup.tsv",
+    log:
+        "logs/download_data/log.out",
+    shell:
+        """
+            wget --content-disposition http://api.gdc.cancer.gov/data/3586c0da-64d0-4b74-a449-5ff4d9136611 -O {output.gex} &> {log};
+            wget --content-disposition http://api.gdc.cancer.gov/data/1b5f413e-a8d1-4d10-92eb-7c4ae739ed81 -O {output.cdr} &>> {log};
+            wget --content-disposition http://api.gdc.cancer.gov/data/0fc78496-818b-4896-bd83-52db1f533c5c -O {output.followup} &>> {log}
+        """
+
+
+rule preprocess_data:
+    input:
+        gex="results/download_data/gex.tsv",
+        cdr="results/download_data/cdr.xlsx",
+        followup="results/download_data/followup.tsv",
+    output:
+        output_path="results/preprocess_data/{datasets}.csv",
+    params:
+        cancer="{datasets}",
+    log:
+        "logs/preprocess_data/{datasets}.out",
+    conda:
+        "envs/preprocess.yaml"
+    script:
+        "scripts/r/preprocess_data.R"
+
+
+rule make_splits:
+    input:
+        data_path="results/preprocess_data/{cancer}.csv",
+    output:
+        train_splits_output_path="results/make_splits/{cancer}_train_splits.csv",
+        test_splits_output_path="results/make_splits/{cancer}_test_splits.csv",
+    params:
+        random_seed=config["random_seed"],
+        n_outer_repetitions=config["n_outer_repetitions"],
+        n_outer_splits=config["n_outer_splits"],
+    log:
+        "logs/make_splits/{cancer}.out",
+    conda:
+        "envs/make_splits.yaml"
+    script:
+        "scripts/py/make_splits.py"
+
+
+rule time_glmnet:
+    input:
+        data_path=expand("results/preprocess_data/{cancer}.csv", cancer=datasets),
+    output:
+        "results/non_kd/breslow/timing_tuned_l1_ratio.csv",
+        "results/non_kd/breslow/timing.csv",
+    params:
+        config_path=config["config_path"],
+    threads: 1
+    log:
+        "logs/make_splits/log.out",
+    conda:
+        "envs/glmnet.yaml"
+    script:
+        "scripts/r/time_glmnet.R"
+
+
+rule run_path_glmnet:
+    input:
+        data_path=expand("results/preprocess_data/{cancer}.csv", cancer=datasets),
+        train_splits_output_path=expand(
+            "results/make_splits/{cancer}_train_splits.csv", cancer=datasets
+        ),
+        test_splits_output_path=expand(
+            "results/make_splits/{cancer}_test_splits.csv", cancer=datasets
+        ),
+    output:
+        expand(
+            "results/non_kd/breslow/{cancer}/path/sparsity.csv",
+            cancer=datasets,
+        ),
+    params:
+        config_path=config["config_path"],
+    threads: 1
+    log:
+        "logs/run_path_glmnet/log.out",
+    conda:
+        "envs/glmnet.yaml"
+    script:
+        "scripts/r/run_path_glmnet.R"
+
+
+rule run_glmnet:
+    input:
+        data_path=expand("results/preprocess_data/{cancer}.csv", cancer=datasets),
+        train_splits_output_path=expand(
+            "results/make_splits/{cancer}_train_splits.csv", cancer=datasets
+        ),
+        test_splits_output_path=expand(
+            "results/make_splits/{cancer}_test_splits.csv", cancer=datasets
+        ),
+    output:
+        "results/non_kd/breslow/sparsity_vvh_lambda.min.csv",
+    params:
+        config_path=config["config_path"],
+    threads: 1
+    log:
+        "logs/run_glmnet/log.out",
+    conda:
+        "envs/glmnet.yaml"
+    script:
+        "scripts/r/run_glmnet.R"
+
+
+rule run_glmnet_tuned:
+    input:
+        data_path="results/preprocess_data/{cancer}.csv",
+        train_splits_output_path="results/make_splits/{cancer}_train_splits.csv",
+        test_splits_output_path="results/make_splits/{cancer}_test_splits.csv",
+    output:
+        "results/non_kd/breslow/{cancer}/sparsity_tuned_l1_ratio_vvh_lambda.min.csv",
+    params:
+        config_path=config["config_path"],
+        cancer="{cancer}",
+    threads: 1
+    log:
+        "logs/run_glmnet_tuned/{cancer}/log.out",
+    conda:
+        "envs/glmnet.yaml"
+    script:
+        "scripts/r/run_glmnet_tuned.R"
+
+
+rule time_sparsesurv:
+    input:
+        data_path=expand("results/preprocess_data/{cancer}.csv", cancer=datasets),
+    output:
+        "results/kd/cox_nnet/timing.csv",
+        "results/kd/breslow/timing_tuned_teacher.csv",
+    params:
+        config_path=config["config_path"],
+    threads: 1
+    log:
+        "logs/time_sparsesurv/log.out",
+    conda:
+        "envs/sparsesurv.yaml"
+    script:
+        "scripts/py/time_sparsesurv.py"
+
+
+rule run_teachers:
+    input:
+        data_path=expand("results/preprocess_data/{cancer}.csv", cancer=datasets),
+        train_splits_output_path=expand(
+            "results/make_splits/{cancer}_train_splits.csv", cancer=datasets
+        ),
+        test_splits_output_path=expand(
+            "results/make_splits/{cancer}_test_splits.csv", cancer=datasets
+        ),
+    output:
+        expand("results/kd/cox_nnet/{cancer}/eta_teacher.csv", cancer=datasets),
+        expand("results/kd/breslow/{cancer}/eta_teacher.csv", cancer=datasets),
+    params:
+        config_path=config["config_path"],
+    threads: 12
+    log:
+        "logs/run_teachers/log.out",
+    conda:
+        "envs/sparsesurv.yaml"
+    script:
+        "scripts/py/run_teachers.py"
+
+
+rule run_path_sparsesurv:
+    input:
+        data_path=expand("results/preprocess_data/{cancer}.csv", cancer=datasets),
+        train_splits_output_path=expand(
+            "results/make_splits/{cancer}_train_splits.csv", cancer=datasets
+        ),
+        test_splits_output_path=expand(
+            "results/make_splits/{cancer}_test_splits.csv", cancer=datasets
+        ),
+    output:
+        expand("results/kd/cox_nnet/{cancer}/path/sparsity.csv", cancer=datasets),
+        expand("results/kd/breslow/{cancer}/path/sparsity.csv", cancer=datasets),
+    params:
+        config_path=config["config_path"],
+    threads: 12
+    log:
+        "logs/run_path_sparsesurv/log.out",
+    conda:
+        "envs/sparsesurv.yaml"
+    script:
+        "scripts/py/run_path_sparsesurv.py"
+
+
+rule run_sparsesurv:
+    input:
+        data_path=expand("results/preprocess_data/{cancer}.csv", cancer=datasets),
+        train_splits_output_path=expand(
+            "results/make_splits/{cancer}_train_splits.csv", cancer=datasets
+        ),
+        test_splits_output_path=expand(
+            "results/make_splits/{cancer}_test_splits.csv", cancer=datasets
+        ),
+    output:
+        expand(
+            "results/kd/cox_nnet/{cancer}/eta_linear_predictor_min.csv",
+            cancer=datasets,
+        ),
+        expand(
+            "results/kd/breslow/{cancer}/eta_linear_predictor_min.csv",
+            cancer=datasets,
+        ),
+        expand(
+            "results/kd/breslow/{cancer}/eta_linear_predictor_pcvl.csv",
+            cancer=datasets,
+        ),
+    params:
+        config_path=config["config_path"],
+    threads: 12
+    log:
+        "logs/run_sparsesurv/log.out",
+    conda:
+        "envs/sparsesurv.yaml"
+    script:
+        "scripts/py/run_sparsesurv.py"
+
+
+rule make_metrics_teachers:
+    input:
+        expand("results/kd/cox_nnet/{cancer}/eta_teacher.csv", cancer=datasets),
+        expand("results/kd/breslow/{cancer}/eta_teacher.csv", cancer=datasets),
+    output:
+        "results/metrics/metrics_overall_teachers.csv",
+    params:
+        config_path=config["config_path"],
+    threads: 1
+    log:
+        "logs/make_metrics_teachers/log.out",
+    conda:
+        "envs/make_metrics.yaml"
+    script:
+        "scripts/py/make_metrics_teachers.py"
+
+
+rule make_metrics_cved:
+    input:
+        expand(
+            "results/kd/cox_nnet/{cancer}/eta_linear_predictor_min.csv",
+            cancer=datasets,
+        ),
+        expand(
+            "results/kd/breslow/{cancer}/eta_linear_predictor_min.csv",
+            cancer=datasets,
+        ),
+        expand(
+            "results/kd/breslow/{cancer}/eta_linear_predictor_pcvl.csv",
+            cancer=datasets,
+        ),
+        expand("results/kd/cox_nnet/{cancer}/path/sparsity.csv", cancer=datasets),
+        expand("results/kd/breslow/{cancer}/path/sparsity.csv", cancer=datasets),
+        expand(
+            "results/non_kd/breslow/{cancer}/path/sparsity.csv",
+            cancer=datasets,
+        ),
+        expand(
+            "results/non_kd/breslow/{cancer}/sparsity_tuned_l1_ratio_vvh_lambda.min.csv",
+            cancer=datasets,
+        ),
+        expand(
+            "results/non_kd/breslow/sparsity_vvh_lambda.min.csv",
+            cancer=datasets,
+        ),
+    output:
+        "results/metrics/metrics_overall_cved.csv",
+        "results/metrics/metrics_overall_125_full.csv",
+    params:
+        config_path=config["config_path"],
+    threads: 1
+    log:
+        "logs/make_metrics_cved/log.out",
+    conda:
+        "envs/make_metrics.yaml"
+    script:
+        "scripts/py/make_metrics_cved.py"
+
+
+rule make_metrics:
+    input:
+        expand(
+            "results/kd/cox_nnet/{cancer}/eta_linear_predictor_min.csv",
+            cancer=datasets,
+        ),
+        expand(
+            "results/kd/breslow/{cancer}/eta_linear_predictor_min.csv",
+            cancer=datasets,
+        ),
+        expand(
+            "results/kd/breslow/{cancer}/eta_linear_predictor_pcvl.csv",
+            cancer=datasets,
+        ),
+        expand("results/kd/cox_nnet/{cancer}/path/sparsity.csv", cancer=datasets),
+        expand("results/kd/breslow/{cancer}/path/sparsity.csv", cancer=datasets),
+        expand(
+            "results/non_kd/breslow/{cancer}/path/sparsity.csv",
+            cancer=datasets,
+        ),
+        expand(
+            "results/non_kd/breslow/{cancer}/sparsity_tuned_l1_ratio_vvh_lambda.min.csv",
+            cancer=datasets,
+        ),
+        expand(
+            "results/non_kd/breslow/sparsity_vvh_lambda.min.csv",
+            cancer=datasets,
+        ),
+    output:
+        "results/metrics/metrics_overall.csv",
+    params:
+        config_path=config["config_path"],
+    threads: 1
+    log:
+        "logs/make_metrics/log.out",
+    conda:
+        "envs/make_metrics.yaml"
+    script:
+        "scripts/py/make_metrics.py"
+
+
+rule make_table_S1:
+    input:
+        data_path=expand("results/preprocess_data/{cancer}.csv", cancer=datasets),
+        train_splits_output_path=expand(
+            "results/make_splits/{cancer}_train_splits.csv", cancer=datasets
+        ),
+        test_splits_output_path=expand(
+            "results/make_splits/{cancer}_test_splits.csv", cancer=datasets
+        ),
+    output:
+        "results/tables/table_S1.csv",
+    params:
+        config_path=config["config_path"],
+    threads: 1
+    log:
+        "logs/make_table_S1/log.out",
+    conda:
+        "envs/make_metrics.yaml"
+    script:
+        "scripts/py/make_table_S1.py"
+
+
+rule make_table_S2:
+    input:
+        "results/metrics/metrics_overall.csv",
+        "results/metrics/metrics_overall_cved.csv",
+        "results/metrics/metrics_overall_125_full.csv",
+        "results/metrics/metrics_overall_teachers.csv",
+    output:
+        "results/tables/table_S2.csv",
+    params:
+        config_path=config["config_path"],
+    threads: 1
+    log:
+        "logs/make_table_S2/log.out",
+    conda:
+        "envs/plots_and_tables.yaml"
+    script:
+        "scripts/r/make_table_S2.R"
+
+
+rule make_table_S3:
+    input:
+        "results/metrics/metrics_overall.csv",
+        "results/metrics/metrics_overall_cved.csv",
+        "results/metrics/metrics_overall_125_full.csv",
+        "results/metrics/metrics_overall_teachers.csv",
+    output:
+        "results/tables/table_S3.csv",
+    params:
+        config_path=config["config_path"],
+    threads: 1
+    log:
+        "logs/make_table_S3/log.out",
+    conda:
+        "envs/plots_and_tables.yaml"
+    script:
+        "scripts/r/make_table_S3.R"
+
+
+rule make_table_S4:
+    input:
+        "results/metrics/metrics_overall.csv",
+        "results/metrics/metrics_overall_cved.csv",
+        "results/metrics/metrics_overall_125_full.csv",
+        "results/metrics/metrics_overall_teachers.csv",
+    output:
+        "results/tables/table_S4.csv",
+    params:
+        config_path=config["config_path"],
+    threads: 1
+    log:
+        "logs/make_table_S4/log.out",
+    conda:
+        "envs/plots_and_tables.yaml"
+    script:
+        "scripts/r/make_table_S4.R"
+
+
+rule plot_figure_1:
+    input:
+        "results/metrics/metrics_overall.csv",
+        "results/metrics/metrics_overall_cved.csv",
+        "results/metrics/metrics_overall_125_full.csv",
+        "results/metrics/metrics_overall_teachers.csv",
+    output:
+        "results/figures/fig-1_finalized.svg",
+        "results/figures/fig-1_finalized.png",
+    params:
+        config_path=config["config_path"],
+    threads: 1
+    log:
+        "logs/plot_figure_1/log.out",
+    conda:
+        "envs/plots_and_tables.yaml"
+    script:
+        "scripts/r/plot_figure_1.R"
+
+
+rule plot_figure_S1:
+    input:
+        "results/metrics/metrics_overall.csv",
+        "results/metrics/metrics_overall_cved.csv",
+        "results/metrics/metrics_overall_125_full.csv",
+        "results/metrics/metrics_overall_teachers.csv",
+    output:
+        "results/figures/fig-S1_finalized.svg",
+        "results/figures/fig-S1_finalized.pdf",
+    params:
+        config_path=config["config_path"],
+    threads: 1
+    log:
+        "logs/plot_figure_S1/log.out",
+    conda:
+        "envs/plots_and_tables.yaml"
+    script:
+        "scripts/r/plot_figure_S1.R"
+
+
+rule plot_figure_S2:
+    input:
+        "results/metrics/metrics_overall.csv",
+        "results/metrics/metrics_overall_cved.csv",
+        "results/metrics/metrics_overall_125_full.csv",
+        "results/metrics/metrics_overall_teachers.csv",
+    output:
+        "results/figures/fig-S2_finalized.svg",
+        "results/figures/fig-S2_finalized.pdf",
+    params:
+        config_path=config["config_path"],
+    threads: 1
+    log:
+        "logs/plot_figure_S2/log.out",
+    conda:
+        "envs/plots_and_tables.yaml"
+    script:
+        "scripts/r/plot_figure_S2.R"
+
+
+rule plot_figure_S3:
+    input:
+        "results/metrics/metrics_overall.csv",
+        "results/metrics/metrics_overall_cved.csv",
+        "results/metrics/metrics_overall_125_full.csv",
+        "results/metrics/metrics_overall_teachers.csv",
+    output:
+        "results/figures/fig-S3_finalized.svg",
+        "results/figures/fig-S3_finalized.pdf",
+    params:
+        config_path=config["config_path"],
+    threads: 1
+    log:
+        "logs/plot_figure_S3/log.out",
+    conda:
+        "envs/plots_and_tables.yaml"
+    script:
+        "scripts/r/plot_figure_S3.R"

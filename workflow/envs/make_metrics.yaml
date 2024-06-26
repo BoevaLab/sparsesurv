@@ -1,0 +1,15 @@
+name: make_splits
+channels:
+  - conda-forge
+  - bioconda
+  - pytorch
+  - defaults
+dependencies:
+  - python=3.8.0
+  - pandas=1.5.1
+  - pycox=0.2.3
+  - scikit-survival=0.22.2
+  - pip
+  - pip:
+    - ../../
+    #- https://github.com/BoevaLab/sparsesurv@paper

@@ -1,0 +1,9 @@
+name: make_splits
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - python=3.12.3
+  - pandas=2.2.2
+  - scikit-learn=1.5.0

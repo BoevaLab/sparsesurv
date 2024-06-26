@@ -49,7 +49,7 @@ setup(
     author_email="dwissel@inf.ethz.ch, jnikita@inf.ethz.ch",
     # the following exclusion is to prevent shipping of tests.
     # if you do include them, add pytest to the required packages.
-    packages=find_packages(".", exclude=["*tests*"]),
+    packages=["sparsesurv", "sparsesurv.neuralsurv", "sparsesurv.neuralsurv.python", "sparsesurv.neuralsurv.python.utils", "sparsesurv.neuralsurv.python.model"],
     package_data={"sparsesurv": ["py.typed"]},
     extras_require={
         "vcs": VCS_REQUIREMENTS,

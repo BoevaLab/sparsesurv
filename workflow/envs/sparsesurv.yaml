@@ -1,0 +1,24 @@
+name: sparsesurv
+channels:
+  - conda-forge
+  - bioconda
+  - pytorch
+  - sebp
+  - defaults
+dependencies:
+  - python=3.11.0
+  - pytorch=2.1.2
+  - scikit-learn=1.3.0
+  - pandas=1.5.3
+  - skorch=0.15.0
+  - numba=0.59.1
+  - scikit-survival=0.22.2
+    #- gcc_linux-64=13.2.0
+    #- gxx_linux-64=13.2.0
+    #- libgcc-ng=13.2.0
+  - cxx-compiler=1.7.0
+  - pip
+  - pip:
+    #- git+https://github.com/BoevaLab/sparsesurv@paper
+    - celer==0.7.3
+    - ../../
