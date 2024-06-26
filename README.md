@@ -1,50 +1,30 @@
-[![License: BSD3](https://img.shields.io/badge/License-BSD_3--Clause-blue.svg)](https://opensource.org/licenses/BSD-3-Clause)
-![GitHub all releases](https://img.shields.io/github/downloads/niklexical/sparsesurv/total)
+# sparsesurv: A Python package for fitting sparse survival models via knowledge distillation
 
-# sparsesurv
-`sparsesurv` [1] is a toolbox for high-dimensional survival analysis. Currently, the package is focused exclusively on knowledge distillation for sparse survival analysis, sometimes also called preconditoning [2, 3]. In the future, we plan to also extend `sparsesurv` to other techniques useful for (high-dimensional) survival analysis that are not commonly available in Python.
+## Abstract
 
-## Installation
-The easiest way to install `sparsesurv` is currently via PyPi:
+Sparse survival models are statistical models that select a subset of predictor variables while modeling the time until an event occurs, which can subsequently help interpretability and transportability. The subset of important features is often obtained with regularized models, such as the Cox Proportional Hazards model with Lasso regularization, which limit the number of non-zero coefficients. However, such models can be sensitive to the choice of regularization hyperparameter. In this work, we develop a software package and demonstrate how knowledge distillation, a powerful technique in machine learning that aims to transfer knowledge from a complex teacher model to a simpler student model, can be leveraged to learn sparse survival models while mitigating this challenge. For this purpose, we present sparsesurv, a Python package that contains a set of teacher-student model pairs, including the semi-parametric accelerated failure time and the extended hazards models as teachers, which currently do not have Python implementations. It also contains in-house survival function estimators, removing the need for external packages. Sparsesurv is validated against R-based Elastic Net regularized linear Cox proportional hazards models as implemented in the commonly used glmnet package. Our results reveal that knowledge distillation-based approaches achieve competitive discriminative performance relative to glmnet across the regularization path while making the choice of the regularization hyperparameter significantly easier. All of these features, combined with an sklearn-like API, make sparsesurv an easy-to-use Python package that enables survival analysis for high-dimensional datasets through fitting sparse survival models via knowledge distillation.
 
-```
-pip install sparsesurv
-```
+## Reproducibility
 
-If you want to install directly from Github, you can also install by cloning the repo, or directly piping the repo to pip:
+### From scratch
 
 ```
-git clone https://github.com/BoevaLab/sparsesurv/
-cd sparsesurv
-pip install .
+snakemake --use-conda --conda-frontend mamba --cores 12
 ```
 
-```
-pip install git+https://github.com/BoevaLab/sparsesurv.git
-```
+### Results
 
-If there is sufficient interest, we may also provide a conda package in the future.
+All of our results, including preprocessed data, computed performance metrics and predicted survival functions for all models and experiments are available on [Zenodo](https://zenodo.org/doi/10.5281/zenodo.8280014).
 
-## Bug reports and feature requests
-If you have a bug report to make or a feature request for something you would like included in `sparsesurv` in the future, please open a [Github issue](https://github.com/BoevaLab/sparsesurv/issues).
+## Questions
 
-## General questions
-If you have general __questions__, meaning you are unsure about the usage of `sparsesurv`, or have other questions about the package that do not seem like a bug or feature request, please use [Github discussions](https://github.com/BoevaLab/sparsesurv/discussions/).
+In case of any questions, please reach out to david.wissel@inf.ethz.ch or open an issue in this repo.
 
-## Documentation and user guides
-Documentation and user guides are available on [Github pages](https://boevalab.github.io/sparsesurv).
+## Citation
 
-## Contributing
-We always welcome new contributors to `sparsesurv`. If you're interested in contributing, get in touch with us (see Contact) or have a look at the open issues.
-
-## Contact
-[Nikita Janakarajan](jnikita@ethz.ch)
-
-[David Wissel](dwissel@ethz.ch)
+Our manuscript is still under review.
 
 ## References
-[1] Our manuscript is still under review.
 
-[2] Paul, Debashis, et al. "“Preconditioning” for feature selection and regression in high-dimensional problems." (2008): 1595-1618.
-
-[3] Pavone, Federico, et al. "Using reference models in variable selection." Computational Statistics 38.1 (2023): 349-371.
+[1] Hinton, Geoffrey, Oriol Vinyals, and Jeff Dean. "Distilling the knowledge in a neural network." arXiv preprint arXiv:1503.02531 (2015).
+[2] Paul, Debashis, et al. "" Preconditioning" for Feature Selection and Regression in High-Dimensional Problems." The Annals of Statistics (2008): 1595-1618.
