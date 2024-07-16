@@ -55,8 +55,8 @@ friendly_pals <- list(
   retro_four = c("#601A4A", "#EE442F", "#63ACBE", "#F9F4EC")
 )
 
-metrics <- vroom::vroom(paste("results", "metrics", "metrics_overall.csv", sep = "/")) %>% filter(score != "teacher")
-metrics_teacher <- vroom::vroom(paste("results", "metrics", "metrics_overall_teachers.csv", sep = "/"))
+metrics <- vroom::vroom(paste("results", "metrics", "metrics_overall.csv", sep="/")) %>% filter(score != "teacher")
+metrics_teacher <- vroom::vroom(paste("results", "metrics", "metrics_overall_teachers.csv", sep="/"))
 metrics <- rbind(metrics, metrics_teacher)
 
 fig_1_ab <- metrics %>%
@@ -376,8 +376,8 @@ d <- fig_1_cd %>%
 
 
 
-metrics <- vroom::vroom(paste("results", "metrics", "metrics_overall.csv", sep = "/")) %>% filter(score != "teacher")
-metrics_teacher <- vroom::vroom(paste("results", "metrics", "metrics_overall_teachers.csv", sep = "/"))
+metrics <- vroom::vroom(paste("results", "metrics", "metrics_overall.csv", sep="/")) %>% filter(score != "teacher")
+metrics_teacher <- vroom::vroom(paste("results", "metrics", "metrics_overall_teachers.csv", sep="/"))
 metrics <- rbind(metrics, metrics_teacher)
 
 
@@ -709,5 +709,7 @@ second_row_with_legend <- cowplot::plot_grid(second_row, boxplot_legend, rel_hei
 
 s1 <- cowplot::plot_grid(first_row_with_legend, second_row_with_legend, nrow = 2)
 
-ggsave(paste("results", "figures", "fig-S1_finalized.pdf", sep = "/"), plot = s1, dpi = 300, height = 20 / 1.5, width = 15, units = "in")
-ggsave(paste("results", "figures", "fig-S1_finalized.svg", sep = "/"), plot = s1, dpi = 300, height = 20 / 1.5, width = 15, units = "in")
+ggsave(paste("results", "figures", "fig-S1_finalized.pdf", sep="/"), plot = s1, dpi = 300, height = 20 / 1.5, width = 15, units = "in")
+ggsave(paste("results", "figures", "fig-S1_finalized.tiff", sep="/"), plot = s1, dpi = 300, height = 20 / 1.5, width = 15, units = "in")
+ggsave(paste("results", "figures", "fig-S1_finalized.eps", sep="/"), plot = s1, dpi = 300, height = 20 / 1.5, width = 15, units = "in")
+ggsave(paste("results", "figures", "fig-S1_finalized.svg", sep="/"), plot = s1, dpi = 300, height = 20 / 1.5, width = 15, units = "in")

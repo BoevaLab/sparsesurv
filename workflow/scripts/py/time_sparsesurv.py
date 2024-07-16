@@ -16,10 +16,9 @@ with open(snakemake.log[0], "w") as f:
     from sklearn.preprocessing import StandardScaler
     from skorch.callbacks import EarlyStopping
     from sksurv.linear_model import CoxPHSurvivalAnalysis
-
     from sparsesurv._base import KDSurv
     from sparsesurv.cv import KDPHElasticNetCV
-    from sparsesurv.loss import breslow_negative_likelihood, efron_negative_likelihood
+    from sparsesurv.loss import breslow_negative_likelihood
     from sparsesurv.neuralsurv.python.model.model import SKORCH_MODULE_FACTORY
     from sparsesurv.neuralsurv.python.model.skorch_infra import FixSeed
     from sparsesurv.neuralsurv.python.utils.factories import (
@@ -45,13 +44,7 @@ with open(snakemake.log[0], "w") as f:
             )
         )
 
-    def efron_score_wrapper(y_true, y_pred):
-        time, event = inverse_transform_survival(y_true)
-        return np.negative(
-            efron_negative_likelihood(linear_predictor=y_pred, time=time, event=event)
-        )
-
-    SCORE_FACTORY = {"breslow": breslow_score_wrapper, "efron": efron_score_wrapper}
+    SCORE_FACTORY = {"breslow": breslow_score_wrapper}
 
     g = np.random.default_rng(config.get("random_state"))
     np.random.seed(config["random_state"])
@@ -113,7 +106,7 @@ with open(snakemake.log[0], "w") as f:
                                     n_alphas=config["n_alphas"],
                                     cv=config["n_inner_cv"],
                                     stratify_cv=config["stratify_cv"],
-                                    seed=np.random.RandomState(config["random_state"]),
+                                    seed=config["random_state"],
                                     shuffle_cv=config["shuffle_cv"],
                                     cv_score_method="linear_predictor",
                                     n_jobs=1,
@@ -220,7 +213,7 @@ with open(snakemake.log[0], "w") as f:
                             n_alphas=config["n_alphas"],
                             cv=config["n_inner_cv"],
                             stratify_cv=config["stratify_cv"],
-                            seed=np.random.RandomState(config["random_state"]),
+                            seed=config["random_state"],
                             shuffle_cv=config["shuffle_cv"],
                             cv_score_method="linear_predictor",
                             n_jobs=1,

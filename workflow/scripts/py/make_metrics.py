@@ -7,9 +7,10 @@ with open(snakemake.log[0], "w") as f:
 
     import numpy as np
     import pandas as pd
-    from pycox.evaluation import EvalSurv
     from sksurv.metrics import concordance_index_censored, concordance_index_ipcw
     from sksurv.util import Surv
+
+    from pycox.evaluation import EvalSurv
 
     with open(snakemake.params["config_path"]) as f:
         config = json.load(f)
@@ -104,8 +105,65 @@ with open(snakemake.log[0], "w") as f:
                                 n_variables_string for q in range(2)
                             ]
                             tuned = tuned + [False for q in range(2)]
-
-            for lambda_type in ["lambda.min"]:
+            for lambda_type in ["1se"]:
+                if lambda_type == "min":
+                    model_list = ["cox_nnet", "breslow"]
+                else:
+                    model_list = ["breslow"]
+                for score_function in ["vvh"]:
+                    for model_type in model_list:
+                        lp = pd.read_csv(
+                            f"results/kd/{model_type}/{cancer}/eta_{score_function}_{lambda_type+n_variables}.csv"
+                        )
+                        for i in range(25):
+                            lp_split = lp.iloc[:, i].dropna().values
+                            test_split = (
+                                test_splits.iloc[i, :].dropna().values.astype(int)
+                            )
+                            train_split = (
+                                train_splits.iloc[i, :].dropna().values.astype(int)
+                            )
+                            value.append(
+                                concordance_index_censored(
+                                    event[test_split].astype(bool),
+                                    time[test_split],
+                                    lp_split,
+                                    1e-8,
+                                )[0]
+                            )
+                            try:
+                                value.append(
+                                    concordance_index_ipcw(
+                                        transform_survival(
+                                            event[train_split].astype(bool),
+                                            time[train_split],
+                                        ),
+                                        transform_survival(
+                                            event[test_split].astype(bool),
+                                            time[test_split],
+                                        ),
+                                        lp_split,
+                                        np.partition(
+                                            time[train_split][event[train_split]], -3
+                                        )[-3]
+                                        - 1e-8,
+                                        1e-8,
+                                    )[0]
+                                )
+                            except ValueError:
+                                value.append(0.5)
+                            model = model + [model_type for q in range(2)]
+                            pc = pc + [True for q in range(2)]
+                            metric = metric + ["Harrell's C", "Uno's C"]
+                            score = score + [score_function for q in range(2)]
+                            split = split + [i for q in range(2)]
+                            cancer_val = cancer_val + [cancer for q in range(2)]
+                            lambda_val = lambda_val + [lambda_type for q in range(2)]
+                            variables = variables + [
+                                n_variables_string for q in range(2)
+                            ]
+                            tuned = tuned + [False for q in range(2)]
+            for lambda_type in ["lambda.min", "lambda.1se"]:
                 for score_function in ["vvh"]:
                     for model_type in ["breslow"]:
                         lp = pd.read_csv(
@@ -161,7 +219,7 @@ with open(snakemake.log[0], "w") as f:
                             ]
                             tuned = tuned + [True for q in range(2)]
 
-            for lambda_type in ["lambda.min"]:
+            for lambda_type in ["lambda.min", "lambda.1se"]:
                 for score_function in ["vvh"]:
                     for model_type in ["breslow"]:
                         lp = pd.read_csv(
@@ -259,8 +317,49 @@ with open(snakemake.log[0], "w") as f:
                                 n_variables_string for q in range(2)
                             ]
                             tuned = tuned + [False for q in range(2)]
+            for lambda_type in ["1se"]:
+                if lambda_type == "min":
+                    model_list = ["cox_nnet", "breslow"]
+                else:
+                    model_list = ["breslow"]
+                for score_function in ["vvh"]:
+                    for model_type in model_list:
+                        for i in range(25):
 
-            for lambda_type in ["lambda.min"]:
+                            surv = pd.read_csv(
+                                f"results/kd/{model_type}/{cancer}/survival_function_{score_function}_{lambda_type}_{str(i+1)+n_variables}.csv"
+                            ).T
+                            surv.index = surv.index.astype(float)
+                            test_split = (
+                                test_splits.iloc[i, :].dropna().values.astype(int)
+                            )
+                            train_split = (
+                                train_splits.iloc[i, :].dropna().values.astype(int)
+                            )
+                            ev = EvalSurv(
+                                surv,
+                                time[test_split],
+                                event[test_split],
+                                censor_surv="km",
+                            )
+                            value.append(ev.concordance_td())
+                            time_grid = np.linspace(
+                                time[test_split].min(), time[test_split].max(), 100
+                            )
+                            value.append(ev.integrated_brier_score(time_grid))
+
+                            model = model + [model_type for q in range(2)]
+                            pc = pc + [True for q in range(2)]
+                            metric = metric + ["Antolini's C", "IBS"]
+                            score = score + [score_function for q in range(2)]
+                            split = split + [i for q in range(2)]
+                            cancer_val = cancer_val + [cancer for q in range(2)]
+                            lambda_val = lambda_val + [lambda_type for q in range(2)]
+                            variables = variables + [
+                                n_variables_string for q in range(2)
+                            ]
+                            tuned = tuned + [False for q in range(2)]
+            for lambda_type in ["lambda.min", "lambda.1se"]:
                 for score_function in ["vvh"]:
                     for model_type in ["breslow"]:
                         for i in range(25):
@@ -299,7 +398,7 @@ with open(snakemake.log[0], "w") as f:
                             ]
                             tuned = tuned + [True for q in range(2)]
 
-            for lambda_type in ["lambda.min"]:
+            for lambda_type in ["lambda.min", "lambda.1se"]:
                 for score_function in ["vvh"]:
                     for model_type in ["breslow"]:
                         for i in range(25):

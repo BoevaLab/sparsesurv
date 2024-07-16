@@ -16,7 +16,7 @@ with open(snakemake.log[0], "w") as f:
     from skorch.callbacks import EarlyStopping
     from sksurv.linear_model import CoxPHSurvivalAnalysis
     from sksurv.linear_model.coxph import BreslowEstimator
-    from sparsesurv.loss import breslow_negative_likelihood, efron_negative_likelihood
+    from sparsesurv.loss import breslow_negative_likelihood
     from sparsesurv.neuralsurv.python.model.model import SKORCH_MODULE_FACTORY
     from sparsesurv.neuralsurv.python.model.skorch_infra import FixSeed
     from sparsesurv.neuralsurv.python.utils.factories import (
@@ -35,12 +35,6 @@ with open(snakemake.log[0], "w") as f:
             breslow_negative_likelihood(
                 linear_predictor=np.squeeze(y_pred), time=time, event=event
             )
-        )
-
-    def efron_score_wrapper(y_true, y_pred):
-        time, event = inverse_transform_survival(y_true)
-        return np.negative(
-            efron_negative_likelihood(linear_predictor=y_pred, time=time, event=event)
         )
 
     with open(snakemake.params["config_path"]) as f:
@@ -63,7 +57,7 @@ with open(snakemake.log[0], "w") as f:
             ),
             param_grid={"pca__n_components": config["pc_n_components_tuned"]},
             n_jobs=config["n_jobs"],
-            scoring=make_scorer(efron_score_wrapper),
+            scoring=make_scorer(breslow_score_wrapper),
             cv=StratifiedSurvivalKFold(
                 n_splits=config["n_inner_cv"],
                 shuffle=config["shuffle_cv"],

@@ -47,7 +47,7 @@ makePaddedDataFrame <- function(l, ...) {
 
 for (tune_l1_ratio in c(TRUE)) {
   for (score in c("vvh")) {
-    for (cv_score in c("lambda.min")) {
+    for (cv_score in c("lambda.1se")) {
       n_failures <- 0
       failures <- list()
       sparsity <- list()
@@ -78,7 +78,7 @@ for (tune_l1_ratio in c(TRUE)) {
         ), check.names = FALSE)
 
 
-        for (split in 1:125) {
+        for (split in 1:25) {
           train_ix <- as.numeric(unname(train_splits[split, ]))
           train_ix <- train_ix[!is.na(train_ix)] + 1
 
@@ -114,7 +114,8 @@ for (tune_l1_ratio in c(TRUE)) {
                   nlambda = config$n_alphas,
                   nfolds = config$n_inner_cv,
                   grouped = score == "vvh",
-                  foldid = fold_ids
+                  foldid = fold_ids#,
+                  #outerParallel = {inner_cl <- parallel::makeForkCluster(7); parallel::clusterSetRNGStream(inner_cl, config$seed); inner_cl}
                 )
 
                 fit <- fit$modlist[[which((fit$alpha == get_alpha(fit)))]]
@@ -135,6 +136,7 @@ for (tune_l1_ratio in c(TRUE)) {
 
               if (cv_score %in% c("lambda.min", "lambda.1se")) {
                 n_sparsity <- nrow(extract.coef(fit, cv_score))
+                print(n_sparsity)
                 if (n_sparsity == 0) {
                   stop()
                 }
@@ -172,6 +174,7 @@ for (tune_l1_ratio in c(TRUE)) {
               list(sparsity = n_sparsity, linear_predictor = linear_predictor, surv = surv, failures = 0)
             },
             error = function(cond) {
+              print(cond)
               times <- sort(unique(y_test[, 1]))
               km <- exp(-survfit(y_test ~ 1)$cumhaz)
               km_surv <- matrix(rep(km, nrow(X_test)), nrow = nrow(X_test), byrow = TRUE)

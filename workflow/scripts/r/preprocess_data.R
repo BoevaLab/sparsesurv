@@ -149,10 +149,10 @@ prepare_clinical_data <- function(clinical_raw, clinical_ext_raw, cancer) {
 
 
 preprocess_data <- function(cancer,
-                            tcga_cdr_master,
-                            tcga_w_followup_master,
-                            gex_master,
-                            output_path) {
+                                       tcga_cdr_master,
+                                       tcga_w_followup_master,
+                                       gex_master,
+                                       output_path) {
   clinical <- prepare_clinical_data(tcga_cdr_master, tcga_w_followup_master, cancer = cancer)
   sample_barcodes <- list(clinical$patient_id)
   patients <- unname(unlist(sapply(clinical$patient_id, function(x) grep(x, colnames(gex_master)))))

@@ -16,10 +16,9 @@ with open(snakemake.log[0], "w") as f:
     from sklearn.preprocessing import StandardScaler
     from skorch.callbacks import EarlyStopping
     from sksurv.linear_model import CoxPHSurvivalAnalysis
-
     from sparsesurv._base import KDSurv
     from sparsesurv.cv import KDPHElasticNetCV
-    from sparsesurv.loss import breslow_negative_likelihood, efron_negative_likelihood
+    from sparsesurv.loss import breslow_negative_likelihood
     from sparsesurv.neuralsurv.python.model.model import SKORCH_MODULE_FACTORY
     from sparsesurv.neuralsurv.python.model.skorch_infra import FixSeed
     from sparsesurv.neuralsurv.python.utils.factories import (
@@ -43,14 +42,6 @@ with open(snakemake.log[0], "w") as f:
             )
         )
 
-    def efron_score_wrapper(y_true, y_pred):
-        time, event = inverse_transform_survival(y_true)
-        return np.negative(
-            efron_negative_likelihood(
-                linear_predictor=np.squeeze(y_pred), time=time, event=event
-            )
-        )
-
     np.random.seed(config["random_state"])
     g = np.random.default_rng(config.get("random_state"))
 
@@ -66,14 +57,17 @@ with open(snakemake.log[0], "w") as f:
                             estimator=make_pipeline(
                                 VarianceThreshold(),
                                 StandardScaler(),
-                                PCA(n_components=config["pc_n_components_tuned"], random_state=config["random_state"]),
+                                PCA(
+                                    n_components=config["pc_n_components_tuned"],
+                                    random_state=config["random_state"],
+                                ),
                                 CoxPHSurvivalAnalysis(ties=tie_correction),
                             ),
                             param_grid={
                                 "pca__n_components": config["pc_n_components_tuned"]
                             },
                             n_jobs=config["n_jobs"],
-                            scoring=make_scorer(efron_score_wrapper),
+                            scoring=make_scorer(breslow_score_wrapper),
                             cv=StratifiedSurvivalKFold(
                                 n_splits=config["n_inner_cv"],
                                 shuffle=config["shuffle_cv"],
@@ -92,7 +86,7 @@ with open(snakemake.log[0], "w") as f:
                                 n_alphas=config["n_alphas"],
                                 cv=config["n_inner_cv"],
                                 stratify_cv=config["stratify_cv"],
-                                seed=np.random.RandomState(config["random_state"]),
+                                seed=config["random_state"],
                                 shuffle_cv=config["shuffle_cv"],
                                 n_jobs=config["n_jobs"],
                                 cv_score_method=score,
@@ -284,7 +278,7 @@ with open(snakemake.log[0], "w") as f:
                                 n_alphas=config["n_alphas"],
                                 cv=config["n_inner_cv"],
                                 stratify_cv=config["stratify_cv"],
-                                seed=np.random.RandomState(config["random_state"]),
+                                seed=config["random_state"],
                                 shuffle_cv=config["shuffle_cv"],
                                 cv_score_method=score,
                                 n_jobs=config["n_jobs"],

@@ -17,9 +17,8 @@ with open(snakemake.log[0], "w") as f:
     from sklearn.preprocessing import StandardScaler
     from skorch.callbacks import EarlyStopping
     from sksurv.linear_model import CoxPHSurvivalAnalysis
-
     from sparsesurv.cv import KDPHElasticNetCV
-    from sparsesurv.loss import breslow_negative_likelihood, efron_negative_likelihood
+    from sparsesurv.loss import breslow_negative_likelihood
     from sparsesurv.neuralsurv.python.model.model import SKORCH_MODULE_FACTORY
     from sparsesurv.neuralsurv.python.model.skorch_infra import FixSeed
     from sparsesurv.neuralsurv.python.utils.factories import (
@@ -43,13 +42,7 @@ with open(snakemake.log[0], "w") as f:
             )
         )
 
-    def efron_score_wrapper(y_true, y_pred):
-        time, event = inverse_transform_survival(y_true)
-        return np.negative(
-            efron_negative_likelihood(linear_predictor=y_pred, time=time, event=event)
-        )
-
-    SCORE_FACTORY = {"breslow": breslow_score_wrapper, "efron": efron_score_wrapper}
+    SCORE_FACTORY = {"breslow": breslow_score_wrapper}
 
     np.random.seed(config["random_state"])
     g = np.random.default_rng(config.get("random_state"))
@@ -117,8 +110,8 @@ with open(snakemake.log[0], "w") as f:
                         sparsity[split] = []
                     sparsity[split].append(np.sum(path_coef != 0.0))
                     helper = KDPHElasticNetCV(
-                        tie_correction="efron",
-                        seed=np.random.RandomState(config["random_state"]),
+                        tie_correction=tie_correction,
+                        seed=config["random_state"],
                     )
                     helper.coef_ = path_coef
                     ix_sort = np.argsort(y_train["time"])
@@ -231,7 +224,7 @@ with open(snakemake.log[0], "w") as f:
                 sparsity[split].append(np.sum(path_coef != 0.0))
                 helper = KDPHElasticNetCV(
                     tie_correction="breslow",
-                    seed=np.random.RandomState(config["random_state"]),
+                    seed=config["random_state"],
                 )
                 helper.coef_ = path_coef
                 ix_sort = np.argsort(y_train["time"])

@@ -98,7 +98,7 @@ cancer_ordering <- timing %>%
   arrange(desc(`mean`)) %>%
   pull(cancer)
 
-metrics <- vroom::vroom(paste("results", "metrics", "metrics_overall.csv", sep = "/"))
+metrics <- vroom::vroom(paste("results", "metrics", "metrics_overall.csv", sep="/"))
 
 metrics %>%
   filter(score %in% c("path")) %>%
@@ -142,7 +142,7 @@ p <- ggplot(mtcars, aes(x = wt, y = mpg)) +
 teacher_legend <- p + geom_hline(aes(lty = "Cox-Nnet teacher teacher", yintercept = 20), linewidth = 1, color = "red", show_guide = TRUE) + scale_linetype_manual(name = "", values = 2) + theme_big_simple() + guides(color = guide_legend(override.aes = list(linetype = c("dashed")))) + theme(legend.key.width = unit(2, "cm"))
 
 
-metrics <- vroom::vroom(paste("results", "metrics", "metrics_overall.csv", sep = "/"))
+metrics <- vroom::vroom(paste("results", "metrics", "metrics_overall.csv", sep="/"))
 
 metrics %>%
   filter(score %in% c("path")) %>%
@@ -199,5 +199,7 @@ reg_path <- plot_grid(
   label_size = 24
 )
 
-ggsave(paste("results", "figures", "fig-S2_finalized.pdf", sep = "/"), plot = reg_path, dpi = 300, height = 20 / 1.75, width = 15, units = "in")
-ggsave(paste("results", "figures", "fig-S2_finalized.svg", sep = "/"), plot = reg_path, dpi = 300, height = 20 / 1.75, width = 15, units = "in")
+ggsave(paste("results", "figures", "fig-S2_finalized.pdf", sep="/"), plot = reg_path, dpi = 300, height = 20 / 1.75, width = 15, units = "in")
+ggsave(paste("results", "figures", "fig-S2_finalized.tiff", sep="/"), plot = reg_path, dpi = 300, height = 20 / 1.75, width = 15, units = "in")
+ggsave(paste("results", "figures", "fig-S2_finalized.eps", sep="/"), plot = reg_path, dpi = 300, height = 20 / 1.75, width = 15, units = "in")
+ggsave(paste("results", "figures", "fig-S2_finalized.svg", sep="/"), plot = reg_path, dpi = 300, height = 20 / 1.75, width = 15, units = "in")

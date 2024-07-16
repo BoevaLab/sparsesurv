@@ -11,8 +11,6 @@ suppressPackageStartupMessages({
   library(dplyr)
   library(splitTools)
   library(glmnetUtils)
-  library(parallel)
-  library(doParallel)
 })
 
 glmnet::glmnet.control(
@@ -35,6 +33,7 @@ get_alpha <- function(fit) {
 
 set.seed(config$seed)
 
+
 # https://stackoverflow.com/questions/7196450/create-a-dataframe-of-unequal-lengths
 na.pad <- function(x, len) {
   x[1:len]
@@ -45,14 +44,14 @@ makePaddedDataFrame <- function(l, ...) {
   data.frame(lapply(l, na.pad, len = maxlen), ...)
 }
 
-for (tune_l1_ratio in c(TRUE)) {
+for (tune_l1_ratio in c(FALSE)) {
   for (score in c("vvh")) {
-    for (cv_score in c("lambda.min")) {
+    for (cv_score in c("lambda.1se")) {
       n_failures <- 0
       failures <- list()
       sparsity <- list()
 
-      for (cancer in snakemake@params[["cancer"]]) {
+      for (cancer in config$datasets) {
         result_sparsity <- c()
         lp_df <- list()
         data <- data.frame(vroom::vroom(
@@ -78,7 +77,7 @@ for (tune_l1_ratio in c(TRUE)) {
         ), check.names = FALSE)
 
 
-        for (split in 1:125) {
+        for (split in 1:25) {
           train_ix <- as.numeric(unname(train_splits[split, ]))
           train_ix <- train_ix[!is.na(train_ix)] + 1
 
@@ -135,6 +134,7 @@ for (tune_l1_ratio in c(TRUE)) {
 
               if (cv_score %in% c("lambda.min", "lambda.1se")) {
                 n_sparsity <- nrow(extract.coef(fit, cv_score))
+                print(n_sparsity)
                 if (n_sparsity == 0) {
                   stop()
                 }
@@ -172,6 +172,7 @@ for (tune_l1_ratio in c(TRUE)) {
               list(sparsity = n_sparsity, linear_predictor = linear_predictor, surv = surv, failures = 0)
             },
             error = function(cond) {
+              print(cond)
               times <- sort(unique(y_test[, 1]))
               km <- exp(-survfit(y_test ~ 1)$cumhaz)
               km_surv <- matrix(rep(km, nrow(X_test)), nrow = nrow(X_test), byrow = TRUE)
@@ -225,14 +226,14 @@ for (tune_l1_ratio in c(TRUE)) {
       if (tune_l1_ratio) {
         data.frame(failures) %>% write_csv(
           paste(
-            "results", "non_kd", "breslow", cancer, paste0("failures_tuned_l1_ratio_", score, "_", cv_score, ".csv"),
+            "results", "non_kd", "breslow", paste0("failures_tuned_l1_ratio_", score, "_", cv_score, ".csv"),
             sep = "/"
           )
         )
 
         data.frame(sparsity) %>% write_csv(
           paste(
-            "results", "non_kd", "breslow", cancer, paste0("sparsity_tuned_l1_ratio_", score, "_", cv_score, ".csv"),
+            "results", "non_kd", "breslow", paste0("sparsity_tuned_l1_ratio_", score, "_", cv_score, ".csv"),
             sep = "/"
           )
         )

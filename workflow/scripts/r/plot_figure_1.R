@@ -408,22 +408,25 @@ sparsity <- data.frame(
       )[1:25, ]))
     ),
     sapply(c(
-      "BLCA",
-      "BRCA",
-      "HNSC",
-      "KIRC",
-      "LGG",
-      "LIHC",
-      "LUAD",
-      "LUSC",
-      "OV",
-      "STAD"
-    ), function(cancer) {
+              "BLCA",
+            "BRCA",
+            "HNSC",
+            "KIRC",
+            "LGG",
+            "LIHC",
+            "LUAD",
+            "LUSC",
+            "OV",
+            "STAD"
+    ), function(cancer)  {
       unname(unlist(vroom::vroom(paste(
-        "results", "non_kd", "breslow", cancer, "sparsity_tuned_l1_ratio_vvh_lambda.min.csv",
-        sep = "/"
-      ), delim = ",")[, 1]))[1:25]
-    }),
+            "results", "non_kd", "breslow", cancer, "sparsity_tuned_l1_ratio_vvh_lambda.min.csv",
+            sep = "/"
+          ), delim = ",")[, 1]))[1:25]
+
+    }
+
+    ),
     unlist(as.vector(vroom::vroom(
       paste(
         "results", "kd", "breslow", "sparsity_linear_predictor_min.csv",
@@ -589,4 +592,7 @@ panels <- plot_grid(
 )
 
 ggsave(paste("results", "figures", "fig-1_finalized.png", sep = "/"), plot = panels, dpi = 300, height = 20, width = 15, units = "in")
+ggsave(paste("results", "figures", "fig-1_finalized.pdf", sep = "/"), plot = panels, dpi = 300, height = 20, width = 15, units = "in")
+ggsave(paste("results", "figures", "fig-1_finalized.tiff", sep = "/"), plot = panels, dpi = 300, height = 20, width = 15, units = "in")
+ggsave(paste("results", "figures", "fig-1_finalized.eps", sep = "/"), plot = panels, dpi = 300, height = 20, width = 15, units = "in")
 ggsave(paste("results", "figures", "fig-1_finalized.svg", sep = "/"), plot = panels, dpi = 300, height = 20, width = 15, units = "in")

@@ -15,18 +15,44 @@ datasets = config["datasets"]
 
 rule all:
     input:
-        "results/figures/fig-1_finalized.svg",
+        expand("results/preprocess_data/{cancer}.csv", cancer=datasets),
+        "results/non_kd/breslow/timing.csv",
+        "results/non_kd/breslow/BRCA/path/sparsity.csv",
+        expand(
+            "results/non_kd/breslow/{cancer}/sparsity_tuned_l1_ratio_vvh_lambda.min.csv",
+            cancer=config["datasets"],
+        ),
+        "results/non_kd/breslow/sparsity_vvh_lambda.min.csv",
+        "results/kd/cox_nnet/timing.csv",
+        "results/metrics/metrics_overall.csv",
+        "results/metrics/metrics_overall_teachers.csv",
+        "results/metrics/metrics_overall_cved.csv",
         "results/figures/fig-1_finalized.png",
-        "results/figures/fig-S1_finalized.svg",
         "results/figures/fig-S1_finalized.pdf",
-        "results/figures/fig-S2_finalized.svg",
         "results/figures/fig-S2_finalized.pdf",
-        "results/figures/fig-S3_finalized.svg",
         "results/figures/fig-S3_finalized.pdf",
+        "results/figures/fig-S4_finalized.pdf",
         "results/tables/table_S1.csv",
         "results/tables/table_S2.csv",
         "results/tables/table_S3.csv",
         "results/tables/table_S4.csv",
+        "results/metrics/metrics_overall_125_full.csv",
+        "results/kd/cox_nnet/BRCA/eta_teacher.csv",
+        "results/kd/breslow/BRCA/eta_teacher.csv",
+        expand("results/kd/cox_nnet/{cancer}/path/sparsity.csv", cancer=datasets),
+        expand("results/kd/breslow/{cancer}/path/sparsity.csv", cancer=datasets),
+        expand(
+            "results/kd/cox_nnet/{cancer}/eta_linear_predictor_min.csv",
+            cancer=datasets,
+        ),
+        expand(
+            "results/kd/breslow/{cancer}/eta_linear_predictor_min.csv",
+            cancer=datasets,
+        ),
+        expand(
+            "results/kd/breslow/{cancer}/eta_vvh_1se.csv",
+            cancer=datasets,
+        ),
 
 
 rule download_data:
@@ -143,6 +169,28 @@ rule run_glmnet:
         "scripts/r/run_glmnet.R"
 
 
+rule run_glmnet_1se:
+    input:
+        data_path=expand("results/preprocess_data/{cancer}.csv", cancer=datasets),
+        train_splits_output_path=expand(
+            "results/make_splits/{cancer}_train_splits.csv", cancer=datasets
+        ),
+        test_splits_output_path=expand(
+            "results/make_splits/{cancer}_test_splits.csv", cancer=datasets
+        ),
+    output:
+        "results/non_kd/breslow/sparsity_vvh_lambda.1se.csv",
+    params:
+        config_path=config["config_path"],
+    threads: 1
+    log:
+        "logs/run_glmnet_1se/log.out",
+    conda:
+        "envs/glmnet.yaml"
+    script:
+        "scripts/r/run_glmnet_1se.R"
+
+
 rule run_glmnet_tuned:
     input:
         data_path="results/preprocess_data/{cancer}.csv",
@@ -160,6 +208,25 @@ rule run_glmnet_tuned:
         "envs/glmnet.yaml"
     script:
         "scripts/r/run_glmnet_tuned.R"
+
+
+rule run_glmnet_tuned_1se:
+    input:
+        data_path="results/preprocess_data/{cancer}.csv",
+        train_splits_output_path="results/make_splits/{cancer}_train_splits.csv",
+        test_splits_output_path="results/make_splits/{cancer}_test_splits.csv",
+    output:
+        "results/non_kd/breslow/{cancer}/sparsity_tuned_l1_ratio_vvh_lambda.1se.csv",
+    params:
+        config_path=config["config_path"],
+        cancer="{cancer}",
+    threads: 1
+    log:
+        "logs/run_glmnet_tuned_1se/{cancer}/log.out",
+    conda:
+        "envs/glmnet.yaml"
+    script:
+        "scripts/r/run_glmnet_tuned_1se.R"
 
 
 rule time_sparsesurv:
@@ -258,6 +325,31 @@ rule run_sparsesurv:
         "scripts/py/run_sparsesurv.py"
 
 
+rule run_sparsesurv_1se:
+    input:
+        data_path=expand("results/preprocess_data/{cancer}.csv", cancer=datasets),
+        train_splits_output_path=expand(
+            "results/make_splits/{cancer}_train_splits.csv", cancer=datasets
+        ),
+        test_splits_output_path=expand(
+            "results/make_splits/{cancer}_test_splits.csv", cancer=datasets
+        ),
+    output:
+        expand(
+            "results/kd/breslow/{cancer}/eta_vvh_1se.csv",
+            cancer=datasets,
+        ),
+    params:
+        config_path=config["config_path"],
+    threads: 12
+    log:
+        "logs/run_sparsesurv_1se/log.out",
+    conda:
+        "envs/sparsesurv.yaml"
+    script:
+        "scripts/py/run_sparsesurv_1se.py"
+
+
 rule make_metrics_teachers:
     input:
         expand("results/kd/cox_nnet/{cancer}/eta_teacher.csv", cancer=datasets),
@@ -345,6 +437,11 @@ rule make_metrics:
             "results/non_kd/breslow/sparsity_vvh_lambda.min.csv",
             cancer=datasets,
         ),
+        expand(
+            "results/kd/breslow/{cancer}/eta_vvh_1se.csv",
+            cancer=datasets,
+        ),
+        "results/kd/cox_nnet/timing.csv",
     output:
         "results/metrics/metrics_overall.csv",
     params:
@@ -444,7 +541,6 @@ rule plot_figure_1:
         "results/metrics/metrics_overall_125_full.csv",
         "results/metrics/metrics_overall_teachers.csv",
     output:
-        "results/figures/fig-1_finalized.svg",
         "results/figures/fig-1_finalized.png",
     params:
         config_path=config["config_path"],
@@ -464,7 +560,6 @@ rule plot_figure_S1:
         "results/metrics/metrics_overall_125_full.csv",
         "results/metrics/metrics_overall_teachers.csv",
     output:
-        "results/figures/fig-S1_finalized.svg",
         "results/figures/fig-S1_finalized.pdf",
     params:
         config_path=config["config_path"],
@@ -484,7 +579,6 @@ rule plot_figure_S2:
         "results/metrics/metrics_overall_125_full.csv",
         "results/metrics/metrics_overall_teachers.csv",
     output:
-        "results/figures/fig-S2_finalized.svg",
         "results/figures/fig-S2_finalized.pdf",
     params:
         config_path=config["config_path"],
@@ -504,7 +598,6 @@ rule plot_figure_S3:
         "results/metrics/metrics_overall_125_full.csv",
         "results/metrics/metrics_overall_teachers.csv",
     output:
-        "results/figures/fig-S3_finalized.svg",
         "results/figures/fig-S3_finalized.pdf",
     params:
         config_path=config["config_path"],
@@ -515,3 +608,22 @@ rule plot_figure_S3:
         "envs/plots_and_tables.yaml"
     script:
         "scripts/r/plot_figure_S3.R"
+
+
+rule plot_figure_S4:
+    input:
+        "results/metrics/metrics_overall.csv",
+        "results/metrics/metrics_overall_cved.csv",
+        "results/metrics/metrics_overall_125_full.csv",
+        "results/metrics/metrics_overall_teachers.csv",
+    output:
+        "results/figures/fig-S4_finalized.pdf",
+    params:
+        config_path=config["config_path"],
+    threads: 1
+    log:
+        "logs/plot_figure_S4/log.out",
+    conda:
+        "envs/plots_and_tables.yaml"
+    script:
+        "scripts/r/plot_figure_S4.R"

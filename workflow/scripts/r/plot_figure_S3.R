@@ -55,9 +55,9 @@ friendly_pals <- list(
   retro_four = c("#601A4A", "#EE442F", "#63ACBE", "#F9F4EC")
 )
 
-metrics <- vroom::vroom(paste("results", "metrics", "metrics_overall.csv", sep = "/"))
-metrics_125 <- vroom::vroom(paste("results", "metrics", "metrics_overall_125_full.csv", sep = "/"))
-metrics_stratified <- vroom::vroom(paste("results", "metrics", "metrics_overall_cved.csv", sep = "/"))
+metrics <- vroom::vroom(paste("results", "metrics", "metrics_overall.csv", sep="/"))
+metrics_125 <- vroom::vroom(paste("results", "metrics", "metrics_overall_125_full.csv", sep="/"))
+metrics_stratified <- vroom::vroom(paste("results", "metrics", "metrics_overall_cved.csv", sep="/"))
 
 metrics <- rbind(
   cbind(metrics %>% filter(model == "breslow" & lambda %in% c("lambda.min", "min")),
@@ -118,5 +118,7 @@ cv_fig <- cowplot::plot_grid(a, b,
   label_size = 24
 )
 
-ggsave(paste("results", "figures", "fig-S3_finalized.pdf", sep = "/"), plot = cv_fig, dpi = 300, height = 20 / 1.5, width = 15, units = "in")
-ggsave(paste("results", "figures", "fig-S3_finalized.svg", sep = "/"), plot = cv_fig, dpi = 300, height = 20 / 1.5, width = 15, units = "in")
+ggsave(paste("results", "figures", "fig-S3_finalized.pdf", sep="/"), plot = cv_fig, dpi = 300, height = 20 / 1.5, width = 15, units = "in")
+ggsave(paste("results", "figures", "fig-S3_finalized.tiff", sep="/"), plot = cv_fig, dpi = 300, height = 20 / 1.5, width = 15, units = "in")
+ggsave(paste("results", "figures", "fig-S3_finalized.eps", sep="/"), plot = cv_fig, dpi = 300, height = 20 / 1.5, width = 15, units = "in")
+ggsave(paste("results", "figures", "fig-S3_finalized.svg", sep="/"), plot = cv_fig, dpi = 300, height = 20 / 1.5, width = 15, units = "in")

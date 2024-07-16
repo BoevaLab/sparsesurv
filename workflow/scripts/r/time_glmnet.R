@@ -40,7 +40,7 @@ for (tune_l1_ratio in c(TRUE, FALSE)) {
   for (cancer in c(config$datasets)) {
     timing[[cancer]] <- c()
     data <- data.frame(vroom::vroom(
-      paste("results/preprocess_data/", paste0(cancer, ".csv"), sep = "/")
+      paste("results/preprocess_data/", paste0(cancer, ".csv"), sep="/")
     )[, -1], check.names = FALSE)
     x <- as.matrix(data[, -(1:2)])
     y <- Surv(data$OS_days, data$OS)
