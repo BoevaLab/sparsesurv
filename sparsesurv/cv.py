@@ -550,19 +550,30 @@ class BaseKDSurv(SurvivalMixin, celer.ElasticNetCV):
                 sparsity_best_alpha = np.array(n_coefs)[i_best_alpha]
                 pl_best_alpha = pl_alphas[i_best_alpha]
                 pl_alpha_max = pl_alphas[0]
-                transformed_range = np.arange(i_best_alpha)
-                transformed_pl_alphas = pl_alphas[transformed_range] - (
-                    ((pl_best_alpha - pl_alpha_max) / sparsity_best_alpha)
-                    * n_coefs[transformed_range]
-                )
-                transformed_i_best_alpha = np.argmax(transformed_pl_alphas)
-                this_best_pl_transformed = transformed_pl_alphas[
-                    transformed_i_best_alpha
-                ]
-                if this_best_pl_transformed > best_pl_score:
-                    best_alpha = l1_alphas[transformed_i_best_alpha]
-                    best_l1_ratio = l1_ratio
-                    best_pl_score = this_best_pl_transformed
+                if i_best_alpha > 0:
+                    transformed_range = np.arange(i_best_alpha)
+                    transformed_pl_alphas = pl_alphas[transformed_range] - (
+                        ((pl_best_alpha - pl_alpha_max) / sparsity_best_alpha)
+                        * n_coefs[transformed_range]
+                    )
+                    transformed_i_best_alpha = np.argmax(transformed_pl_alphas)
+                    this_best_pl_transformed = transformed_pl_alphas[
+                        transformed_i_best_alpha
+                    ]
+                    if this_best_pl_transformed > best_pl_score:
+                        best_alpha = l1_alphas[transformed_i_best_alpha]
+                        best_l1_ratio = l1_ratio
+                        best_pl_score = this_best_pl_transformed
+                else:
+                    if pl_best_alpha > best_pl_score:
+                        best_alpha = l1_alphas[i_best_alpha]
+                        best_l1_ratio = l1_ratio
+                        best_pl_score = pl_best_alpha
+        
+        elif self.alpha_type is None:
+            best_alpha = 0
+            best_l1_ratio = 0
+
         else:
             raise ValueError
 
